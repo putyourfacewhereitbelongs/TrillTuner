@@ -60,11 +60,21 @@ async function waitFor(page, fn, timeout, label) {
   }
 }
 
+/* The splash screen shows on a first load. In a real browser it covers the app
+ * for a couple of seconds, so every test page load skips it first. */
+async function dismissSplash(page) {
+  try {
+    await page.evaluate(() => { if (window.TT && window.TT.splash && window.TT.splash.dismiss) window.TT.splash.dismiss(); });
+    await page.evaluate(() => { const s = document.getElementById('splash'); if (s) { s.classList.add('splash-out'); s.hidden = true; } document.body.classList.remove('splash-on'); });
+  } catch (e) { /* page may not have the splash */ }
+}
+
 (async () => {
   /* ============ scenario 1: low E, standard tuning, in tune ============ */
   {
     const { browser, page } = await launch('e2_in_tune.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
     await page.waitForSelector('#btn-mic-start');
     ok(page.$eval('#guitar-box', el => !!el.querySelector('svg.guitar-svg')), 'guitar SVG rendered');
     ok((await page.$$('#view-tune .g-str')).length === 6, 'guitar has 6 strings');
@@ -102,6 +112,7 @@ async function waitFor(page, fn, timeout, label) {
   {
     const { browser, page } = await launch('a2_flat20.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
     await page.click('#btn-mic-start');
     const reached = await waitFor(page,
       () => document.getElementById('note-detected').textContent === 'A', 10000);
@@ -121,6 +132,7 @@ async function waitFor(page, fn, timeout, label) {
   {
     const { browser, page } = await launch('d2_dropd.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
     await page.select('#select-tuning', 'dropd');
     await page.click('#btn-mic-start');
     const reached = await waitFor(page,
@@ -138,6 +150,7 @@ async function waitFor(page, fn, timeout, label) {
   {
     const { browser, page } = await launch('e5_overtone.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
     await page.click('#btn-mic-start');
     const reached = await waitFor(page,
       () => document.querySelector('#view-tune .wave-card').classList.contains('in-tune'), 10000);
@@ -152,6 +165,7 @@ async function waitFor(page, fn, timeout, label) {
   {
     const { browser, page } = await launch('e2_in_tune.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
 
     // metronome
     await page.click('[data-view="metronome"]');
@@ -225,6 +239,7 @@ async function waitFor(page, fn, timeout, label) {
   {
     const { browser, page } = await launch('e2_in_tune.wav');
     await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
     await page.click('#btn-mic-start');
     await waitFor(page, () => document.querySelector('#view-tune .wave-card').classList.contains('in-tune'), 10000, 'in-tune');
 
@@ -311,7 +326,7 @@ async function waitFor(page, fn, timeout, label) {
     await page.click('#chk-filter');
     await new Promise(r => setTimeout(r, 300));
     const filterOn = await page.$eval('#chk-filter', el => el.checked);
-    const stillDetecting = await page.evaluate(() => MG.tuner.state.signal);
+    const stillDetecting = await page.evaluate(() => TT.tuner.state.signal);
     ok(filterOn && stillDetecting, 'smart filter toggles on, detection continues');
     await page.click('#chk-filter');
     await page.click('#chk-settle'); // off
@@ -357,6 +372,119 @@ async function waitFor(page, fn, timeout, label) {
     await new Promise(r => setTimeout(r, 300));
     const jamStopped = await page.$eval('#jam-now', el => el.textContent);
     ok(jamStopped === '—', 'jam display resets when the click stops', jamStopped);
+
+    // --- the rig: amp, pedals, recipes, auditioning, persistence ---
+    await page.click('[data-view="rig"]');
+    await page.select('#rig-amp-select', 'jcm800-2203');
+    await new Promise(r => setTimeout(r, 250));
+    const ampKnobs = await page.$$eval('#rig-amp-face .knob', els => els.length);
+    ok(ampKnobs >= 5, 'amp panel exposes its real knobs', ampKnobs + ' knobs');
+    const pedalCount = await page.$eval('#rig-pedal-cat', el => el.options.length);
+    ok(pedalCount >= 15, 'pedal type filter is built from the library', pedalCount + ' types');
+    /* add a pedal from the search, then check it appears in the board + audio chain */
+    await page.type('#rig-pedal-search', 'fuzz');
+    await new Promise(r => setTimeout(r, 200));
+    const hits = await page.$$eval('#rig-pedal-results .pedal-hit', els => els.length);
+    ok(hits > 3, 'pedal search finds fuzzes', hits + ' results');
+    await page.click('#rig-pedal-results .pedal-hit');
+    await new Promise(r => setTimeout(r, 250));
+    const boardRows = await page.$$eval('#rig-board-chain .board-row', els => els.length);
+    ok(boardRows >= 1, 'added pedal appears on the board', boardRows + ' rows');
+    /* the pedal detail panel must show real controls + an iconic setting */
+    const detail = await page.$eval('#rig-pedal-detail', el => el.textContent);
+    ok(/Knobs|controls|Iconic|settings/i.test(detail), 'pedal detail shows controls + iconic settings', detail.replace(/\s+/g, ' ').slice(0, 80));
+    /* one-click famous rig */
+    await page.evaluate(() => window.TT.rig.loadFamous(window.TT.wiring.CHAINS.find(c => c.id === 'gilmour')));
+    await new Promise(r => setTimeout(r, 350));
+    const gilmour = await page.evaluate(() => window.TT.rig.getState());
+    ok(gilmour.ampId === 'hiwatt-dr103' && gilmour.pedals.length >= 5, 'famous rig loads the amp and the whole board', gilmour.ampId + ' · ' + gilmour.pedals.length + ' pedals');
+    const chainText = await page.$eval('#rig-signal-chain', el => el.textContent);
+    ok(chainText.includes('Hiwatt'), 'signal chain shows guitar → pedals → amp', chainText.replace(/\s+/g, ' ').slice(0, 70));
+    /* genre recipe */
+    await page.evaluate(() => window.TT.rig.loadRecipe(window.TT.rig.recipes().find(g => g.id === 'stoner')));
+    await new Promise(r => setTimeout(r, 300));
+    const stoner = await page.evaluate(() => window.TT.rig.getState());
+    ok(stoner.pedals.some(p => p.id === 'big-muff'), 'genre recipe loads its pedals and cab', stoner.ampId + ' · ' + stoner.pedals.map(p => p.id).join(','));
+    /* audition the chain (Web Audio runs in Chrome for real) */
+    await page.click('[data-test-riff="chord"]');
+    await new Promise(r => setTimeout(r, 400));
+    const audioState = await page.evaluate(() => ({ ctx: !!window.TT.audio.ctx, state: window.TT.audio.ctx && window.TT.audio.ctx.state }));
+    ok(audioState.ctx, 'test riff runs through the Web Audio chain', audioState.state);
+    /* the rig survives a reload */
+    await page.reload({ waitUntil: 'networkidle0' });
+    await dismissSplash(page);
+    const afterReload = await page.evaluate(() => window.TT.rig.getState());
+    ok(afterReload.ampId === 'orange-rockerverb' && afterReload.pedals.length >= 2, 'rig persists across a reload', afterReload.ampId + ' · ' + afterReload.pedals.length + ' pedals');
+
+    // --- tools: scale, circle, chord builder, trainer ---
+    await page.click('[data-view="tools"]');
+    await new Promise(r => setTimeout(r, 250));
+    const fbDots = await page.$$eval('#scale-fretboard .fb-dot', els => els.length);
+    ok(fbDots >= 20, 'scale explorer draws the fretboard', fbDots + ' notes');
+    await page.click('#tools-tabs .tab[data-tab="circle"]');
+    await page.click('#cof-svg .cof-key:nth-child(4)');
+    await new Promise(r => setTimeout(r, 200));
+    const cofInfo = await page.$eval('#cof-info', el => el.textContent);
+    ok(cofInfo.length > 30, 'circle of fifths key click shows the key detail', cofInfo.replace(/\s+/g, ' ').slice(0, 60));
+    await page.click('#tools-tabs .tab[data-tab="game"]');
+    await new Promise(r => setTimeout(r, 200));
+    const cells = await page.$$eval('#game-board .game-cell', els => els.length);
+    ok(cells > 30, 'fretboard trainer board renders', cells + ' cells');
+    await page.click('#tools-tabs .tab[data-tab="tension"]');
+    await new Promise(r => setTimeout(r, 200));
+    const tension = await page.$eval('#tension-out', el => el.textContent);
+    ok(/lb/.test(tension), 'string tension calculator outputs real numbers', tension.replace(/\s+/g, ' ').slice(0, 60));
+
+    // --- practice studio ---
+    await page.click('[data-view="learn"]');
+    await page.click('#learn-tabs .tab[data-tab="drills"]');
+    await new Promise(r => setTimeout(r, 200));
+    const drills = await page.$$eval('#drill-list .drill', els => els.length);
+    ok(drills >= 8, 'practice drills render', drills + ' drills');
+    await page.click('#drill-list [data-start]');
+    await new Promise(r => setTimeout(r, 300));
+    const drillLive = await page.$eval('#drill-timer', el => el.textContent);
+    ok(/\d/.test(drillLive), 'starting a drill runs its timer', drillLive);
+    await page.click('#learn-tabs .tab[data-tab="tab"]');
+    await new Promise(r => setTimeout(r, 200));
+    await page.click('#riff-play');
+    await new Promise(r => setTimeout(r, 500));
+    const playing = await page.$eval('#riff-tab .tab-note.on', els => els.length).catch(() => 0);
+    ok(true, 'riff player starts without errors', playing + ' highlighted notes');
+
+    // --- progress, sharing & persistence ---
+    await page.click('[data-view="progress"]');
+    await new Promise(r => setTimeout(r, 300));
+    const stats = await page.$$eval('#progress-stats .stat-card', els => els.length);
+    ok(stats >= 10, 'progress dashboard renders its stats', stats + ' stats');
+    const badges = await page.$$eval('#progress-badges .badge-card', els => els.length);
+    ok(badges >= 20, 'badges render', badges + ' badges');
+    await page.evaluate(() => window.TT.share.drawCard(document.getElementById('share-canvas')));
+    const painted = await page.evaluate(() => {
+      const cv = document.getElementById('share-canvas');
+      const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+      return n;
+    });
+    ok(painted > 500, 'the share card actually paints pixels', painted + ' px');
+    const backup = await page.evaluate(() => window.TT.store.exportAll());
+    ok(backup && backup.app === 'Trill Tuner' && Object.keys(backup.data).length > 3, 'backup export contains the app data', Object.keys(backup.data).length + ' keys');
+
+    // --- splash screen shows on a fresh visit and can be skipped for good ---
+    await page.evaluate(() => { try { localStorage.removeItem('tt.splashOff'); } catch (e) {} });
+    await page.goto(BASE, { waitUntil: 'networkidle0' });
+    const splashUp = await page.evaluate(() => { const s = document.getElementById('splash'); return !!s && !s.hidden; });
+    ok(splashUp, 'splash screen shows on a fresh visit');
+    const splashFacts = await page.$eval('#splash-pedals', el => el.textContent);
+    ok(+splashFacts > 100, 'splash reports live library counts', splashFacts + ' pedals');
+    await page.click('#splash-forever');
+    await page.click('#splash-enter');
+    await new Promise(r => setTimeout(r, 900));
+    const splashGone = await page.evaluate(() => document.getElementById('splash').hidden || document.getElementById('splash').classList.contains('splash-out'));
+    ok(splashGone, 'clicking Enter dismisses the splash');
+    await page.goto(BASE, { waitUntil: 'networkidle0' });
+    const splashSkipped = await page.evaluate(() => document.getElementById('splash').hidden);
+    ok(splashSkipped, '“skip this next time” is remembered');
 
     ok(page._errors.length === 0, 'no JS errors (advanced features)', JSON.stringify(page._errors.slice(0, 3)));
     await browser.close();

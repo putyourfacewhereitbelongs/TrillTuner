@@ -1,8 +1,8 @@
-/* My Guitar — Learning tools: structured lessons (beginner → advanced),
+/* Trill Tuner — Learning tools: structured lessons (beginner → advanced),
  * playable chord library, ear-training game, practice tracker. */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
   const STD_MIDI = [40, 45, 50, 55, 59, 64]; // E2 A2 D3 G3 B3 E4
 
   /* ===================== practice tracker ===================== */
@@ -12,15 +12,15 @@
     P._acc += secs;
     if (P._acc >= 30) { // commit at most ~ every 30s of practice
       const mins = Math.max(1, Math.round(P._acc / 60));
-      const days = MG.store.get('practice', {});
+      const days = TT.store.get('practice', {});
       days[todayKey()] = (days[todayKey()] || 0) + mins;
-      MG.store.set('practice', days);
+      TT.store.set('practice', days);
       P._acc = 0;
       renderPractice();
     }
   };
   function renderPractice() {
-    const days = MG.store.get('practice', {});
+    const days = TT.store.get('practice', {});
     const today = days[todayKey()] || 0;
     let week = 0;
     for (let i = 0; i < 7; i++) {
@@ -98,10 +98,10 @@
   }
 
   function playChord(ch) {
-    MG.audio.ensure();
+    TT.audio.ensure();
     const freqs = [];
     ch.frets.forEach((f, i) => { if (f >= 0) freqs.push(N.midiToFreq(STD_MIDI[i] + f)); });
-    MG.audio.strum(freqs, 22, 0.75);
+    TT.audio.strum(freqs, 22, 0.75);
   }
 
   function renderChords(filter) {
@@ -243,16 +243,16 @@
       b.className = 'btn';
       b.textContent = '⏱ Practice at ' + w.bpm + ' BPM';
       b.addEventListener('click', () => {
-        MG.app.showView('metronome');
-        MG.metronome.launch(w.bpm);
-        MG.app.assist('Metronome set to ' + w.bpm + ' BPM and started for your practice.');
+        TT.app.showView('metronome');
+        TT.metronome.launch(w.bpm);
+        TT.app.assist('Metronome set to ' + w.bpm + ' BPM and started for your practice.');
       });
       wrap.appendChild(b);
     } else if (w.type === 'link') {
       const b = document.createElement('button');
       b.className = 'btn';
       b.textContent = w.label;
-      b.addEventListener('click', () => MG.app.showView(w.view));
+      b.addEventListener('click', () => TT.app.showView(w.view));
       wrap.appendChild(b);
     } else if (w.type === 'ear') {
       const b = document.createElement('button');
@@ -262,14 +262,14 @@
         document.querySelector('#learn-tabs .tab[data-tab="ear"]').click();
         const sel = document.getElementById('ear-mode');
         if (sel) sel.value = w.mode;
-        MG.ear && MG.ear.newRound(true);
+        TT.ear && TT.ear.newRound(true);
       });
       wrap.appendChild(b);
     }
     return wrap;
   }
 
-  function doneIds() { return MG.store.get('lessonsDone', []); }
+  function doneIds() { return TT.store.get('lessonsDone', []); }
 
   function renderLessons(level) {
     const pane = document.getElementById('tab-' + level);
@@ -305,8 +305,8 @@
       btn.addEventListener('click', () => {
         let d = doneIds();
         if (d.includes(l.id)) d = d.filter(x => x !== l.id);
-        else { d.push(l.id); MG.app.toast('Lesson complete! 🎉'); }
-        MG.store.set('lessonsDone', d);
+        else { d.push(l.id); TT.app.toast('Lesson complete! 🎉'); }
+        TT.store.set('lessonsDone', d);
         renderLessons(level);
         updateProgress();
       });
@@ -334,18 +334,18 @@
   };
 
   function playEarNote() {
-    MG.audio.ensure();
+    TT.audio.ensure();
     if (EAR_SETS[currentEarMode].chords) {
       const root = 40 + Math.floor(Math.random() * 8); // E2..B2
       const isMaj = Math.random() < 0.5;
       const triad = isMaj ? [0, 4, 7] : [0, 3, 7];
       EAR.answer = isMaj ? 'Major' : 'Minor';
-      MG.audio.strum(triad.map(i => N.midiToFreq(root + i)), 30, 0.75);
+      TT.audio.strum(triad.map(i => N.midiToFreq(root + i)), 30, 0.75);
     } else {
       const set = EAR_SETS[currentEarMode].notes;
       EAR.noteMidi = set[Math.floor(Math.random() * set.length)];
       EAR.answer = N.SHARP[((EAR.noteMidi % 12) + 12) % 12];
-      MG.audio.pluck(N.midiToFreq(EAR.noteMidi), 0, 0.85);
+      TT.audio.pluck(N.midiToFreq(EAR.noteMidi), 0, 0.85);
     }
   }
 
@@ -369,7 +369,7 @@
     const fb = document.getElementById('ear-feedback');
     if (guess === EAR.answer) {
       EAR.score++; EAR.streak++;
-      if (EAR.streak > EAR.best) { EAR.best = EAR.streak; MG.store.set('earBest', { mode: currentEarMode, best: EAR.best }); }
+      if (EAR.streak > EAR.best) { EAR.best = EAR.streak; TT.store.set('earBest', { mode: currentEarMode, best: EAR.best }); }
       btn.classList.add('right');
       fb.textContent = '✓ Correct!';
       fb.className = 'ear-feedback ok';
@@ -406,15 +406,15 @@
 
   function initEar() {
     const sel = document.getElementById('ear-mode');
-    const saved = MG.store.get('earMode', 'open');
+    const saved = TT.store.get('earMode', 'open');
     sel.value = saved;
     currentEarMode = saved;
-    const best = MG.store.get('earBest', {});
+    const best = TT.store.get('earBest', {});
     EAR.best = (best && best.mode === currentEarMode) ? best.best : 0;
     sel.addEventListener('change', () => {
       currentEarMode = sel.value;
-      MG.store.set('earMode', currentEarMode);
-      const b = MG.store.get('earBest', {});
+      TT.store.set('earMode', currentEarMode);
+      const b = TT.store.get('earBest', {});
       EAR.best = (b && b.mode === currentEarMode) ? b.best : 0;
       EAR.streak = 0;
       newRound(true);
@@ -425,9 +425,9 @@
   }
 
   /* ===================== init ===================== */
-  window.MG.ear = { newRound: newRound };
+  window.TT.ear = { newRound: newRound };
 
-  window.MG.learn = {
+  window.TT.learn = {
     init: function () {
       const tabs = document.getElementById('learn-tabs');
       tabs.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
@@ -447,6 +447,6 @@
     renderPractice: renderPractice
   };
 
-  window.MG = window.MG || {};
-  window.MG.practice = P;
+  window.TT = window.TT || {};
+  window.TT.practice = P;
 })();

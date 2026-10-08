@@ -1,4 +1,4 @@
-/* My Guitar — sweetened tunings: per-string cent offsets applied on top of any
+/* Trill Tuner — sweetened tunings: per-string cent offsets applied on top of any
  * preset to compensate for real-world intonation quirks. Pure data, node-testable. */
 (function () {
   'use strict';
@@ -42,5 +42,5 @@
 
   const api = { SWEETENERS: SWEETENERS, byId: byId, offsetFor: offsetFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') { window.MG = window.MG || {}; window.MG.sweeteners = api; }
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.sweeteners = api; }
 })();

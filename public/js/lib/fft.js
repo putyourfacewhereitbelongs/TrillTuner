@@ -1,4 +1,4 @@
-/* Trill Guitar — FFT (iterative radix-2) + Goertzel power, used by the polyphonic
+/* Trill Tuner — FFT (iterative radix-2) + Goertzel power, used by the polyphonic
  * strum tuner and the overtone analyzer. Pure functions, node-testable. */
 (function () {
   'use strict';
@@ -67,5 +67,5 @@
 
   const api = { fft: fft, magnitudeSpectrum: magnitudeSpectrum, goertzel: goertzel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') { window.MG = window.MG || {}; window.MG.fft = api; }
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.fft = api; }
 })();

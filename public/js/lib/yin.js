@@ -1,4 +1,4 @@
-/* My Guitar — YIN pitch detection, implemented from scratch.
+/* Trill Tuner — YIN pitch detection, implemented from scratch.
  * Based on: de Cheveigné & Kawahara (2002), "YIN, a fundamental frequency
  * estimator for speech and music". Steps: difference function → cumulative
  * mean normalized difference → absolute threshold → parabolic interpolation.
@@ -68,5 +68,5 @@
 
   const api = { yin: yin, downsample2: downsample2 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; // node (for tests)
-  if (typeof window !== 'undefined') { window.MG = window.MG || {}; window.MG.yin = api; }
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.yin = api; }
 })();

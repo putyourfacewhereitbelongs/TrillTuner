@@ -1,9 +1,9 @@
-/* My Guitar — Jam track: backing-chord loops played by the Karplus-Strong
+/* Trill Tuner — Jam track: backing-chord loops played by the Karplus-Strong
  * synth, locked to the metronome scheduler. Tune up, flip on the jam, and
  * play along without leaving the app. */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
 
   const J = { state: { on: false, key: 9, prog: 'p154', vol: 0.7 } };
   let els = {};
@@ -60,7 +60,7 @@
 
   /* ---------- playback ---------- */
   function pluckAt(freq, when, gain) {
-    MG.audio.pluck(freq, when, gain, MG.audio.metroBus); // recorded + heard
+    TT.audio.pluck(freq, when, gain, TT.audio.metroBus); // recorded + heard
   }
 
   function strumAt(chordObj, when, kind) {
@@ -77,7 +77,7 @@
   }
 
   function onBeat(time, beatIdx) {
-    const bpb = MG.metronome.state.bpb;
+    const bpb = TT.metronome.state.bpb;
     if (beatIdx === 0) {
       const c = chordSeq[bar % chordSeq.length];
       bar++;
@@ -92,13 +92,13 @@
   }
 
   function drainUI() {
-    const ctx = MG.audio.ctx;
+    const ctx = TT.audio.ctx;
     while (uiQueue.length && uiQueue[0].time <= ctx.currentTime + 0.03) {
       const ev = uiQueue.shift();
       els.jamNow.textContent = ev.name;
       els.jamNext.textContent = '→ ' + ev.next;
     }
-    if (!MG.metronome.isPlaying()) {
+    if (!TT.metronome.isPlaying()) {
       els.jamNow.textContent = '—';
       els.jamNext.textContent = '';
     }
@@ -111,23 +111,23 @@
     if (on) {
       buildSeq();
       bar = 0; uiQueue = [];
-      removeHook = MG.metronome.onBeat(onBeat);
+      removeHook = TT.metronome.onBeat(onBeat);
       clearInterval(uiTimer);
       uiTimer = setInterval(drainUI, 80);
-      MG.app.assist(`Jam on: ${chordSeq.map(c => c.deg).join('–')} in ${N.SHARP[J.state.key]} — start the metronome and play along.`);
-      if (!MG.metronome.isPlaying()) MG.app.assist('Start the metronome (Space) and the backing kicks in.');
+      TT.app.assist(`Jam on: ${chordSeq.map(c => c.deg).join('–')} in ${N.SHARP[J.state.key]} — start the metronome and play along.`);
+      if (!TT.metronome.isPlaying()) TT.app.assist('Start the metronome (Space) and the backing kicks in.');
     } else {
       if (removeHook) { removeHook(); removeHook = null; }
       clearInterval(uiTimer); uiTimer = 0;
       els.jamNow.textContent = '—';
       els.jamNext.textContent = '';
-      MG.app.assist('Jam track off.');
+      TT.app.assist('Jam track off.');
     }
     save();
   }
 
   function save() {
-    MG.store.set('settings', Object.assign(MG.store.get('settings', {}), {
+    TT.store.set('settings', Object.assign(TT.store.get('settings', {}), {
       jamOn: J.state.on, jamKey: J.state.key, jamProg: J.state.prog, jamVol: J.state.vol
     }));
   }
@@ -142,7 +142,7 @@
       jamNow: document.getElementById('jam-now'),
       jamNext: document.getElementById('jam-next')
     };
-    const s = MG.store.get('settings', {});
+    const s = TT.store.get('settings', {});
     if (s.jamKey != null) J.state.key = +s.jamKey;
     if (s.jamProg && PROGRESSIONS[s.jamProg]) J.state.prog = s.jamProg;
     if (s.jamVol != null) J.state.vol = Math.max(0, Math.min(1, +s.jamVol));
@@ -155,14 +155,14 @@
     els.selKey.addEventListener('change', () => {
       J.state.key = +els.selKey.value;
       buildSeq();
-      MG.app.assist(`Jam key: ${N.SHARP[J.state.key]}. Next bar picks it up.`);
+      TT.app.assist(`Jam key: ${N.SHARP[J.state.key]}. Next bar picks it up.`);
       save();
     });
     els.selProg.addEventListener('change', () => {
       J.state.prog = els.selProg.value;
       buildSeq();
       const names = chordSeq.map(c => c.deg).join('–');
-      MG.app.assist(`Jam progression: ${names}. Next bar picks it up.`);
+      TT.app.assist(`Jam progression: ${names}. Next bar picks it up.`);
       save();
     });
     els.vol.addEventListener('input', () => { J.state.vol = +els.vol.value; save(); });
@@ -170,6 +170,6 @@
     if (s.jamOn) setOn(true, true); // restore last session's jam preference (silent)
   };
 
-  window.MG = window.MG || {};
-  window.MG.jam = J;
+  window.TT = window.TT || {};
+  window.TT.jam = J;
 })();

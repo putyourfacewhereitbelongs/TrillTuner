@@ -1,9 +1,9 @@
-/* My Guitar — SVG guitar neck renderer (headstock + tuning pegs + fretboard +
+/* Trill Tuner — SVG guitar neck renderer (headstock + tuning pegs + fretboard +
  * strings). Neck-only view: no body, so the tuner stays focused on the string
  * you're playing. Left-most string = thickest / lowest (string N). */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
 
   function build(container, opts) {
     const names = opts.strings;               // e.g. ['E2','A2',...]
@@ -140,6 +140,6 @@
     return { update: update };
   }
 
-  window.MG = window.MG || {};
-  window.MG.guitar = { build: build };
+  window.TT = window.TT || {};
+  window.TT.guitar = { build: build };
 })();

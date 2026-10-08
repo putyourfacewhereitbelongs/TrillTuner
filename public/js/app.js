@@ -1,13 +1,14 @@
-/* Trill Guitar — app shell: navigation, theme, toasts, assistant feed,
- * keyboard shortcuts, boot. */
+/* Trill Tuner — app shell: navigation, theme, toasts, assistant feed,
+ * keyboard shortcuts, module boot, splash and progress bookkeeping. */
 (function () {
   'use strict';
 
-  const app = {};
+  const app = { VERSION: '2.1.0' };
   const feed = [];
 
   function toast(msg, opts) {
     const box = document.getElementById('toasts');
+    if (!box) return;
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = msg;
@@ -41,9 +42,16 @@
   app.showView = function (id) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
-    if (id === 'tune') MG.tuner.resume(); else MG.tuner.pause();
-    if (id === 'learn') MG.learn.renderPractice();
-    if (id === 'care' && MG.care) MG.care.render();
+    if (id === 'tune') TT.tuner.resume(); else TT.tuner.pause();
+    if (id === 'learn') TT.learn.renderPractice();
+    if (id !== 'listening' && TT.listener && TT.listener.state && TT.listener.state.running) TT.listener.stop();
+    if (id === 'care' && TT.care) TT.care.render();
+    if (id === 'rig' && TT.rig) TT.rig.rebuild();
+    if (id !== 'backing' && TT.backing && TT.backing.stop) TT.backing.stop();
+    if (id === 'mine' && TT.mine && TT.mine.render) TT.mine.render();
+    if (id === 'styles' && TT.styles) TT.styles.init();
+    if (id === 'progress' && TT.share) TT.share.render();
+    if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
   };
 
   function bindNav() {
@@ -53,24 +61,26 @@
 
   function bindMode() {
     const seg = document.getElementById('seg-mode');
+    if (!seg) return;
     const sync = mode => seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-    sync(MG.tuner.state.mode);
+    sync(TT.tuner.state.mode);
     seg.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => {
       const mode = b.dataset.mode;
-      if (mode === MG.tuner.state.mode) return;
-      MG.tuner.setMode(mode);
+      if (mode === TT.tuner.state.mode) return;
+      TT.tuner.setMode(mode);
       sync(mode);
     }));
   }
 
   function bindMicPill() {
     const pill = document.getElementById('mic-pill');
+    if (!pill) return;
     pill.addEventListener('click', async () => {
-      if (MG.audio.micState === 'on') {
-        MG.audio.stopMic();
+      if (TT.audio.micState === 'on') {
+        TT.audio.stopMic();
         toast('Mic stopped. Reference tones still work for tuning by ear.');
-      } else if (MG.audio.micState === 'error') {
-        toast(MG.audio.micError + ' — try "Open in a new tab" from the tuner panel.');
+      } else if (TT.audio.micState === 'error') {
+        toast(TT.audio.micError + ' — try "Open in a new tab" from the tuner panel.');
       } else {
         app.showView('tune');
         document.getElementById('btn-mic-start').click();
@@ -84,45 +94,70 @@
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || (e.target && e.target.isContentEditable)) return;
       if (e.code === 'Space') {
         e.preventDefault();
-        MG.metronome.toggle();
+        TT.metronome.toggle();
       } else if (/^Digit[1-7]$/.test(e.code)) {
         const n = +e.code.slice(5);
-        const strings = MG.tunings.byId(MG.tuner.state.presetId).strings;
-        if (n <= strings.length) MG.tuner.manualSelect(strings.length - n);
+        const strings = TT.tunings.byId(TT.tuner.state.presetId).strings;
+        if (n <= strings.length) TT.tuner.manualSelect(strings.length - n);
       } else if (e.key === 'g' || e.key === 'G') {
-        MG.tuner.toggleGig();
+        TT.tuner.toggleGig();
+      } else if (e.key === 'v' || e.key === 'V') {
+        TT.metronome.toggle && null; /* reserved */
       }
     });
   }
 
+  /* first time each user-visible view is opened, run its render hook */
   app.init = function () {
-    MG.tuner.init();
-    MG.metronome.init();
-    MG.jam.init();
-    MG.recorder.init();
-    MG.lyrics.init();
-    MG.learn.init();
-    MG.care.init();
+    const wire = (name, fn) => {
+      try { fn(); } catch (e) { console.error('Trill Tuner: ' + name + ' failed to start', e); }
+    };
+    wire('tuner', () => TT.tuner.init());
+    wire('metronome', () => TT.metronome.init());
+    wire('jam', () => TT.jam.init());
+    wire('recorder', () => TT.recorder.init());
+    wire('lyrics', () => TT.lyrics.init());
+    wire('songs', () => TT.songs.init());
+    wire('styles', () => TT.styles.init());
+    wire('backing', () => TT.backing.init());
+    wire('mine', () => TT.mine.init());
+    wire('tabmaker', () => TT.tablab.init());
+    wire('stems', () => TT.stems.init());
+    wire('listener', () => TT.listener.init());
+    wire('learn', () => TT.learn.init());
+    wire('care', () => TT.care.init());
+    wire('tools', () => TT.tools.init());
+    wire('practice', () => TT.practiceTools.init());
+    wire('rig', () => TT.rig.init());
+    wire('share', () => TT.share.init());
     bindNav();
     bindMode();
     bindMicPill();
     bindKeys();
 
-    const firstRun = !MG.store.get('visited', false);
-    MG.store.set('visited', true);
+    /* storage health: an automatic snapshot means a corrupted write never
+     * costs more than an hour of progress. */
+    try { TT.store.autoSnapshot(); } catch (e) {}
+
+    const firstRun = !TT.store.get('visited', false);
+    TT.store.set('visited', true);
     if (firstRun) {
-      assist('Welcome to Trill Guitar 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E.');
-      toast('Welcome to Trill Guitar! 🎸 Standard tuning is ready.');
+      assist('Welcome to Trill Tuner 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E. There are 94 tunings, a full amp & pedal studio in the Rig tab, plus the songbook, tab maker, stem lab, listener, backing studio and My stuff.');
+      toast('Welcome to Trill Tuner! 🎸');
     } else {
-      assist('Welcome back 🎸 Your settings were restored.');
+      assist('Welcome back 🎸 Your settings, rig and practice history were restored.');
     }
+    TT.share.checkBadges(true);
+
+    /* splash last, so it can report the real module status */
+    wire('splash', () => TT.splash.show());
   };
 
   app.assist = assist;
   app.toast = toast;
 
-  window.MG = window.MG || {};
-  window.MG.app = app;
+  window.TT = window.TT || {};
+  window.TT.app = app;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', app.init);

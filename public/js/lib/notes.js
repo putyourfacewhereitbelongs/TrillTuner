@@ -1,4 +1,4 @@
-/* Trill Guitar — music / note math */
+/* Trill Tuner — music / note math */
 (function () {
   'use strict';
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -40,5 +40,5 @@
 
   const api = { SHARP: SHARP, FLAT: FLAT, midiToFreq: midiToFreq, freqToMidi: freqToMidi, freqToNote: freqToNote, nameToMidi: nameToMidi, prettyName: prettyName, centsOff: centsOff };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') { window.MG = window.MG || {}; window.MG.notes = api; }
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.notes = api; }
 })();

@@ -1,4 +1,4 @@
-/* My Guitar — Metronome: lookahead Web Audio scheduler, pendulum, tap tempo,
+/* Trill Tuner — Metronome: lookahead Web Audio scheduler, pendulum, tap tempo,
  * time signatures with compound accents, subdivisions, practice tracking. */
 (function () {
   'use strict';
@@ -18,15 +18,15 @@
   function spb() { return 60 / M.state.bpm; }
 
   function sched() {
-    const ctx = MG.audio.ctx;
+    const ctx = TT.audio.ctx;
     while (nextTime < ctx.currentTime + 0.12) {
       const beatIdx = beat % M.state.bpb;
       const accent = accentFor(beatIdx, M.state.bpb);
-      MG.audio.click(nextTime, accent, M.state.vol);
+      TT.audio.click(nextTime, accent, M.state.vol);
       drawQueue.push({ time: nextTime, beatIdx: beatIdx, accent: accent });
       hooks.slice().forEach(h => { try { h.cb(nextTime, beatIdx, accent); } catch (e) {} });
       for (let s = 1; s < M.state.subdiv; s++) {
-        MG.audio.click(nextTime + spb() * s / M.state.subdiv, false, M.state.vol * 0.45);
+        TT.audio.click(nextTime + spb() * s / M.state.subdiv, false, M.state.vol * 0.45);
       }
       beat++;
       nextTime += spb();
@@ -42,15 +42,15 @@
     const ang = Math.cos(pendPhase) * 26;
     if (els.arm) els.arm.style.transform = `rotate(${ang.toFixed(1)}deg)`;
 
-    const ctx = MG.audio.ctx;
+    const ctx = TT.audio.ctx;
     while (drawQueue.length && drawQueue[0].time <= ctx.currentTime + 0.02) {
       const ev = drawQueue.shift();
       setLED(ev.beatIdx, ev.accent);
     }
     // practice tracking
-    if (dt > 0 && MG.practice) {
+    if (dt > 0 && TT.practice) {
       practiceSecs += dt;
-      if (practiceSecs >= 5) { MG.practice.addSeconds(practiceSecs); practiceSecs = 0; }
+      if (practiceSecs >= 5) { TT.practice.addSeconds(practiceSecs); practiceSecs = 0; }
     }
   }
 
@@ -78,7 +78,7 @@
   }
 
   function save() {
-    MG.store.set('settings', Object.assign(MG.store.get('settings', {}), {
+    TT.store.set('settings', Object.assign(TT.store.get('settings', {}), {
       bpm: M.state.bpm, bpb: M.state.bpb, subdiv: M.state.subdiv, metroVol: M.state.vol
     }));
   }
@@ -87,11 +87,11 @@
   M.isPlaying = function () { return playing; };
 
   M.start = function () {
-    MG.audio.ensure();
+    TT.audio.ensure();
     if (playing) return;
     playing = true;
     beat = 0; drawQueue = [];
-    nextTime = MG.audio.ctx.currentTime + 0.08;
+    nextTime = TT.audio.ctx.currentTime + 0.08;
     pendPhase = 0; lastPendTs = 0;
     timer = setInterval(sched, 25);
     rafId = requestAnimationFrame(pend);
@@ -102,7 +102,7 @@
     playing = false;
     clearInterval(timer); timer = 0;
     cancelAnimationFrame(rafId); rafId = 0;
-    if (practiceSecs > 1 && MG.practice) { MG.practice.addSeconds(practiceSecs); practiceSecs = 0; }
+    if (practiceSecs > 1 && TT.practice) { TT.practice.addSeconds(practiceSecs); practiceSecs = 0; }
     drawQueue = [];
     els.leds && els.leds.querySelectorAll('.led').forEach(l => l.classList.remove('on'));
     if (els.arm) els.arm.style.transform = 'rotate(0deg)';
@@ -135,7 +135,7 @@
       selectSubdiv: document.getElementById('select-subdiv'),
       metroVol: document.getElementById('metro-vol')
     };
-    const s = MG.store.get('settings', {});
+    const s = TT.store.get('settings', {});
     if (s.bpm) M.state.bpm = Math.max(30, Math.min(280, +s.bpm));
     if (s.bpb) M.state.bpb = +s.bpb;
     if (s.subdiv) M.state.subdiv = +s.subdiv;
@@ -182,6 +182,6 @@
     if (!playing) M.start();
   };
 
-  window.MG = window.MG || {};
-  window.MG.metronome = M;
+  window.TT = window.TT || {};
+  window.TT.metronome = M;
 })();

@@ -1,4 +1,4 @@
-/* My Guitar — polyphonic strum analysis: hit all strings at once and get a
+/* Trill Tuner — polyphonic strum analysis: hit all strings at once and get a
  * per-string sharp/flat verdict (Polytune-style).
  *
  * Method: for each target string frequency, scan ±160¢ in 2¢ steps with a
@@ -11,7 +11,7 @@
 
   const FFT = (typeof module !== 'undefined' && module.exports)
     ? require('./fft.js')
-    : window.MG.fft;
+    : window.TT.fft;
 
   const CENTS_RANGE = 160;   // scan ± this many cents around each target
   const CENTS_STEP = 2;
@@ -133,5 +133,5 @@
 
   const api = { analyzeStrum: analyzeStrum, scan: scan };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') { window.MG = window.MG || {}; window.MG.poly = api; }
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.poly = api; }
 })();

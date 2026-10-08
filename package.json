@@ -1,12 +1,13 @@
 {
-  "name": "my-guitar",
-  "version": "1.1.0",
-  "description": "My Guitar — a from-scratch guitar tuner (YIN pitch detection + polyphonic strum check), strobe display, sweetened tunings, capo mode, gig mode, metronome with jam tracks, recorder, lyric search, learning tools and guitar-care toolkit.",
+  "name": "trill-tuner",
+  "version": "2.0.0",
+  "description": "Trill Tuner \u2014 a complete guitar companion: from-scratch YIN tuner with strobe + poly strum check, 94 tunings, metronome with jam tracks, recorder, single-field lyric search (artist OR title), a 165-song play-along library, a tab maker that listens to any song and tells you the chords, key, tempo and capo to play it, a stem lab that removes or isolates the vocals, drums, bass, electric and acoustic guitar of a track (including an acoustic-only chop that leaves the electric and the kit playing), a backing-track studio that generates practice beds in any key and feel, a live accuracy listener that names every wrong note and confirms every right one, a player & style explorer, my-stuff favourites with a session builder, a learning academy, practice studio, advanced toolkit, virtual amplifier + pedalboard (52 amps, 125 pedals, 26 famous rigs), progress sharing, backups and guitar care.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/yin-test.js && node test/poly-test.js",
-    "test:e2e": "node test/e2e.js && node test/layout.js"
+    "test": "node test/yin-test.js && node test/poly-test.js && node test/dsp-test.js && node test/backing-test.js && node test/songs-test.js && node test/requirements-audit.js",
+    "test:e2e": "node test/e2e.js && node test/layout.js",
+    "test:dom": "node test/dom-smoke.js"
   },
   "engines": {
     "node": ">=18"
@@ -17,5 +18,8 @@
   },
   "allowScripts": {
     "puppeteer@25.12.0": true
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.2"
   }
 }

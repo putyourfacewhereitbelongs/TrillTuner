@@ -1,0 +1,5 @@
+# deps + generated artifacts
+node_modules/
+package-lock.json.bak
+.DS_Store
+*.log

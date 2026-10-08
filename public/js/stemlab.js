@@ -546,7 +546,8 @@
 
   const wave = { key: '', canvas: null, w: 0, h: 0, dpr: 1 };
   let raf = 0;
-  let drag = null;              /* 'a' | 'b' | 'seek' while the pointer is down */
+  let drag = null;              /* 'a' | 'b' | 'seek' | 'range' while the pointer is down */
+  let dragOrigin = null;        /* { x, sec } where a seek/range drag began */
 
   /* a clock truncates: at 4.9 s a player reads 0:04, not 0:05 */
   function clockText(sec) {
@@ -855,16 +856,17 @@
       const at = e => {
         const pt = e.touches && e.touches[0] ? e.touches[0] : (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0] : e);
         const r = els.wave.getBoundingClientRect();
-        const size = { w: Math.max(1, Math.round(r.width || els.wave.width || 600)) };
-        return { x: (pt.clientX - r.left) * (size.w / Math.max(1, r.width || size.w)), size: size };
+        const cssW = Math.max(1, r.width || 1);
+        const w = els.wave.width || 600;
+        return { x: (pt.clientX - r.left) * (w / cssW), size: { w: w } };
       };
       const near = (x, sec, size) => sec != null && Math.abs(x - xOf(sec, size)) <= 11;
       const onDown = e => {
         const p = at(e);
-        const size = { w: els.wave.width || 600 };
-        if (near(p.x, state.b, size)) drag = 'b';
-        else if (near(p.x, state.a, size)) drag = 'a';
-        else { drag = 'seek'; seek(secOf(p.x, size)); }
+        dragOrigin = { x: p.x, sec: secOf(p.x, p.size) };
+        if (near(p.x, state.b, p.size)) drag = 'b';
+        else if (near(p.x, state.a, p.size)) drag = 'a';
+        else { drag = 'seek'; seek(dragOrigin.sec); }
         if (drag !== 'seek') wave.key = '';
         if (els.wave.setPointerCapture && e.pointerId != null) { try { els.wave.setPointerCapture(e.pointerId); } catch (err) {} }
         if (els.wave.focus) els.wave.focus();
@@ -873,9 +875,21 @@
       const onMove = e => {
         if (!drag) return;
         const p = at(e);
-        const sec = secOf(p.x, { w: els.wave.width || 600 });
-        if (drag === 'seek') seek(sec);
-        else {
+        const sec = secOf(p.x, p.size);
+        if (drag === 'seek' || drag === 'range') {
+          /* a tap is a skip; dragging across the wave paints the A–B loop
+           * (point A where the drag started, point B where it ended) */
+          if (dragOrigin && (Math.abs(p.x - dragOrigin.x) > 12 || Math.abs(sec - dragOrigin.sec) > 0.2)) {
+            drag = 'range';
+            state.a = Math.min(dragOrigin.sec, sec);
+            state.b = Math.max(dragOrigin.sec, sec);
+            if (state.b - state.a < 0.05) state.b = Math.min(resultDuration(), state.a + 0.05);
+            wave.key = '';
+            drawStatic();
+          } else if (drag === 'seek') {
+            seek(sec);
+          }
+        } else {
           if (drag === 'a') { state.a = sec; if (state.b != null && state.b <= state.a + 0.05) state.b = null; }
           else { state.b = sec; if (state.a != null && state.a >= state.b - 0.05) state.a = null; }
           wave.key = '';
@@ -884,10 +898,15 @@
         if (e.cancelable) e.preventDefault();
       };
       const onUp = () => {
-        if (drag === 'a' || drag === 'b') {
+        if (drag === 'range' && state.a != null && state.b != null) {
+          if (els.loop) els.loop.checked = true;
+          setStatus('Loop A ' + mmss(state.a) + ' → B ' + mmss(state.b) + ' — press play and it loops that section.');
+          if (state.playing) play(state.pos);
+        } else if (drag === 'a' || drag === 'b') {
           setStatus('Loop point ' + (drag === 'a' ? 'A' : 'B') + ' at ' + mmss(drag === 'a' ? state.a : state.b) + '.');
         }
         drag = null;
+        dragOrigin = null;
       };
       if (typeof window.PointerEvent === 'function') {
         els.wave.addEventListener('pointerdown', onDown);

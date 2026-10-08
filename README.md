@@ -276,14 +276,14 @@ recipe. Results can be handed straight to the tab maker.
 
 ### The player: waveform, clock, skip, and an A–B loop
 
-The moment a song is loaded — before any separation — it comes up with a **waveform and a clock**.
-Click or drag anywhere on the wave to skip through the song; drop **⟦ A** and **Set B ⟧** wherever
-you like (or press `[` and `]` at the playhead, and drag the handles on the wave) and tick **Loop the
-section** to play just that part round and round — the loop is handed to the audio node itself
-(`loopStart`/`loopEnd`), so there is no glitch at the wrap. With nothing set it loops the whole take.
-Arrow keys skip ±5 s, `Home`/`End` jump to the ends. The playhead follows the AudioContext clock
-rather than a wall timer, so the picture and the sound cannot drift apart. After you separate, the
-same player switches to the result (Save as WAV and “read its chords” unlock then).
+The moment a song is loaded — before any separation — it comes up with a **waveform and a clock**,
+directly under the file (not buried under the recipes). Click the wave to skip; **drag from point A
+to point B** on the wave to loop that section (the loop checkbox arms itself). You can still drop
+**⟦ A** and **Set B ⟧** at the playhead, press `[` / `]`, or drag the handles. The loop is handed to
+the audio node itself (`loopStart`/`loopEnd`), so there is no glitch at the wrap. With nothing set it
+loops the whole take. Arrow keys skip ±5 s, `Home`/`End` jump to the ends. The playhead follows the
+AudioContext clock rather than a wall timer, so the picture and the sound cannot drift apart. After
+you separate, the same player switches to the result (Save as WAV and “read its chords” unlock then).
 
 ### Not fading the voice
 
@@ -302,7 +302,7 @@ vowel — the numbers `npm test` prints):
 | | word onset vs steady | held vowel |
 |---|---|---|
 | isolate, before | onset 3.5 dB off, 1.8 dB quieter than the body (a fade-in) | **−4 dB and falling** |
-| isolate, now | onset and body within **1.6 dB** of each other | **−0.4 dB**, ripple ±1.8 dB |
+| isolate, now | onset and body within **1.6 dB** of each other | **−0.1 dB**, ripple ±1.4 dB |
 | remove, before | 1.9 dB *more* voice leaked at the onset than mid-word | |
 | remove, now | −10 dB at the onset vs −11 dB mid-word — no swell back in | |
 

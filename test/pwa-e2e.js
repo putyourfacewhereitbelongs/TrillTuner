@@ -780,6 +780,20 @@ const TOUR = [
     ok(Math.abs(skip.pos / skip.dur - 0.75) < 0.06,
       'stem lab: clicking the waveform skips through the song', 'click at 75 % → ' + skip.pos.toFixed(2) + ' s of ' + skip.dur.toFixed(1) + ' s (clock ' + skip.clock + ')');
 
+    const painted = await page.evaluate(() => {
+      const c = document.getElementById('st-wave');
+      const r = c.getBoundingClientRect();
+      const y = r.top + r.height / 2;
+      const x0 = r.left + r.width * 0.2, x1 = r.left + r.width * 0.55;
+      c.dispatchEvent(new PointerEvent('pointerdown', { clientX: x0, clientY: y, bubbles: true, pointerId: 2, cancelable: true }));
+      c.dispatchEvent(new PointerEvent('pointermove', { clientX: x1, clientY: y, bubbles: true, pointerId: 2, cancelable: true }));
+      c.dispatchEvent(new PointerEvent('pointerup', { clientX: x1, clientY: y, bubbles: true, pointerId: 2, cancelable: true }));
+      const t = TT.stems.transport();
+      return { a: t.a, b: t.b, loop: document.getElementById('st-loop').checked, label: document.getElementById('st-ab-label').textContent, dur: t.dur };
+    });
+    ok(painted.loop && painted.a != null && painted.b != null && (painted.b - painted.a) > painted.dur * 0.2,
+      'stem lab: dragging from point A to point B on the wave starts a loop', painted.label);
+
     const ab = await page.evaluate(() => {
       TT.stems.seek(1); document.getElementById('st-btn-aset').click();
       TT.stems.seek(3); document.getElementById('st-btn-bset').click();

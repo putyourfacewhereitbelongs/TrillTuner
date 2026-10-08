@@ -606,17 +606,6 @@
             <span class="dim smallish" id="st-run-note"></span>
           </div>
           <div class="st-status" id="st-status">Load a song, then pick a recipe.</div>
-          <div class="card-h small">Recipes</div>
-          <div class="st-presets" id="st-presets"></div>
-          <div class="card-h small">Or build your own</div>
-          <div class="mk-opt">
-            <label class="field inline"><span>Instrument</span><select id="st-mode"></select></label>
-            <label class="field inline"><span>Action</span><div class="seg seg-mini" id="st-action">
-              <button class="seg-btn active" data-action="remove" type="button">Remove it</button>
-              <button class="seg-btn" data-action="isolate" type="button">Keep only it</button>
-            </div></label>
-            <label class="field inline"><span>Amount <b id="st-amount-show">92%</b></span><input id="st-amount" type="range" min="0" max="100" value="92"></label>
-          </div>
         </div>
 
         <div class="card" id="st-result" hidden>
@@ -624,12 +613,13 @@
           <div class="st-effect" id="st-effect"></div>
           <div class="st-player">
             <canvas id="st-wave" class="st-wave" width="880" height="96" tabindex="0" role="img"
-              aria-label="Waveform of the separated audio. Click or drag to skip through it; drag the A and B markers to loop a section."></canvas>
+              aria-label="Waveform. Click to skip. Drag from point A to point B to loop that section."></canvas>
             <div class="st-clock">
               <b id="st-pos">0:00</b>
               <span class="dim smallish" id="st-ab-label">whole take</span>
               <span class="dim" id="st-dur">0:00</span>
             </div>
+            <p class="hint st-wave-hint">Click the wave to skip · drag from A to B to loop that section</p>
           </div>
           <div class="row-btns">
             <button class="btn btn-primary tiny" id="st-btn-play">▶ Play</button>
@@ -647,6 +637,20 @@
           </div>
           <div class="card-h small">Recently separated</div>
           <div class="chipwrap" id="st-history"></div>
+        </div>
+
+        <div class="card" id="st-recipes-card">
+          <div class="card-h small">Recipes</div>
+          <div class="st-presets" id="st-presets"></div>
+          <div class="card-h small">Or build your own</div>
+          <div class="mk-opt">
+            <label class="field inline"><span>Instrument</span><select id="st-mode"></select></label>
+            <label class="field inline"><span>Action</span><div class="seg seg-mini" id="st-action">
+              <button class="seg-btn active" data-action="remove" type="button">Remove it</button>
+              <button class="seg-btn" data-action="isolate" type="button">Keep only it</button>
+            </div></label>
+            <label class="field inline"><span>Amount <b id="st-amount-show">92%</b></span><input id="st-amount" type="range" min="0" max="100" value="92"></label>
+          </div>
         </div>
 
         <div class="card">

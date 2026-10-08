@@ -475,9 +475,10 @@ function kept(out, src) {
       const api = ['S.seek =', 'S.markA =', 'S.markB =', 'S.clearAB =', 'S.transport ='].filter(x => lab.indexOf(x) > 0);
       const draws = /function drawStatic/.test(lab) && /fillRect\(x, y0/.test(lab) && /xOf\(state\.pos/.test(lab);
       const abLoop = /loopStart = sp\.a/.test(lab) && /loopEnd = /.test(lab);
+      const dragAB = /drag === 'range'/.test(lab);
       item(17, 'A waveform of the take with the playing time, skipping anywhere, and a loop between two points you pick (A and B)',
-        'the DOM contract, the transport API the browser tests drive, the drawing itself (a per-column waveform, a cached layer, a playhead placed at the playhead time) and the A–B loop handed to the audio node',
-        have.length === ids.length && api.length === 5 && draws && abLoop,
+        'the DOM contract, the transport API the browser tests drive, the drawing itself, click-to-skip, drag from A to B on the wave to loop, and the A–B loop handed to the audio node',
+        have.length === ids.length && api.length === 5 && draws && abLoop && dragAB,
         have.length + '/' + ids.length + ' controls · ' + api.length + '/5 API calls · waveform + playhead drawing: ' + (draws ? 'wired' : 'missing') +
         ' · A–B reaches the audio node: ' + (abLoop ? 'yes' : 'no') + ' · driven for real in test/dom-smoke.js and test/pwa-e2e.js (§9)');
     })();

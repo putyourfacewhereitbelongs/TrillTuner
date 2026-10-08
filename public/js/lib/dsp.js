@@ -339,7 +339,21 @@
          * bin is "50 % tonal" and the whole file just gets quieter. The current
          * frame counts, otherwise nothing percussive could ever be targeted. */
         score *= smoothstep(Math.max(raw[b], Hs[b]) / (floorMag * 2.5 + 1e-12), 0.5, 1.5);
-        g[b] = remove ? clamp01(1 - amount * score) : clamp01(score + (1 - amount) * 0.12);
+        if (remove) {
+          g[b] = clamp01(1 - amount * score);
+        } else if (prof.pluck) {
+          g[b] = clamp01(score + (1 - amount) * 0.12);
+        } else {
+          /* Isolating: a soft score *is* a fade — it multiplies the voice by
+           * its own confidence. Once we are more sure than not that this bin
+           * is the target, pass the original through at full level so the
+           * voice keeps its own envelope (a sung note with vibrato went from
+           * −3.2 dB ±2.5 to −0.1 dB ±1.4). Below that we still blend, so the
+           * edges do not click. The pluck profile keeps the soft score: its
+           * discriminator is the envelope shape. */
+          const open = clamp01(score + (1 - amount) * 0.12);
+          g[b] = open >= 0.45 ? 1 : open / 0.45;
+        }
       }
       /* Widen the region instead of smoothing it. A real tone splatters into its
        * neighbours (the window's main lobe is three bins wide), so a one-bin notch

@@ -884,7 +884,19 @@ check('stems: the result comes with a waveform, a clock, a skip and an A–B loo
   const t2 = TT.stems.transport();
   if (t2.a != null || t2.b != null) throw new Error('clear A–B left ' + t2.a + '/' + t2.b);
   if (!/whole take/.test(doc.getElementById('st-ab-label').textContent)) throw new Error('the label did not reset');
-  return 'drew the wave (' + columns + ' columns) + A/B handles, clock follows the playhead, loop node 1.5→3.5 s, skip restarts it';
+
+  /* drag from point A to point B on the wave paints the loop */
+  wave.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 96, right: 600, bottom: 96, x: 0, y: 0, toJSON() {} });
+  const fire = (type, x) => wave.dispatchEvent(new window.PointerEvent(type, { clientX: x, clientY: 48, bubbles: true, pointerId: 1, cancelable: true }));
+  fire('pointerdown', 150);
+  fire('pointermove', 350);
+  fire('pointerup', 350);
+  const tDrag = TT.stems.transport();
+  if (Math.abs(tDrag.a - 1.5) > 0.2 || Math.abs(tDrag.b - 3.5) > 0.2) throw new Error('drag A–B landed at ' + tDrag.a + '/' + tDrag.b);
+  if (!doc.getElementById('st-loop').checked) throw new Error('dragging A–B did not arm the loop');
+  TT.stems.clearAB();
+  doc.getElementById('st-loop').checked = false;
+  return 'drew the wave (' + columns + ' columns) + A/B handles, clock follows the playhead, loop node 1.5→3.5 s, skip restarts it, drag paints A–B';
 });
 
 check('stems: the transport answers the keyboard, and an empty A–B loops the whole take', async () => {

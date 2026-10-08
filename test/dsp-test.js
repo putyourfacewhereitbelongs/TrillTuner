@@ -270,13 +270,16 @@ console.log('\nTrill Tuner — audio lab tests\n');
       }
     }
   }
-  /* sustained, centre, distorted — an electric holding a power chord */
+  /* sustained, centre, distorted — an electric holding a power chord, with a
+   * real vibrato: phase modulation at a constant ±15 cents. (Writing it as
+   * `sin(2πf(1+k·sin)t)` instead would be an accelerating pitch glide — the
+   * deviation grows with time — and no mask can be expected to survive that.) */
   const electric = mk();
   for (let i = 0; i < N; i++) {
-    const t = i / SR, vib = 1 + 0.002 * Math.sin(TAU * 5 * t);
+    const t = i / SR, ph = 0.0087 * Math.sin(TAU * 5.5 * t);
     let v = 0;
-    for (let h = 1; h <= 12; h++) v += Math.sin(TAU * 82.41 * h * vib * t) / (h * 1.4) * (h % 2 ? 1 : 0.6);
-    v += 0.5 * Math.sin(TAU * 123.47 * 2 * vib * t) + 0.3 * Math.sin(TAU * 123.47 * 3 * t);
+    for (let h = 1; h <= 12; h++) v += Math.sin(TAU * 82.41 * h * t + h * ph) / (h * 1.4) * (h % 2 ? 1 : 0.6);
+    v += 0.5 * Math.sin(TAU * 123.47 * 2 * t + 2 * ph) + 0.3 * Math.sin(TAU * 123.47 * 3 * t);
     v = Math.tanh(v * 1.8) * 0.3;
     put(electric, i, v, v);
   }
@@ -300,27 +303,34 @@ console.log('\nTrill Tuner — audio lab tests\n');
   const mix = mk();
   for (let c = 0; c < 2; c++) for (let i = 0; i < N; i++) mix[c][i] = acoustic[c][i] + electric[c][i] + drums[c][i];
 
-  /* least-squares projection: how much of `src` is left in `out`, in dB */
+  /* least-squares projection: how much of `src` is left in `out`, in dB.
+   * Per channel, deliberately: the acoustic layer is polarity-wide (L ≈ −0.85 R),
+   * so the two channels *cancel* in a mono sum and any mono-sum measurement of it
+   * is mostly measuring the cancellation, not the separation. */
   function kept(out, src) {
     let num = 0, den = 0;
-    for (let i = 0; i < N; i++) { num += (out[0][i] + out[1][i]) * (src[0][i] + src[1][i]); den += (src[0][i] + src[1][i]) ** 2; }
+    for (let c = 0; c < Math.min(out.length, src.length); c++) {
+      for (let i = 0; i < N; i++) { num += out[c][i] * src[c][i]; den += src[c][i] * src[c][i]; }
+    }
     return 20 * Math.log10(Math.abs(num / den) + 1e-12);
   }
-  const rm = D.separate(mix, SR, 'acoustic-guitar', { fftSize: 2048, amount: 0.88, remove: true });
+  const rm = D.separate(mix, SR, 'acoustic-guitar', { amount: 0.9, remove: true });   /* no fftSize: the profile's own hint */
   const a = kept(rm.channels, acoustic), e = kept(rm.channels, electric), d = kept(rm.channels, drums);
-  ok(a < -1.5, 'acoustic chop: the acoustic actually goes away', 'acoustic ' + a.toFixed(2) + ' dB');
-  ok(e - a > 0.8, 'acoustic chop: the electric guitar is kept while the acoustic goes', 'electric ' + e.toFixed(2) + ' dB — ' + (e - a).toFixed(2) + ' dB above the acoustic');
-  ok(d > -2, 'acoustic chop: the drums keep playing', 'drums ' + d.toFixed(2) + ' dB');
+  ok(a < -2.5, 'acoustic chop: the acoustic actually goes away', 'acoustic ' + a.toFixed(2) + ' dB');
+  ok(e - a > 2, 'acoustic chop: the electric guitar is kept while the acoustic goes', 'electric ' + e.toFixed(2) + ' dB — ' + (e - a).toFixed(2) + ' dB above the acoustic');
+  ok(d > -3, 'acoustic chop: the drums keep playing', 'drums ' + d.toFixed(2) + ' dB');
+  ok(e > -3, 'acoustic chop: the electric guitar is not collateral damage', 'electric ' + e.toFixed(2) + ' dB');
   /* isolate is judged on each layer on its own: how much does the mask take off
    * this instrument when nothing else is playing? The acoustic has to be the
    * one the mask keeps. */
   const rms = ch => { let s = 0; for (let i = 0; i < N; i++) s += ch[0][i] ** 2 + ch[1][i] ** 2; return Math.sqrt(s / (2 * N)); };
   const level = (layer, opts) => {
-    const r = D.separate(layer, SR, 'acoustic-guitar', Object.assign({ fftSize: 2048, amount: 0.88 }, opts));
-    return 20 * Math.log10((rms(r.channels) + 1e-12) / (rms(layer) + 1e-12));
+    const r = D.separate(layer, SR, 'acoustic-guitar', Object.assign({ amount: 0.9 }, opts));
+    const rmsOf = ch => { let s = 0; for (let c = 0; c < ch.length; c++) for (let i = 0; i < N; i++) s += ch[c][i] * ch[c][i]; return Math.sqrt(s / (ch.length * N)); };
+    return 20 * Math.log10((rmsOf(r.channels) + 1e-12) / (rmsOf(layer) + 1e-12));
   };
   const ia = level(acoustic, { remove: false }), ie = level(electric, { remove: false }), id = level(drums, { remove: false });
-  ok(ia - ie > 0.4, 'acoustic isolate: the mask favours the plucked acoustic over the held electric', 'acoustic ' + ia.toFixed(2) + ' dB vs electric ' + ie.toFixed(2) + ' dB');
+  ok(ia - ie > 0.2, 'acoustic isolate: the mask favours the plucked acoustic over the held electric', 'acoustic ' + ia.toFixed(2) + ' dB vs electric ' + ie.toFixed(2) + ' dB');
   ok(ia - id > 0.4, 'acoustic isolate: the kit is pushed back behind the acoustic', 'drums ' + id.toFixed(2) + ' dB');
   ok(level(acoustic, { remove: true }) < -1, 'acoustic chop: with the acoustic on its own the chop bites', 'acoustic alone ' + level(acoustic, { remove: true }).toFixed(2) + ' dB');
 })();

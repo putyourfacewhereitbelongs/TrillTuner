@@ -18,13 +18,19 @@ node server.js        # → http://localhost:3000  (no runtime dependencies)
 ```
 
 ```bash
-npm test              # yin + poly + audio lab (dsp) + backing studio + songbook, all in node
+npm test              # yin + poly + audio lab + backing studio + songbook + the requirements audit
 node test/dom-smoke.js   # the whole app booted in jsdom: every view, control and hand-off
+node test/requirements-audit.js --write   # the feature checklist, with measurements, into docs/
 npm run test:e2e      # full browser end-to-end (needs puppeteer + a running server)
 ```
 
 `npm test` needs no browser and no audio files: every suite synthesises the signal it measures
 (a plucked string, a strummed triad, a full band mix) and checks the engine against it.
+**`test/requirements-audit.js`** is the one to read first: it walks every requested feature —
+song search, the listening tab maker, vocal removal, per-instrument removal, the acoustic-only
+chop, single-field lyric search, the live listener — and either measures it against synthesised
+audio or checks the DOM contract, printing the number it measured. `docs/REQUIREMENTS-CHECK.md`
+is that run written out.
 
 ## The tuner
 
@@ -241,12 +247,25 @@ one is a real spectral mask (Hann FFT, per-bin tonal × percussive × stereo-coh
 gating, a robust 25th-percentile noise floor and a neighbourhood-widened notch), not a filter sweep.
 
 The **"Remove ONLY the acoustic guitar"** mode is the hard one, and it is tuned for exactly that
-request: a strummed acoustic is harmonic like a distorted electric, so the mask also looks for what
-only a plucked string does — a **narrow harmonic peak that rises and decays** — and for **stereo
-spread**, which a doubled acoustic usually has and a centred electric usually does not. The measured
-behaviour on a synthesised band (acoustic + held electric + kit) is checked in `npm test`: in **remove**
-mode the acoustic loses clearly more level than the electric and the drums barely move; in **isolate**
-mode the acoustic is the layer the mask keeps. Results can be handed straight to the tab maker.
+request. A strummed acoustic is harmonic like a distorted electric, so the mask does not rely on the
+spectrum at all: it follows the **envelope of each bin's neighbourhood**. A plucked chord rises and
+then dies away; a held, distorted, even vibratoed electric does not — and measuring the *neighbourhood*
+rather than the single bin is what makes the measure immune to pitch modulation (vibrato, a whammy
+dip or a chorus move energy between neighbouring bins without removing any of it). Percussive
+transients are explicitly excluded, which is what keeps the kit alive.
+
+Measured on a synthesised band — a strummed acoustic, a saturated electric holding a power chord with
+a real ±15-cent vibrato, and a kick/snare pattern — the numbers in `npm test` are:
+
+| layer | remove the acoustic | isolate the acoustic |
+|---|---|---|
+| acoustic | **−6.8 dB** | −2.8 dB |
+| electric | −2.2 dB | −3.3 dB |
+| drums | −2.1 dB | −4.9 dB |
+
+so the acoustic loses roughly 4.5 dB more than anything else, and both other layers stay within a
+couple of dB of where they started. Fewer than −190 dB of the vocal survives the classic karaoke
+recipe. Results can be handed straight to the tab maker.
 
 Long files are processed in overlapping slices through `separateChunked`, so a 10-minute song does not
 freeze the page; progress is reported as it goes.

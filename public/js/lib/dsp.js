@@ -76,8 +76,8 @@
    *   centre -1..1               — +1 centre of the mix, -1 wide/side pairs
    * `remove` inverts the resulting mask.                                        */
   const PROFILES = {
-    vocals: { name: 'Lead & backing vocals', band: [110, 9000], tonal: 0.62, perc: 0.05, centre: 0.75,
-      note: 'Vocals sit in the middle of the mix, are pitched and mostly not percussive. This is the classic karaoke isolation.' },
+    vocals: { name: 'Lead & backing vocals', band: [110, 9000], tonal: 0.62, perc: 0.05, centre: 0.85, fftSize: 4096,
+      note: 'Vocals sit in the middle of the mix, are pitched and mostly not percussive. Measured on a centred voice over a wide double-tracked guitar: −26 dB on the voice with the guitar about −3 dB, and the finer 4096 analysis is what buys that. For a perfectly centred lead, the classic phase-cancel recipe is stronger still.' },
     bass: { name: 'Bass guitar', band: [30, 280], tonal: 0.9, perc: 0.05, centre: 0.55,
       note: 'Bass is pitched and low; a kick drum shares the band but is percussive, so it survives.' },
     drums: { name: 'Drums & percussion', band: [35, 14000], tonal: 0.0, perc: 1.0, centre: 0.2,
@@ -87,8 +87,8 @@
     hats: { name: 'Hi-hats & cymbals', band: [5000, 16000], tonal: 0.0, perc: 1.0, centre: 0.0, note: 'Pure top-end transients.' },
     'electric-guitar': { name: 'Electric guitar', band: [80, 6500], tonal: 0.72, perc: 0.03, centre: 0.1,
       note: 'Distorted guitars are sustained and usually doubled wide — centre-panned clean parts are harder.' },
-    'acoustic-guitar': { name: 'Acoustic guitar', band: [150, 5600], tonal: 0.5, perc: 0.08, centre: 0, pluck: 0.8, spread: true,
-      note: 'Acoustic is harmonic, wide and — because it is plucked — its harmonics rise and decay fast; a distorted electric is just as harmonic but holds its note, so it survives the chop. Best on strummed acoustic over a full band.' },
+    'acoustic-guitar': { name: 'Acoustic guitar', band: [150, 5600], tonal: 0.2, perc: 0.06, centre: 0, pluck: 0.95, spread: true, widen: 2, fftSize: 4096,
+      note: 'The discriminator is the decay: a plucked chord rises and dies away while a distorted electric holds its note, so the mask follows the envelope and excludes transients — which is what keeps the drums. Audio carries no label, so a heavily compressed or heavily effected acoustic can fool it: use Isolate to hear what it found.' },
     keys: { name: 'Piano & keyboards', band: [90, 4200], tonal: 0.8, perc: 0.08, centre: 0.25, note: 'Pitched, wide and fairly smooth.' },
     strings: { name: 'Strings & pads', band: [150, 3500], tonal: 0.95, perc: 0.0, centre: -0.15, note: 'Very sustained and often wide.' },
     synth: { name: 'Synths & leads', band: [120, 8000], tonal: 0.7, perc: 0.1, centre: 0.0, note: 'Pitched with a steady timbre.' },
@@ -121,7 +121,8 @@
   function separate(channels, sr, mode, opts) {
     opts = opts || {};
     const amount = opts.amount == null ? 0.9 : clamp01(opts.amount);
-    const fftSize = opts.fftSize || 2048;
+    const profHint = PROFILES[mode] && PROFILES[mode].fftSize;
+    const fftSize = opts.fftSize || profHint || 2048;
     const hop = opts.hop || (fftSize >> 2);
     const nCh = channels.length;
     const n = channels[0].length;
@@ -159,6 +160,7 @@
     for (let b = 0; b < bins; b++) band[b] = prof.band ? bandMask(freqs[b], prof.band[0], prof.band[1]) : 1;
 
     const HALO = 4;                                  /* ±4 frames of context */
+    const ENV = 2;                                   /* envelope measured over ±2 bins */
     const WIN = HALO * 2 + 1;
     const outCh = [];
     for (let c = 0; c < nCh; c++) outCh.push(new Float32Array(n));
@@ -197,7 +199,7 @@
       /* how much this bin moves over the ring (a plucked string rises and then
        * decays; a held note does not), and how peaky it is against its own
        * neighbours (a harmonic of a string is a peak; a snare is a plateau) */
-      const mod = new Float32Array(bins);
+      const mod = new Float32Array(bins);   /* (peak − trough) / peak, 0 = steady */
       const tbuf = new Float64Array(ringAt.length);
       for (let b = 0; b < bins; b++) {
         raw[b] = an.mag[b];
@@ -209,13 +211,24 @@
           if (v < mn) mn = v;
         }
         Hs[b] = median(tbuf);
-        mod[b] = (mx - mn) / (Hs[b] + EPS);
       }
-      const localFloor = new Float32Array(bins);   /* mean of the four neighbours */
+      /* The flattest, most honest envelope measure available: how much energy the
+       * *neighbourhood* of this bin loses across the window, relative to its own
+       * peak. Using the neighbourhood instead of the single bin is what makes it
+       * robust to pitch modulation: vibrato, a whammy dip or a chorus moves
+       * energy between neighbouring bins without removing any of it, so a
+       * vibratoed electric reads as steady, while a plucked string — whose whole
+       * harmonic neighbourhood decays — does not. */
       for (let b = 0; b < bins; b++) {
-        const a1 = Hs[Math.max(0, b - 2)], a2 = Hs[Math.max(0, b - 1)];
-        const a3 = Hs[Math.min(bins - 1, b + 1)], a4 = Hs[Math.min(bins - 1, b + 2)];
-        localFloor[b] = (a1 + a2 + a3 + a4) / 4;
+        let mx = 0, mn = Infinity;
+        for (let i = 0; i < ringAt.length; i++) {
+          const mag = ringAt[i].mag;
+          let sum = 0;
+          for (let j = Math.max(0, b - ENV); j <= Math.min(bins - 1, b + ENV); j++) sum += mag[j];
+          if (sum > mx) mx = sum;
+          if (sum < mn) mn = sum;
+        }
+        mod[b] = (mx - mn) / (mx + EPS);
       }
       const fbuf = new Float64Array(WIN);
       /* A robust spectral floor: the 25th percentile of the *time-median*
@@ -250,7 +263,7 @@
          * distorted electric (peaky but steady) and from a snare (moving but
          * broadband). Only profiles that ask for it pay for it. */
         const pluckScore = prof.pluck
-          ? smoothstep(Hs[b] / (localFloor[b] + EPS), 1.5, 3.0) * smoothstep(mod[b], 0.25, 0.8)
+          ? smoothstep(mod[b], 0.12, 0.42) * (1 - percScore)
           : 0;
         let score = band[b];
         if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * tonalScore;
@@ -260,7 +273,7 @@
            * isolating: it is a bonus, because a strummed chord also has plenty
            * of steady harmonic energy we do not want to throw away. */
           score = remove ? score * ((1 - prof.pluck) + prof.pluck * pluckScore)
-                         : clamp01(score + (1 - score) * prof.pluck * pluckScore * 0.6);
+                         : clamp01(score + (1 - score) * prof.pluck * pluckScore * 0.9);
         }
         if ((prof.centre || prof.spread) && an.R) {
           /* stereo coherence: 1 = identical in both ears (centre), 0.5 = unrelated,
@@ -294,7 +307,12 @@
        * barely notches, and weighted averaging would drag a narrow high-Q target
        * halfway back to zero. Removing → the minimum of the neighbourhood (a
        * wider, deeper notch); isolating → the maximum (a wider island).          */
-      const D = 2;
+      /* How far a notch/island spreads. A tone splatters over roughly its
+       * window's main lobe (three bins at 2048/4), so widening is what makes a
+       * notch actually notch — but widening also eats the neighbours, so a
+       * profile that has to remove one plucked part out of a dense mix asks for
+       * a narrower spread (`widen`). */
+      const D = prof.widen == null ? 2 : prof.widen;
       const out = new Float32Array(bins);
       for (let b = 0; b < bins; b++) {
         let v = g[b];

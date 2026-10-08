@@ -1096,6 +1096,13 @@ button.chip-btn:hover { border-color: var(--accent); }
 .st-effect { background: #0e1119; border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; font-size: 13.5px; margin: 8px 0 12px; }
 .st-runrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-height: 0; margin: 6px 0 2px; }
 .st-runrow:empty { display: none; }
+.st-player { margin: 10px 0 12px; }
+.st-wave { display: block; width: 100%; height: 96px; background: #0e1119; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; touch-action: none; }
+.st-wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.st-clock { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.st-clock b { font-size: 15px; color: #e7ecf6; }
+.st-clock #st-dur { font-size: 13px; }
+.st-clock #st-ab-label { text-align: center; }
 .st-ctls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .st-ctls .field.inline { max-width: 190px; }
 .st-notes { margin: 8px 0 0 18px; padding: 0; font-size: 13.5px; color: var(--muted); display: grid; gap: 8px; }

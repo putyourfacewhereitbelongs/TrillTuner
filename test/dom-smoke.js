@@ -69,7 +69,16 @@ class FakeAudioContext {
   createConvolver() { return fakeNode({ buffer: null }); }
   createDynamicsCompressor() { return fakeNode(); }
   createOscillator() { return fakeNode({ type: 'sine', start() {}, stop() {} }); }
-  createBufferSource() { return fakeNode({ buffer: null, start() {}, stop() {} }); }
+  createBufferSource() {
+    this._sources = this._sources || [];
+    const n = fakeNode({
+      buffer: null, loop: false, loopStart: 0, loopEnd: 0, started: [], stopped: false,
+      start(when, offset, dur) { this.started.push({ when: when, offset: offset, dur: dur }); },
+      stop() { this.stopped = true; }
+    });
+    this._sources.push(n);            /* the tests read loop/loopStart/start offsets here */
+    return n;
+  }
   createAnalyser() {
     return fakeNode({
       fftSize: 2048, frequencyBinCount: 1024, smoothingTimeConstant: 0,
@@ -102,16 +111,36 @@ window.navigator.mediaDevices = {
   getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }),
   enumerateDevices: () => Promise.resolve([])
 };
-window.HTMLCanvasElement.prototype.getContext = function () {
+/* A 2-D context that *records* instead of painting, so a test can see what was
+ * drawn (the stem lab's waveform, its loop band and its playhead are all canvas
+ * work). jsdom has no canvas of its own, so this is the only way to check that
+ * the drawing really happens rather than merely not throwing. */
+const canvasLogs = [];
+window.__canvasLogs = canvasLogs;
+window.HTMLCanvasElement.prototype.getContext = function (kind) {
   const noop = () => {};
+  if (kind !== '2d') return null;
+  if (!this.__cid) this.__cid = canvasLogs.length + 1;
+  let log = canvasLogs[this.__cid - 1];
+  if (!log) {
+    log = canvasLogs[this.__cid - 1] = { id: this.__cid, canvas: this, ops: {}, rects: [], texts: [], fillStyle: '', strokeStyle: '', font: '' };
+  }
+  const count = name => { log.ops[name] = (log.ops[name] || 0) + 1; };
   return {
     canvas: this, save: noop, restore: noop, beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
     arc: noop, arcTo: noop, bezierCurveTo: noop, quadraticCurveTo: noop, ellipse: noop, rect: noop, clip: noop,
-    fill: noop, stroke: noop, fillRect: noop, clearRect: noop, strokeRect: noop,
-    fillText: noop, strokeText: noop, measureText: () => ({ width: 10 }), setTransform: noop,
-    translate: noop, rotate: noop, scale: noop, drawImage: noop, createLinearGradient: () => ({ addColorStop: noop }),
+    fill: () => count('fill'), stroke: () => count('stroke'),
+    fillRect: (x, y, w, h) => { count('fillRect'); log.rects.push({ x: x, y: y, w: w, h: h, style: log.fillStyle }); },
+    clearRect: () => count('clearRect'), strokeRect: noop,
+    fillText: (t, x, y) => { count('fillText'); log.texts.push({ t: t, x: x, y: y }); },
+    strokeText: noop, measureText: () => ({ width: 10 }), setTransform: noop,
+    translate: noop, rotate: noop, scale: noop, drawImage: () => count('drawImage'),
+    createLinearGradient: () => ({ addColorStop: noop }),
     createRadialGradient: () => ({ addColorStop: noop }),
-    set fillStyle(v) {}, set strokeStyle(v) {}, set lineWidth(v) {}, set font(v) {}, set globalAlpha(v) {},
+    get fillStyle() { return log.fillStyle; }, set fillStyle(v) { log.fillStyle = v; },
+    get strokeStyle() { return log.strokeStyle; }, set strokeStyle(v) { log.strokeStyle = v; },
+    get font() { return log.font; }, set font(v) { log.font = v; },
+    set lineWidth(v) {}, set globalAlpha(v) {},
     set globalCompositeOperation(v) {}, set textAlign(v) {}, set textBaseline(v) {}, set lineCap(v) {},
     set lineJoin(v) {}, set shadowBlur(v) {}, set shadowColor(v) {}, set filter(v) {}
   };
@@ -768,6 +797,120 @@ check('stems: a take is honest while it runs, and it never clobbers a song opene
   if (doc.getElementById('st-run-note').textContent) throw new Error('the run row kept its recording note');
   TT.stems.state.recordSeconds = 20;
   return 'the run row told the truth, the take was discarded, and “opened mid-take” survived';
+});
+
+check('stems: the result comes with a waveform, a clock, a skip and an A–B loop', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const ctx = TT.audio.ensure();
+  /* separate something we can look at: 6 s of two tones */
+  const sr = 22050, n = sr * 6;
+  const L = new Float32Array(n), R = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    L[i] = 0.4 * Math.sin(2 * Math.PI * 440 * t) + 0.2 * Math.sin(2 * Math.PI * 220 * t);
+    R[i] = 0.4 * Math.sin(2 * Math.PI * 440 * t) - 0.2 * Math.sin(2 * Math.PI * 220 * t);
+  }
+  TT.stems.loadBuffer({ numberOfChannels: 2, sampleRate: sr, length: n, duration: n / sr, getChannelData: c => (c ? R : L) }, 'transport fixture', sr);
+  TT.stems.state.mode = 'vocals'; TT.stems.state.remove = true;
+  await TT.stems.run();
+  const t0 = TT.stems.transport();
+  if (Math.abs(t0.dur - 6) > 0.05) throw new Error('the transport does not know the length: ' + t0.dur);
+  if (t0.playing) throw new Error('it claims to be playing with nothing started');
+
+  /* the waveform really was drawn, into an offscreen layer and then stamped */
+  const wave = doc.getElementById('st-wave');
+  const logs = window.__canvasLogs.filter(l => l && l.rects.length);
+  const columns = logs.reduce((a, l) => a + l.rects.filter(r => r.w === 1).length, 0);
+  if (columns < 200) throw new Error('the waveform drew only ' + columns + ' columns');
+  const mine = window.__canvasLogs[wave.__cid - 1];
+  if (!mine || !mine.ops.drawImage) throw new Error('the waveform layer was never stamped onto the canvas');
+  const band = logs.some(l => l.rects.some(r => /rgba\(56, 189, 248/.test(String(r.style))));
+  if (band) throw new Error('a loop band was drawn before any loop point was set');
+
+  /* skip: the clock follows, and the playhead is redrawn where it went */
+  const pos = TT.stems.seek(4.5);
+  if (Math.abs(pos - 4.5) > 1e-6) throw new Error('seek() went to ' + pos);
+  if (doc.getElementById('st-pos').textContent !== '0:04') throw new Error('the clock says ' + doc.getElementById('st-pos').textContent);
+  const head = window.__canvasLogs[wave.__cid - 1].rects.filter(r => r.style === '#ffd28a').pop();
+  if (!head) throw new Error('no playhead was drawn');
+  const want = 4.5 / 6 * wave.width;
+  if (Math.abs(head.x - want) > wave.width * 0.02) throw new Error('the playhead is at ' + head.x + ' but 4.5 s is ' + want + ' px');
+  if (!/whole take/.test(doc.getElementById('st-ab-label').textContent)) throw new Error('the loop label: ' + doc.getElementById('st-ab-label').textContent);
+
+  /* A and B, set from the playhead */
+  TT.stems.seek(1.5); doc.getElementById('st-btn-aset').click();
+  TT.stems.seek(3.5); doc.getElementById('st-btn-bset').click();
+  const t1 = TT.stems.transport();
+  if (Math.abs(t1.a - 1.5) > 0.01 || Math.abs(t1.b - 3.5) > 0.01) throw new Error('A/B not set: ' + t1.a + '/' + t1.b);
+  /* both handles and the band are on the canvas now */
+  const logs2 = window.__canvasLogs.filter(l => l && l.rects.some(r => /rgba\(56, 189, 248/.test(String(r.style))));
+  if (!logs2.length) throw new Error('no loop band was drawn');
+  const marks = logs2.reduce((a, l) => a + l.texts.filter(t => t.t === 'A' || t.t === 'B').length, 0);
+  if (marks < 2) throw new Error('the A/B handles are not marked on the waveform (' + marks + ')');
+  const label = doc.getElementById('st-ab-label').textContent;
+  if (!/A 0:01/.test(label) || !/B 0:03/.test(label)) throw new Error('the loop label reads “' + label + '”');
+
+  /* play with the loop on: the source itself is told to loop that section */
+  doc.getElementById('st-loop').checked = true;
+  doc.getElementById('st-loop').dispatchEvent(new window.Event('change', { bubbles: true }));
+  doc.getElementById('st-btn-play').click();
+  const src = ctx._sources[ctx._sources.length - 1];
+  if (!TT.stems.transport().playing) throw new Error('the play button did not start anything');
+  if (!src.loop || Math.abs(src.loopStart - 1.5) > 0.01 || Math.abs(src.loopEnd - 3.5) > 0.01) {
+    throw new Error('the audio node was not looped over A–B: loop=' + src.loop + ' ' + src.loopStart + '→' + src.loopEnd);
+  }
+  if (Math.abs(src.started[0].offset - 1.5) > 0.01) throw new Error('playback did not start at A (' + src.started[0].offset + ')');
+  /* skipping while it plays restarts the sound at the new place */
+  TT.stems.seek(2.5);
+  const src2 = ctx._sources[ctx._sources.length - 1];
+  if (Math.abs(src2.started[0].offset - 2.5) > 0.01) throw new Error('skipping while playing did not move the sound');
+  if (!src.stopped) throw new Error('the old player was left running');
+  TT.stems.stop();
+  if (TT.stems.transport().playing) throw new Error('stop left it playing');
+  if (doc.getElementById('st-btn-play').textContent.trim() !== '▶ Play') throw new Error('the button did not reset');
+
+  /* clearing A–B loops the whole take again */
+  doc.getElementById('st-btn-abclear').click();
+  const t2 = TT.stems.transport();
+  if (t2.a != null || t2.b != null) throw new Error('clear A–B left ' + t2.a + '/' + t2.b);
+  if (!/whole take/.test(doc.getElementById('st-ab-label').textContent)) throw new Error('the label did not reset');
+  return 'drew the wave (' + columns + ' columns) + A/B handles, clock follows the playhead, loop node 1.5→3.5 s, skip restarts it';
+});
+
+check('stems: the transport answers the keyboard, and an empty A–B loops the whole take', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const ctx = TT.audio.ensure();
+  const wave = doc.getElementById('st-wave');
+  const key = k => wave.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  TT.stems.clearAB();
+  TT.stems.seek(0.5);
+  key('ArrowRight');
+  if (Math.abs(TT.stems.transport().pos - 5.5) > 0.05) throw new Error('→ did not skip 5 s (at ' + TT.stems.transport().pos + ')');
+  key('ArrowLeft');
+  if (Math.abs(TT.stems.transport().pos - 0.5) > 0.05) throw new Error('← did not skip back 5 s (at ' + TT.stems.transport().pos + ')');
+  key('End');
+  if (TT.stems.transport().pos < 5.9) throw new Error('End did not go to the end');
+  key('Home');
+  if (TT.stems.transport().pos !== 0) throw new Error('Home did not go to the start');
+  /* [ and ] mark the section at the playhead */
+  TT.stems.seek(1); key('[');
+  TT.stems.seek(2.5); key(']');
+  const t = TT.stems.transport();
+  if (Math.abs(t.a - 1) > 0.01 || Math.abs(t.b - 2.5) > 0.01) throw new Error('[ and ] did not set A/B: ' + t.a + '/' + t.b);
+  TT.stems.clearAB();
+  /* with no A–B the loop is the whole take, and it must not be a zero-length one */
+  doc.getElementById('st-loop').checked = true;
+  doc.getElementById('st-loop').dispatchEvent(new window.Event('change', { bubbles: true }));
+  TT.stems.play();
+  const src = ctx._sources[ctx._sources.length - 1];
+  if (!src.loop) throw new Error('the whole take was not looped');
+  if (src.loopStart !== 0 && src.loopStart !== src.loopEnd) throw new Error('a stray loop range: ' + src.loopStart + '→' + src.loopEnd);
+  TT.stems.stop();
+  doc.getElementById('st-loop').checked = false;
+  doc.getElementById('st-loop').dispatchEvent(new window.Event('change', { bubbles: true }));
+  return 'arrows skip, Home/End jump, [ and ] fence the section, and an empty A–B loops the whole take';
 });
 
 check('stems: a backing-studio render is handed over and separated here', async () => {

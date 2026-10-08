@@ -622,14 +622,28 @@
         <div class="card" id="st-result" hidden>
           <div class="card-h">Result</div>
           <div class="st-effect" id="st-effect"></div>
+          <div class="st-player">
+            <canvas id="st-wave" class="st-wave" width="880" height="96" tabindex="0" role="img"
+              aria-label="Waveform of the separated audio. Click or drag to skip through it; drag the A and B markers to loop a section."></canvas>
+            <div class="st-clock">
+              <b id="st-pos">0:00</b>
+              <span class="dim smallish" id="st-ab-label">whole take</span>
+              <span class="dim" id="st-dur">0:00</span>
+            </div>
+          </div>
           <div class="row-btns">
             <button class="btn btn-primary tiny" id="st-btn-play">▶ Play</button>
+            <button class="btn tiny" id="st-btn-aset" title="Loop in at where the playhead is (keyboard: [)">⟦ Set A</button>
+            <button class="btn tiny" id="st-btn-bset" title="Loop out at where the playhead is (keyboard: ])">Set B ⟧</button>
+            <button class="btn btn-ghost tiny" id="st-btn-abclear" title="Loop the whole take again">✕ Clear A–B</button>
+          </div>
+          <div class="row-btns">
             <button class="btn tiny" id="st-btn-wav">⬇ Save as WAV</button>
             <button class="btn btn-ghost tiny" id="st-btn-tab">🎸 Read its chords in the Tab maker</button>
           </div>
           <div class="st-ctls">
             <label class="field inline"><span>Volume</span><input id="st-vol" type="range" min="0" max="1" step="0.02" value="0.9"></label>
-            <label class="check"><input type="checkbox" id="st-loop"><span>Loop</span></label>
+            <label class="check"><input type="checkbox" id="st-loop"><span>Loop the section</span></label>
           </div>
           <div class="card-h small">Recently separated</div>
           <div class="chipwrap" id="st-history"></div>

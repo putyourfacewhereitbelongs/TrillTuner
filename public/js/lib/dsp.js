@@ -269,8 +269,18 @@
         fn = 0;
         for (let j = lo; j <= hi; j++) fbuf[fn++] = raw[j];
         const PR = median(fbuf.subarray(0, fn));                    /* broadband in this one frame */
-        const h2 = Hs[b] * Hs[b], ph2 = PH * PH, pr2 = PR * PR;
+        const h2 = Hs[b] * Hs[b], ph2 = PH * PH, pr2 = PR * PR, r2 = raw[b] * raw[b];
         const tonalScore = smoothstep(h2 / (h2 + ph2 + EPS), 0.55, 0.85);   /* a steady note lives here */
+        /* The time median answers “is there a *sustained* note here”, which is the
+         * right question for telling a held vocal from a drum hit — but it is a
+         * median, so it can only rise once the note has been sounding for a few
+         * frames, and the first ~100 ms of every word would come through untouched
+         * (removing) or ramp up from nothing (isolating). The current frame is
+         * asked the same question about its own neighbourhood, so a word opens the
+         * mask on its first frame; a drum hit cannot fake it, because a hit is
+         * broadband and its neighbourhood median rises with it. */
+        const tonalNow = smoothstep(r2 / (r2 + pr2 + EPS), 0.55, 0.85);
+        const tonalAny = tonalNow > tonalScore ? tonalNow : tonalScore;
         /* a transient is much louder than its own time median */
         const transient = smoothstep(raw[b] / (Hs[b] + EPS), 1.35, 3.2);
         const percScore = smoothstep(pr2 / (pr2 + h2 + EPS), 0.5, 0.8) * transient;
@@ -282,7 +292,20 @@
           ? smoothstep(mod[b], 0.12, 0.42) * (1 - percScore)
           : 0;
         let score = band[b];
-        if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * tonalScore;
+        /* Removing needs the *instant* answer — the notch has to be shut on the
+         * first frame of a word or the word leaks through. Isolating keeps the
+         * median answer: there, an instant “is this tonal right now” reading
+         * would also open the island for every held note underneath, which is
+         * how a plucked acoustic loses to a sustained electric. The running gain
+         * below is what keeps an isolated voice from being faded. */
+        /* Removing needs the *instant* answer — the notch has to be shut on the
+         * first frame of a word or the word leaks through. Isolating wants it
+         * too, so the island is open before the word arrives rather than a few
+         * frames after it. The pluck profile is the exception: there the instant
+         * reading would also open the island for every held note underneath,
+         * which is how a plucked acoustic loses to a sustained electric. */
+        const useFast = remove || !prof.pluck;
+        if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * (useFast ? tonalAny : tonalScore);
         if (prof.perc) score *= (1 - prof.perc) + prof.perc * percScore;
         if (prof.pluck) {
           /* removing: the pluck signature is what qualifies a bin for the chop.
@@ -368,8 +391,43 @@
       }
     }
 
+    /* The mask is applied as a running level, not frame by frame.
+     *
+     * Every per-frame score above is a *soft* decision, so applying it raw
+     * multiplies the voice by its own slowly varying confidence: words ramp in
+     * (isolating) and the first ~100 ms of every word leaks through the notch
+     * (removing) — the mask, not the music, ends up shaping the vocal envelope.
+     *
+     * So the applied gain moves asymmetrically: it snaps in the direction that
+     * *protects* the target (the notch deepens, the island opens) on the very
+     * frame the note appears, and relaxes back over ~40 ms (isolate) / ~110 ms
+     * (remove) once the note stops. The voice keeps its own attack, and the
+     * accompaniment is still left alone between phrases. */
+    const prevGain = new Float32Array(bins);
+    let havePrev = false;
+    let releaseCoef = 0;
+    /* The acoustic profile is the exception, and deliberately so: its whole
+     * discriminator is the *shape* of the envelope (a pluck rises and dies), so
+     * holding gains open across frames would smooth away the feature it is
+     * measuring. Sustained-content profiles get the running gain. */
+    const runGain = !prof.pluck;
     function decide(an, ringAt) {
-      synthesize(an, gainFor(an, ringAt));
+      const g = gainFor(an, ringAt);
+      if (!havePrev) {
+        prevGain.set(g);
+        havePrev = true;
+        releaseCoef = Math.exp(-(hop / sr) / (remove ? 0.11 : 0.04));
+      } else if (!runGain) {
+        prevGain.set(g);
+      } else {
+        for (let b = 0; b < bins; b++) {
+          const target = g[b], p = prevGain[b];
+          prevGain[b] = remove
+            ? (target < p ? target : p + (1 - p) * (1 - releaseCoef))
+            : (target > p ? target : p * releaseCoef);
+        }
+      }
+      synthesize(an, prevGain);
     }
 
     let decided = 0;

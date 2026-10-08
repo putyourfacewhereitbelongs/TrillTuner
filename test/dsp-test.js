@@ -484,6 +484,90 @@ console.log('\nTrill Tuner — audio lab tests\n');
   ok(!!aborted && aborted.aborted === true, 'a separation can be stopped between slices',
     aborted ? '“' + aborted.message + '”' : 'nothing was thrown');
 
+  /* ------------------------------------------------------------------ */
+  /* 13. the mask must not fade the voice                                */
+  /* ------------------------------------------------------------------ */
+  /* A soft, per-frame mask multiplies the voice by its own confidence: words
+   * ramp in when isolating, and the first tenth of a second of every word leaks
+   * through the notch when removing. Both are measured here against the voice
+   * itself (the mix would hide it), 10 ms frames, in dB:
+   *   · isolate — how far the voice is off, separately for the first 40 ms of a
+   *     word and for the steady part of it; the two must be close, or the mask
+   *     is shaping the voice's own envelope;
+   *   · remove — the leaked voice must be as weak at a word's onset as it is in
+   *     the steady state, or the instrumental “comes back” between syllables. */
+  {
+    const FS = 22050, TAU2 = Math.PI * 2;
+    const words = [];
+    for (let k = 0; k < 10; k++) words.push({ at: 0.5 + k * 0.5, dur: 0.34, f0: 196 * Math.pow(2, (k % 4) / 12) });
+    const total = Math.ceil((words[words.length - 1].at + 1) * FS);
+    const voice = new Float32Array(total);
+    let seed2 = 3;
+    const rnd2 = () => (seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+    words.forEach(w => {
+      const s0 = Math.round(w.at * FS), len = Math.round(w.dur * FS);
+      for (let i = 0; i < len; i++) {
+        const t = i / FS, vib = 1 + 0.012 * Math.sin(TAU2 * 5.5 * t);
+        const env = Math.min(1, t / 0.02) * Math.min(1, (w.dur - t) / 0.05);
+        let v = 0;
+        for (let h = 1; h <= 6; h++) v += Math.sin(TAU2 * w.f0 * h * vib * t) / (h * 1.4);
+        voice[s0 + i] += 0.34 * env * v * (1 + 0.25 * rnd2());
+      }
+    });
+    const gl = new Float32Array(total), gr = new Float32Array(total), lo = new Float32Array(total), dr = new Float32Array(total);
+    const chords2 = [[196, 246.9, 392], [220, 277.2, 440], [174.6, 261.6, 349.2], [146.8, 220, 293.7]];
+    for (let bar = 0; bar < total / FS; bar++) {
+      const ch = chords2[bar % 4], start = Math.round(bar * FS);
+      for (let st = 0; st < 4; st++) {
+        const off = Math.round(st * 0.25 * FS);
+        ch.forEach((f, k) => {
+          const at2 = start + off + Math.round(k * 0.012 * FS);
+          for (let i = 0; i < 0.5 * FS && at2 + i < total; i++) {
+            const t = i / FS, e = Math.exp(-t * 3.2) * Math.min(1, t / 0.004);
+            gl[at2 + i] += 0.15 * e * Math.sin(TAU2 * f * t);
+            gr[at2 + i] += 0.15 * e * Math.sin(TAU2 * f * 1.003 * t);
+          }
+        });
+      }
+      for (let i = 0; i < FS; i++) { const at2 = start + i; if (at2 >= total) break; lo[at2] += 0.24 * Math.sin(TAU2 * 82 * (at2 / FS)); }
+    }
+    for (let b = 0; b < Math.ceil(total / FS / 0.5); b++) {
+      const at2 = Math.round(b * 0.5 * FS);
+      for (let i = 0; i < 0.2 * FS && at2 + i < total; i++) dr[at2 + i] += 0.5 * Math.exp(-(i / FS) * 26) * rnd2();
+    }
+    const m2 = [new Float32Array(total), new Float32Array(total)];
+    for (let i = 0; i < total; i++) { m2[0][i] = voice[i] + gl[i] + lo[i] + dr[i]; m2[1][i] = voice[i] + gr[i] + lo[i] + dr[i]; }
+
+    const HOP = Math.round(0.01 * FS);
+    const envOf = a => { const o = []; for (let i = 0; i + HOP <= a.length; i += HOP) { let sum = 0; for (let k = 0; k < HOP; k++) sum += a[i + k] * a[i + k]; o.push(Math.sqrt(sum / HOP)); } return o; };
+    const dB = x => 20 * Math.log10((x || 0) + 1e-9);
+    const envV = envOf(voice);
+    const measure = out => {
+      const envO = envOf(out[0]);
+      const onset = [], steady = [];
+      words.forEach(w => {
+        const s0 = Math.round(w.at / 0.01), len = Math.round(w.dur / 0.01);
+        if (Math.max.apply(null, envV.slice(s0 + 12, s0 + len - 4)) < 0.05) return;
+        for (let k = 0; k < 4; k++) onset.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+        for (let k = 12; k < len - 3; k++) steady.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+      });
+      const med = a => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+      return { onset: med(onset), steady: med(steady) };
+    };
+    const iso2 = D.separate(m2, FS, 'vocals', { remove: false, amount: 0.92 });
+    const rem2 = D.separate(m2, FS, 'vocals', { remove: true, amount: 0.92 });
+    const i1 = measure(iso2.channels), r1 = measure(rem2.channels);
+    /* isolating: the voice must arrive with the word, not 4 dB late */
+    ok(Math.abs(i1.onset) <= 3 && Math.abs(i1.steady) <= 1.5 && Math.abs(i1.onset - i1.steady) <= 3,
+      'isolating a voice keeps the voice’s own envelope — words start at level, not faded in',
+      'the word onset sits ' + i1.onset.toFixed(1) + ' dB off the real voice, the steady part ' + i1.steady.toFixed(1) + ' dB');
+    /* removing: the notch must already be shut when a word starts */
+    ok(Math.abs(r1.onset) <= 7.5 && Math.abs(r1.onset) - Math.abs(r1.steady) <= 1.5,
+      'removing a voice does not let the first tenth of every word back in',
+      'leaked voice at a word onset ' + r1.onset.toFixed(1) + ' dB vs ' + r1.steady.toFixed(1) + ' dB in the steady part ' +
+      '(a plain −6 dB fade of the voice reads −6.0 dB at both)');
+  }
+
   console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);
   process.exit(failures ? 1 : 0);
 })();

@@ -466,6 +466,95 @@ function kept(out, src) {
         'the sliced separation path', false, 'threw ' + e.message);
     }
 
+    /* the transport: a waveform, a clock, skipping, and an A–B loop */
+    (function () {
+      const html = read('public/index.html');
+      const lab = read('public/js/stemlab.js');
+      const ids = ['st-wave', 'st-pos', 'st-dur', 'st-ab-label', 'st-btn-aset', 'st-btn-bset', 'st-btn-abclear'];
+      const have = ids.filter(id => html.indexOf('id="' + id + '"') > 0);
+      const api = ['S.seek =', 'S.markA =', 'S.markB =', 'S.clearAB =', 'S.transport ='].filter(x => lab.indexOf(x) > 0);
+      const draws = /function drawStatic/.test(lab) && /fillRect\(x, y0/.test(lab) && /xOf\(state\.pos/.test(lab);
+      const abLoop = /loopStart = sp\.a/.test(lab) && /loopEnd = /.test(lab);
+      item(17, 'A waveform of the take with the playing time, skipping anywhere, and a loop between two points you pick (A and B)',
+        'the DOM contract, the transport API the browser tests drive, the drawing itself (a per-column waveform, a cached layer, a playhead placed at the playhead time) and the A–B loop handed to the audio node',
+        have.length === ids.length && api.length === 5 && draws && abLoop,
+        have.length + '/' + ids.length + ' controls · ' + api.length + '/5 API calls · waveform + playhead drawing: ' + (draws ? 'wired' : 'missing') +
+        ' · A–B reaches the audio node: ' + (abLoop ? 'yes' : 'no') + ' · driven for real in test/dom-smoke.js and test/pwa-e2e.js (§9)');
+    })();
+
+    /* the separation must not fade the voice: measured against the voice itself */
+    (function () {
+      try {
+        const FS = 22050, TAU = Math.PI * 2;
+        const words = [];
+        for (let k = 0; k < 10; k++) words.push({ at: 0.5 + k * 0.5, dur: 0.34, f0: 196 * Math.pow(2, (k % 4) / 12) });
+        const total = Math.ceil((words[words.length - 1].at + 1) * FS);
+        const voice = new Float32Array(total);
+        let seed = 3;
+        const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+        words.forEach(w => {
+          const s0 = Math.round(w.at * FS), len = Math.round(w.dur * FS);
+          for (let i = 0; i < len; i++) {
+            const t = i / FS, vib = 1 + 0.012 * Math.sin(TAU * 5.5 * t);
+            const env = Math.min(1, t / 0.02) * Math.min(1, (w.dur - t) / 0.05);
+            let v = 0;
+            for (let h = 1; h <= 6; h++) v += Math.sin(TAU * w.f0 * h * vib * t) / (h * 1.4);
+            voice[s0 + i] += 0.34 * env * v * (1 + 0.25 * rnd());
+          }
+        });
+        const gl = new Float32Array(total), gr = new Float32Array(total), lo = new Float32Array(total), dr = new Float32Array(total);
+        const chords = [[196, 246.9, 392], [220, 277.2, 440], [174.6, 261.6, 349.2], [146.8, 220, 293.7]];
+        for (let bar = 0; bar < total / FS; bar++) {
+          const ch = chords[bar % 4], start = Math.round(bar * FS);
+          for (let st = 0; st < 4; st++) {
+            const off = Math.round(st * 0.25 * FS);
+            ch.forEach((f, k) => {
+              const at = start + off + Math.round(k * 0.012 * FS);
+              for (let i = 0; i < 0.5 * FS && at + i < total; i++) {
+                const t = i / FS, e = Math.exp(-t * 3.2) * Math.min(1, t / 0.004);
+                gl[at + i] += 0.15 * e * Math.sin(TAU * f * t);
+                gr[at + i] += 0.15 * e * Math.sin(TAU * f * 1.003 * t);
+              }
+            });
+          }
+          for (let i = 0; i < FS; i++) { const at = start + i; if (at >= total) break; lo[at] += 0.24 * Math.sin(TAU * 82 * (at / FS)); }
+        }
+        for (let b = 0; b < Math.ceil(total / FS / 0.5); b++) {
+          const at = Math.round(b * 0.5 * FS);
+          for (let i = 0; i < 0.2 * FS && at + i < total; i++) dr[at + i] += 0.5 * Math.exp(-(i / FS) * 26) * rnd();
+        }
+        const mix = [new Float32Array(total), new Float32Array(total)];
+        for (let i = 0; i < total; i++) { mix[0][i] = voice[i] + gl[i] + lo[i] + dr[i]; mix[1][i] = voice[i] + gr[i] + lo[i] + dr[i]; }
+        const HOP = Math.round(0.01 * FS);
+        const env = a => { const o = []; for (let i = 0; i + HOP <= a.length; i += HOP) { let sum = 0; for (let k = 0; k < HOP; k++) sum += a[i + k] * a[i + k]; o.push(Math.sqrt(sum / HOP)); } return o; };
+        const dB = x => 20 * Math.log10((x || 0) + 1e-9);
+        const envV = env(voice);
+        const measure = out => {
+          const envO = env(out[0]);
+          const on = [], st = [];
+          words.forEach(w => {
+            const s0 = Math.round(w.at / 0.01), len = Math.round(w.dur / 0.01);
+            if (Math.max.apply(null, envV.slice(s0 + 12, s0 + len - 4)) < 0.05) return;
+            for (let k = 0; k < 4; k++) on.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+            for (let k = 12; k < len - 3; k++) st.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+          });
+          const med = a => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+          return { on: med(on), st: med(st) };
+        };
+        const iso = measure(D.separate(mix, FS, 'vocals', { remove: false, amount: 0.92 }).channels);
+        const rem = measure(D.separate(mix, FS, 'vocals', { remove: true, amount: 0.92 }).channels);
+        item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
+          'a synthesised voice with ten words over guitar, bass and drums, measured in 10 ms frames against the real voice: isolating, how far off the first 40 ms of a word is versus the steady part; removing, how much voice leaks at a word’s onset versus mid-word',
+          Math.abs(iso.on) <= 3 && Math.abs(iso.on - iso.st) <= 3 && Math.abs(rem.on) - Math.abs(rem.st) <= 1.5,
+          'isolated voice: word onset ' + iso.on.toFixed(1) + ' dB off the real voice, steady part ' + iso.st.toFixed(1) +
+          ' dB (a per-frame mask used to read 3.5 / 1.7) · removed voice: ' + rem.on.toFixed(1) + ' dB leaked at the onset vs ' +
+          rem.st.toFixed(1) + ' dB mid-word — no swell back in, where it used to leak 1.9 dB more at the start of every word');
+      } catch (e) {
+        item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
+          'the voice-envelope measurement', false, 'threw ' + e.message);
+      }
+    })();
+
     finish();
   };
 

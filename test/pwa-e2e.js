@@ -734,6 +734,78 @@ const TOUR = [
       'stem lab: “Save as WAV” writes a correct 16-bit stereo container',
       wav ? wav.bytes + ' bytes @ ' + wav.sr + ' Hz' : 'no blob');
 
+    /* the transport: a real waveform, a real clock, real skipping, a real A–B loop */
+    const drawn = await page.evaluate(() => {
+      const c = document.getElementById('st-wave');
+      const g = c.getContext('2d');
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      let ink = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 8) ink++;
+      return { ink: ink, px: c.width * c.height, w: c.width, h: c.height, filled: c.clientWidth > 100 };
+    });
+    ok(drawn.ink > drawn.px * 0.05 && drawn.filled,
+      'stem lab: the result is drawn as a waveform', drawn.ink + ' of ' + drawn.px + ' pixels painted, canvas ' + drawn.w + '×' + drawn.h);
+
+    const skip = await page.evaluate(async () => {
+      const c = document.getElementById('st-wave');
+      const r = c.getBoundingClientRect();
+      c.scrollIntoView({ block: 'center' });
+      const r2 = c.getBoundingClientRect();
+      const x = r2.left + r2.width * 0.75, y = r2.top + r2.height / 2;
+      c.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true, pointerId: 1 }));
+      c.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, bubbles: true, pointerId: 1 }));
+      const t = TT.stems.transport();
+      return { pos: t.pos, dur: t.dur, clock: document.getElementById('st-pos').textContent };
+    });
+    ok(Math.abs(skip.pos / skip.dur - 0.75) < 0.06,
+      'stem lab: clicking the waveform skips through the song', 'click at 75 % → ' + skip.pos.toFixed(2) + ' s of ' + skip.dur.toFixed(1) + ' s (clock ' + skip.clock + ')');
+
+    const ab = await page.evaluate(() => {
+      TT.stems.seek(1); document.getElementById('st-btn-aset').click();
+      TT.stems.seek(3); document.getElementById('st-btn-bset').click();
+      const t = TT.stems.transport();
+      return { a: t.a, b: t.b, label: document.getElementById('st-ab-label').textContent };
+    });
+    ok(Math.abs(ab.a - 1) < 0.02 && Math.abs(ab.b - 3) < 0.02 && /A 0:01/.test(ab.label) && /B 0:03/.test(ab.label),
+      'stem lab: A and B can be dropped at any two points', ab.label);
+
+    /* the clock runs while it plays, and with the loop on the playhead stays inside A–B */
+    const loop = await page.evaluate(async () => {
+      document.getElementById('st-loop').checked = true;
+      document.getElementById('st-loop').dispatchEvent(new Event('change', { bubbles: true }));
+      TT.stems.seek(1);
+      document.getElementById('st-btn-play').click();
+      const seen = [];
+      const t0 = performance.now();
+      while (performance.now() - t0 < 4200) {
+        await new Promise(r => setTimeout(r, 120));
+        seen.push(+TT.stems.transport().pos.toFixed(2));
+      }
+      const node = TT.stems.state.node;
+      const out = {
+        seen: seen, nodeLoop: !!(node && node.loop),
+        loopStart: node ? node.loopStart : null, loopEnd: node ? node.loopEnd : null,
+        clock: document.getElementById('st-pos').textContent,
+        playing: TT.stems.transport().playing,
+        wrapped: seen.some((v, i) => i && v < seen[i - 1] - 0.5)
+      };
+      document.getElementById('st-btn-play').click();       /* stop */
+      document.getElementById('st-loop').checked = false;
+      document.getElementById('st-loop').dispatchEvent(new Event('change', { bubbles: true }));
+      return out;
+    });
+    const inside = loop.seen.every(p => p >= 0.95 && p <= 3.05);
+    ok(loop.nodeLoop && Math.abs(loop.loopStart - 1) < 0.02 && Math.abs(loop.loopEnd - 3) < 0.02 && inside && loop.wrapped && loop.playing,
+      'stem lab: with the loop on, playback runs round the A–B section and the clock shows it',
+      'positions ' + loop.seen.slice(0, 12).join(' ') + ' … every one inside 1.0–3.0 s, wrapped ' + loop.wrapped + ', clock ' + loop.clock);
+
+    const halted = await page.evaluate(() => {
+      const t = TT.stems.transport();
+      return { playing: t.playing, label: document.getElementById('st-btn-play').textContent.trim(), pos: t.pos };
+    });
+    ok(!halted.playing && /Play/.test(halted.label),
+      'stem lab: stop leaves the playhead where it is and the button resets', 'held at ' + halted.pos.toFixed(2) + ' s');
+
     /* the tab maker reads the separated audio back */
     await page.click('#st-btn-tab');
     await waitFor(page, () => document.getElementById('view-maker').classList.contains('active'), 8000, 'maker');

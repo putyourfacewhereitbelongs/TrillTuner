@@ -274,6 +274,40 @@ so the acoustic loses roughly 4.5 dB more than anything else, and both other lay
 couple of dB of where they started. Fewer than −190 dB of the vocal survives the classic karaoke
 recipe. Results can be handed straight to the tab maker.
 
+### The player: waveform, clock, skip, and an A–B loop
+
+A finished take comes with a **waveform and a clock**. Click or drag anywhere on the wave to skip
+through the song; drop **⟦ A** and **Set B ⟧** wherever you like (or press `[` and `]` at the
+playhead, and drag the handles on the wave) and tick **Loop the section** to play just that part round
+and round — the loop is handed to the audio node itself (`loopStart`/`loopEnd`), so there is no
+glitch at the wrap. With nothing set it loops the whole take. Arrow keys skip ±5 s, `Home`/`End` jump
+to the ends. The playhead follows the AudioContext clock rather than a wall timer, so the picture and
+the sound cannot drift apart.
+
+### Not fading the voice
+
+The mask is applied as a **running gain**, not frame by frame. A soft per-frame mask multiplies the
+voice by its own confidence, which is audible: words ramp in when isolating, and the first tenth of
+every word leaks through the notch when removing. So the gain now snaps in the direction that
+*protects* the target — the notch deepens and the island opens on the very frame a note appears — and
+relaxes over ~40 ms (isolate) / ~110 ms (remove) once it stops. The acoustic profile is deliberately
+excluded: its whole discriminator is the *shape* of the envelope, and holding gains across frames
+would smooth away the feature it is measuring.
+
+Measured against the real voice (10 ms frames, synthesised words over a band, the numbers `npm test`
+prints):
+
+| | word onset (first 40 ms) | steady part of the word |
+|---|---|---|
+| isolate, before | 3.5 dB off the real voice | 1.7 dB |
+| isolate, now | **0.9 dB** | **−0.6 dB** |
+| remove, before | 1.9 dB *more* voice leaks at the onset than mid-word | |
+| remove, now | −6.1 dB at the onset vs **−7.0 dB** mid-word — no swell back in | |
+
+What is left at a word's onset is the analysis window's own resolution (a 4096-point Hann window at
+22 kHz smears a transient over ±90 ms); making that shorter would cost the frequency resolution the
+notch needs to find harmonics.
+
 Long files are processed in overlapping slices through `separateChunked`, so a 10-minute song does not
 freeze the page; progress is reported as it goes.
 

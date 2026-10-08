@@ -205,8 +205,14 @@
     });
     const st = el('bk-stems');
     if (st) st.addEventListener('click', () => {
+      const res = state.result;
+      const title = res
+        ? 'Backing bed — ' + res.key + ' ' + res.modeName + ' · ' + res.styleName + ' · ' + res.bpm + ' BPM'
+        : 'Backing bed';
+      /* the Stem lab takes the samples straight from memory — no download needed */
+      const taken = !!(res && T().stems && T().stems.adopt && T().stems.adopt(res, { title: title }));
       if (T().app) T().app.showView('stems');
-      if (T().stems && T().stems.adopt) T().stems.adopt(state.result);
+      if (taken) setStatus('Sent to the Stem lab — it is loaded there already. Try “Remove the drums” or “Remove the bass” and play over the rest.', 'ok');
       else setStatus('The Stem lab is waiting for a file — drop this render in as a WAV (download it first).', '');
     });
   }

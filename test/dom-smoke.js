@@ -78,7 +78,18 @@ class FakeAudioContext {
     });
   }
   createMediaStreamDestination() { return fakeNode({ stream: {} }); }
-  createScriptProcessor() { return fakeNode({ onaudioprocess: null }); }
+  createMediaStreamSource() {
+    const n = fakeNode();
+    this._micSources = this._micSources || [];
+    this._micSources.push(n);
+    return n;
+  }
+  createScriptProcessor() {
+    const n = fakeNode({ onaudioprocess: null });
+    this._sps = this._sps || [];
+    this._sps.push(n);            /* the tests drive the capture from here */
+    return n;
+  }
   createBuffer(ch, len) {
     const data = [];
     for (let i = 0; i < ch; i++) data.push(new Float32Array(len));
@@ -131,6 +142,20 @@ scripts.forEach(src => {
 
 const pending = [];       /* async checks are awaited before the final report */
 function check(label, fn) {
+  /* async checks run ONE AT A TIME, in the order they are written: they share
+   * the app's single state (the stem lab holds one audio take at a time), so
+   * letting them overlap made the result depend on scheduling. */
+  if (fn && fn.constructor && fn.constructor.name === 'AsyncFunction') {
+    const prev = pending.length ? pending[pending.length - 1] : Promise.resolve();
+    const p = prev.then(() => fn()).then(res => {
+      console.log('  ✓ ' + label + (res === undefined || res === true ? '' : ' — ' + res));
+    }, e => {
+      errors.push('CHECK FAILED ' + label + ': ' + (e && e.message || e));
+      console.log('  ✗ ' + label + ' — ' + (e && e.message || e));
+    });
+    pending.push(p);
+    return true;
+  }
   let v;
   try {
     v = fn();
@@ -669,6 +694,88 @@ check('stems: the acoustic-only removal runs and describes itself', async () => 
   const blob = new window.Blob([raw], { type: 'audio/wav' });
   if (blob.size !== raw.byteLength) throw new Error('blob size mismatch');
   return result.channels.length + ' channels · ' + (raw.byteLength / 1048576).toFixed(2) + ' MB wav';
+});
+
+check('stems: the room recording opens the microphone itself and loads the take', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const ctx = TT.audio.ensure();
+  const before = (ctx._sps || []).length;
+  if (TT.audio.micSource) TT.audio.stopMic();          /* start from mic off */
+  doc.getElementById('st-btn-mic').click();
+  /* the button itself must ask for the microphone (it used to fail with
+     “Microphone is off” unless the tuner had been started first) */
+  for (let i = 0; i < 40 && TT.audio.micState !== 'on'; i++) await new Promise(r => setTimeout(r, 5));
+  if (TT.audio.micState !== 'on') throw new Error('the microphone was never opened (state ' + TT.audio.micState + ')');
+  let sp = null;
+  for (let i = 0; i < 40 && !sp; i++) {
+    sp = (ctx._sps || []).slice(before).find(n => n && typeof n.onaudioprocess === 'function');
+    if (!sp) await new Promise(r => setTimeout(r, 5));
+  }
+  if (!sp) throw new Error('the recorder tap was never created');
+  /* hand it 20 s of audio in one go, the way the ScriptProcessor would */
+  const need = Math.floor(ctx.sampleRate * 20);
+  const take = new Float32Array(need);
+  for (let i = 0; i < need; i++) take[i] = 0.3 * Math.sin(2 * Math.PI * 440 * i / ctx.sampleRate);
+  sp.onaudioprocess({ inputBuffer: { getChannelData: () => take } });
+  for (let i = 0; i < 60 && !/Recorded/.test(doc.getElementById('st-status').textContent); i++) await new Promise(r => setTimeout(r, 5));
+  const status = doc.getElementById('st-status').textContent;
+  if (!/Recorded 20 seconds/.test(status)) throw new Error('status after the take: ' + status);
+  if (!TT.stems.state.channels || TT.stems.state.channels.length !== 1) throw new Error('the take is not loaded');
+  if (Math.abs(TT.stems.state.sr - ctx.sampleRate) > 1) throw new Error('wrong sample rate: ' + TT.stems.state.sr);
+  if (!/Microphone take/.test(doc.getElementById('st-source').textContent)) throw new Error('no source card');
+  if (doc.getElementById('st-btn-run').disabled) throw new Error('separate stayed disabled after a recording');
+  if (TT.audio.micState !== 'off') throw new Error('the microphone was left open (state ' + TT.audio.micState + ')');
+  return 'mic opened, 20 s captured at ' + (ctx.sampleRate / 1000) + ' kHz, mic released';
+});
+
+check('stems: a backing-studio render is handed over and separated here', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const render = TT.backingLib.render({ key: 'G', mode: 'major', style: 'strum', bpm: 96, bars: 4, sr: 22050 });
+  if (!TT.stems.adopt(render, { title: 'Backing bed test' })) throw new Error('adopt() refused the render');
+  if (!TT.stems.state.channels || TT.stems.state.channels.length !== 2) throw new Error('the render is not loaded');
+  if (TT.stems.state.sr !== render.sr) throw new Error('sample rate not carried over');
+  if (doc.getElementById('st-btn-run').disabled) throw new Error('separate stayed disabled');
+  if (!/Backing bed test/.test(doc.getElementById('st-source').textContent)) throw new Error('the source card does not name the render');
+  /* and it must really separate from there */
+  TT.stems.state.mode = 'drums';
+  TT.stems.state.remove = true;
+  await TT.stems.run();
+  const res = TT.stems.state.result;
+  if (!res || res.channels[0].length !== render.channels[0].length) throw new Error('the hand-off did not separate');
+  if (doc.getElementById('st-result').hidden) throw new Error('the result panel stayed hidden');
+  /* a new take must never leave the previous result playable */
+  TT.stems.state.channels = [render.channels[0].slice(), render.channels[1].slice()];
+  TT.stems.state.result = null;
+  if (!TT.stems.adopt(render, { title: 'Second render' })) throw new Error('adopt() refused a second render');
+  if (TT.stems.state.result !== null || !doc.getElementById('st-result').hidden) throw new Error('a stale result survived a new take');
+  return 'render handed over, separated, and the old result cleared';
+});
+
+check('stems: the stop button can end a long separation', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const sr = 22050, n = sr * 30;
+  const A = new Float32Array(n);
+  for (let i = 0; i < n; i++) A[i] = 0.3 * Math.sin(2 * Math.PI * 440 * i / sr);
+  TT.stems.state.channels = [A, A.slice()];
+  TT.stems.state.sr = sr;
+  TT.stems.state.buffer = { numberOfChannels: 2, sampleRate: sr, length: n, duration: 30 };
+  TT.stems.state.mode = 'vocals';
+  TT.stems.state.remove = true;
+  const cancelBtn = doc.getElementById('st-btn-cancel');
+  if (!cancelBtn) throw new Error('there is no stop button in the markup');
+  if (!cancelBtn.hidden) throw new Error('the stop button is showing before anything runs');
+  const running = TT.stems.run();
+  if (cancelBtn.hidden) throw new Error('the stop button did not appear while separating');
+  TT.stems.cancel();                     /* stop it while it works */
+  await running;
+  if (TT.stems.state.result !== null) throw new Error('a stopped run still produced a result');
+  if (!/Stopped/.test(doc.getElementById('st-status').textContent)) throw new Error('status: ' + doc.getElementById('st-status').textContent);
+  if (doc.getElementById('st-btn-run').disabled) throw new Error('the run button did not come back');
+  if (!doc.getElementById('st-btn-cancel').hidden) throw new Error('the stop button stayed visible');
+  return 'stopped cleanly, nothing changed, controls restored';
 });
 
 check('stems: the recipe buttons load their settings and run', () => {

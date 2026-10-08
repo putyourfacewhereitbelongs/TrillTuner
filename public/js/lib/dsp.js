@@ -14,9 +14,13 @@
 (function (root) {
   'use strict';
 
+  /* Works in the page, in node and inside a Web Worker: `window` does not exist
+   * in a worker, so the global object is resolved explicitly. */
+  const GLOBAL = typeof window !== 'undefined' ? window
+    : typeof globalThis !== 'undefined' ? globalThis : self;
   const FFT = (typeof require === 'function' && typeof window === 'undefined')
     ? require('./fft.js')
-    : window.TT.fft;
+    : GLOBAL.TT.fft;
 
   const EPS = 1e-12;
 
@@ -59,7 +63,7 @@
     const re = new Float64Array(n), im = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       const s = offset + i;
-      re[i] = (s < data.length ? data[s] : 0) * win[i];
+      re[i] = (s >= 0 && s < data.length ? data[s] : 0) * win[i];
     }
     FFT.fft(re, im);
     return { re: re, im: im };
@@ -162,10 +166,22 @@
     const HALO = 4;                                  /* ±4 frames of context */
     const ENV = 2;                                   /* envelope measured over ±2 bins */
     const WIN = HALO * 2 + 1;
+    /* Pad the analysis with one window of silence at each end. Without it the
+     * first and last few milliseconds of a file have an *incomplete* window
+     * schedule: the overlap-add divisor there is a fraction of its interior
+     * value while the mask-modified frame content is not — dividing one by the
+     * other turns the edge into a full-scale bang (and clips the WAV export).
+     * One window of pad gives every real sample exactly the overlap the middle
+     * of the song has, so the reconstruction is smooth and correct at both
+     * ends, and the mask sees the same ±4 frames of context it always got. */
+    const PAD = fftSize;
+    const padFrames = Math.ceil(PAD / hop);
+    const outLen = n + 2 * PAD;
     const outCh = [];
-    for (let c = 0; c < nCh; c++) outCh.push(new Float32Array(n));
-    const wsum = new Float32Array(n);
+    for (let c = 0; c < nCh; c++) outCh.push(new Float32Array(outLen));
+    const wsum = new Float32Array(outLen);
     const nFrames = Math.max(1, Math.ceil(n / hop) + 1);   /* +1 so the tail is fully covered */
+    const totalFrames = nFrames + 2 * padFrames;
     const ring = [];                                 /* analysis frames, newest last */
 
     /* one windowed frame, full complex spectrum + half-spectrum magnitude */
@@ -343,8 +359,9 @@
         FFT.fft(re, scratch);
         const dst = outCh[ch];
         for (let i = 0; i < fftSize; i++) {
-          const idx = an.off + i;
-          if (idx >= n) break;
+          const idx = an.off + PAD + i;              /* PAD keeps indices positive */
+          if (idx >= outLen) break;
+          if (idx < 0) continue;
           dst[idx] += re[i] / fftSize * win[i];
           if (ch === 0) wsum[idx] += win[i] * win[i];
         }
@@ -356,18 +373,18 @@
     }
 
     let decided = 0;
-    /* prime the ring with the first frame so frame 0 gets the same ±HALO
-     * context as everything else (and every frame is synthesized exactly once:
-     * overlapping frames are what makes the overlap-add add up) */
-    const first = analyse(0);
+    /* prime the ring with the first frame so the first real frame gets the same
+     * ±HALO context as everything else (and every frame is synthesized exactly
+     * once: overlapping frames are what makes the overlap-add add up) */
+    const first = analyse(-padFrames);
     for (let p = 0; p < HALO; p++) ring.push(first);
-    for (let k = 0; k < nFrames; k++) {
+    for (let k = -padFrames; k < nFrames + padFrames; k++) {
       ring.push(analyse(k));
       if (ring.length === WIN) {
         decide(ring[HALO], ring);          /* the middle frame, fully surrounded */
         ring.shift();
         decided++;
-        if (onProgress && (decided & 15) === 0) onProgress(decided / nFrames);
+        if (onProgress && (decided & 15) === 0) onProgress(decided / totalFrames);
       }
     }
     /* the last few frames only have earlier context — still perfectly usable */
@@ -378,14 +395,25 @@
     }
     if (onProgress) onProgress(1);
 
-    /* normalise the overlap-add — dividing by the summed window squares makes
+    /* Normalise the overlap-add — dividing by the summed window squares makes
      * the reconstruction exact, so no level matching is needed (and a peak
-     * restore would undo the very removal we just performed) */
+     * restore would undo the very removal we just performed).
+     *
+     * It is also divided by the *true* window sum, not by a floor: an absolute
+     * floor is not a safety net, it is a multiplier (the window squares at the
+     * very start of a frame are ~1e-10, so a floor of 1e-4 made those samples up
+     * to 10 000× louder). With the padding above, the sum is the full interior
+     * value for every sample of the original signal, so this is a plain
+     * division; the guard only covers the discarded pad itself. */
     const out = [];
     for (let c = 0; c < nCh; c++) {
       const a = outCh[c];
-      for (let i = 0; i < n; i++) a[i] /= Math.max(wsum[i], 1e-4);
-      out.push(a);
+      const dst = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const w = wsum[i + PAD];
+        if (w > 1e-9) dst[i] = a[i + PAD] / w;
+      }
+      out.push(dst);
     }
     return { channels: out, sr: sr, mode: mode, profile: prof, remove: remove, amount: amount };
   }
@@ -644,38 +672,131 @@
    * in slices with a margin at each end (the per-bin masks look at a few frames
    * either side, so the margin gives them their context) and the margin is
    * thrown away. `onProgress(fraction)` is called between slices. */
+  /* Peak guard.
+   *
+   * A couple of perfectly honest results are *louder than the song they came
+   * from*: an isolated wide-band drum layer drops the parts of the signal that
+   * used to cancel its peaks, and the classic centre-cancel is literally a
+   * difference signal (which is why 90s karaoke boxes sound so hot). Those can
+   * peak above 1.0, and 1.0 is what the WAV writer and the sound card accept —
+   * past it the export clips flat and the transients crackle.
+   *
+   * So the whole take is measured once and, only if it really does go past the
+   * ceiling, scaled by one constant. Scaling the finished take — never a slice
+   * on its own — means no level step can ever appear at a slice seam, and a
+   * result that already fits is returned untouched (gain 1, no copy). */
+  function limitPeak(channels, ceiling) {
+    const cap = ceiling == null ? 0.99 : ceiling;   /* a little under full scale, so 16-bit rounding can never clip */
+    let peak = 0;
+    for (let c = 0; c < channels.length; c++) {
+      const a = channels[c];
+      for (let i = 0; i < a.length; i++) {
+        const v = a[i] < 0 ? -a[i] : a[i];
+        if (v > peak) peak = v;
+      }
+    }
+    if (!(peak > cap)) return { channels: channels, gain: 1, peak: peak };
+    const g = cap / peak;
+    const out = channels.map(ch => {
+      const d = new Float32Array(ch.length);
+      for (let i = 0; i < ch.length; i++) d[i] = ch[i] * g;
+      return d;
+    });
+    return { channels: out, gain: g, peak: peak };
+  }
+
+  /* a raised-cosine half: 0 at 0, 1 at `width`, and its mirror sums to 1 */
+  function ramp(i, width) {
+    if (width <= 0) return 1;
+    const x = i / width;
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const s = Math.sin(0.5 * Math.PI * x);
+    return s * s;
+  }
+
   async function separateChunked(channels, sr, mode, opts) {
     opts = opts || {};
+    let cross = new Float32Array(0);
     const onProgress = opts.onProgress;
+    const shouldAbort = typeof opts.shouldAbort === 'function' ? opts.shouldAbort : null;
+    const abortError = () => { const e = new Error('separation stopped'); e.aborted = true; return e; };
     const margin = Math.max(0.2, opts.marginSeconds || 0.4);
-    const sliceSeconds = Math.max(4, opts.sliceSeconds || 24);
+    const sliceSeconds = Math.max(4, opts.sliceSeconds || 12);
     const n = channels[0].length;
-    const per = Math.round(sliceSeconds * sr);
+    /* Every slice is framed from its own first sample, so unless the slice
+     * starts land on the same grid the frame grid uses, the two estimates of
+     * the shared second are built from differently placed windows — which is
+     * how a transient ends up smeared on one side of a join and sharp on the
+     * other. Landing the slices and their context on the largest hop any
+     * profile uses (4096) puts every frame where the whole-song pass would
+     * have put it; the overlap then agrees closely and the cross-fade has
+     * almost nothing left to blend. */
+    const ALIGN = 4096;
+    const up = v => Math.ceil(v / ALIGN) * ALIGN;
+    const per = Math.max(ALIGN, up(Math.round(sliceSeconds * sr)));
     const slices = Math.max(1, Math.ceil(n / per));
     if (slices === 1) {
+      if (shouldAbort && shouldAbort()) throw abortError();
       const only = separate(channels, sr, mode, opts);
+      const safe = limitPeak(only.channels);
       if (onProgress) onProgress(1);
-      return only;
+      return Object.assign({}, only, { channels: safe.channels, slices: 1, peak: safe.peak, gain: safe.gain });
     }
+    const pad = Math.max(ALIGN, up(Math.round(margin * sr)));
+    /* Each slice is separated with `margin` seconds of context on both sides,
+     * and the slices overlap by twice that. The context is only there to give
+     * the analysis something to look at, and the two estimates of the same
+     * second of music differ slightly — so the overlap is cross-faded with
+     * complementary raised-cosine ramps and normalised by the weight that
+     * actually landed. A straight splice here is a level step, and a level step
+     * is a click every slice. */
+    const acc = [], wsum = new Float32Array(n);
     let out = null, meta = null;
     for (let s = 0; s < slices; s++) {
+      /* a long song can be stopped between slices, so the tab never gets stuck */
+      if (shouldAbort && shouldAbort()) throw abortError();
       const from = s * per;
       const to = Math.min(n, from + per);
-      const pad = Math.round(margin * sr);
       const a = Math.max(0, from - pad), b = Math.min(n, to + pad);
       const sub = channels.map(c => c.subarray(a, b));
       const r = separate(sub, sr, mode, Object.assign({}, opts, { onProgress: null }));
+      const nCh = r.channels.length;
       if (!out) {
         out = r.channels.map(() => new Float32Array(n));
+        for (let c = 0; c < nCh; c++) acc.push(new Float32Array(n));
         meta = { sr: r.sr, mode: r.mode, profile: r.profile, remove: r.remove, amount: r.amount };
       }
-      const srcOff = from - a;
-      for (let c = 0; c < out.length; c++) out[c].set(r.channels[c].subarray(srcOff, srcOff + (to - from)), from);
+      /* local index i maps straight onto the original timeline at a + i, which
+       * is what `separate` was given, so every padded sample has a home. */
+      const len = b - a;
+      if (cross.length !== len) cross = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        /* the first and the last slice keep full weight at the file edge, so
+         * nothing ever fades out at the start of the song or at its end */
+        let w = 1;
+        if (s > 0 && i < pad) w = ramp(i, pad);
+        if (s < slices - 1 && i >= len - pad) w = Math.min(w, ramp(len - i, pad));
+        cross[i] = w;
+        wsum[a + i] += w;
+      }
+      for (let c = 0; c < nCh; c++) {
+        const src = r.channels[c], dst = acc[c];
+        for (let i = 0; i < len; i++) dst[a + i] += src[i] * cross[i];
+      }
       if (onProgress) onProgress((s + 1) / slices);
       /* hand the frame back to the browser so the UI keeps painting */
       await new Promise(res => setTimeout(res, 0));
     }
-    return Object.assign(meta, { channels: out, sr: sr, slices: slices });
+    for (let c = 0; c < out.length; c++) {
+      const dst = out[c], src = acc[c];
+      for (let i = 0; i < n; i++) {
+        const w = wsum[i];
+        if (w > 1e-9) dst[i] = src[i] / w;
+      }
+    }
+    const safe = limitPeak(out);
+    return Object.assign(meta, { channels: safe.channels, sr: sr, slices: slices, peak: safe.peak, gain: safe.gain });
   }
 
   /* =================================================================== */
@@ -705,11 +826,12 @@
 
   const api = {
     hann, median, mixdown, frameFFT, bandMask, smoothstep,
-    separate, separateChunked, PROFILES,
+    separate, separateChunked, limitPeak, PROFILES,
     chromaFrames, analyseChords, bestKey, matchChord, estimateTempo, toBars,
     encodeWav, PITCH_NAMES, CHORD_TEMPLATES
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TT = root.TT || {};
   root.TT.dsp = api;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(typeof window !== 'undefined' ? window
+  : typeof globalThis !== 'undefined' ? globalThis : self);

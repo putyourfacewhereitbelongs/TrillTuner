@@ -138,9 +138,14 @@ function inflateRaw(entry, buf) {
   ok(missing.length === 0, 'every public/ file is bundled as an asset', missing.slice(0, 3).join(', '));
 
   /* ---- real apksigner verify through the bundled JRE ---- */
-  const java = path.join(ROOT, 'tools', '.cache', 'venv', 'lib',
-    fs.readdirSync(path.join(ROOT, 'tools', '.cache', 'venv', 'lib'))[0],
-    'site-packages', 'jdk4py', 'java-runtime', 'bin', 'java');
+  /* (the venv only exists after `python3 tools/build-apk.py` has run once, so it
+     has to be probed before it is read — reading it unconditionally made this
+     test throw ENOENT instead of skipping) */
+  const venvLib = path.join(ROOT, 'tools', '.cache', 'venv', 'lib');
+  const java = fs.existsSync(venvLib)
+    ? path.join(venvLib, fs.readdirSync(venvLib)[0],
+        'site-packages', 'jdk4py', 'java-runtime', 'bin', 'java')
+    : '';
   const apksigner = path.join(ROOT, 'tools', '.cache', 'adt', 'tools', 'apksigner.jar');
   if (fs.existsSync(java) && fs.existsSync(apksigner)) {
     let out = '';

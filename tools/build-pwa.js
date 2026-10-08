@@ -25,7 +25,12 @@ function walk(dir, base) {
   return out;
 }
 
-const assets = walk(PUBLIC, '').map(p => p === '/index.html' ? '/' : p).sort();
+/* downloads/ holds the APK itself: far too big to force into the first install,
+ * and already covered by the service worker's runtime cache when someone taps
+ * the download link. */
+const assets = walk(PUBLIC, '')
+  .filter(p => !p.startsWith('/downloads/'))
+  .map(p => p === '/index.html' ? '/' : p).sort();
 /* the shell itself must always be there, even if the scan changes shape */
 for (const must of ['/', '/index.html', '/style.css', '/manifest.webmanifest']) {
   if (!assets.includes(must)) assets.push(must);
@@ -37,11 +42,22 @@ const hash = crypto.createHash('sha1')
   .digest('hex').slice(0, 8);
 const version = 'tt-' + hash;
 
+/* The generated sw.js no longer carries the placeholder comments after the
+ * first run, so both patterns have to match the generated form as well —
+ * otherwise a later run (adding a file like js/stem-worker.js) silently wrote
+ * the old asset list back and the new file was missing offline. */
+const VERSION_RE = /const VERSION = (?:\/\* __VERSION__ \*\/ )?'[^']*';/;
+const ASSETS_RE = /const ASSETS = (?:\/\* __ASSETS__ \*\/ )?\[[^\]]*\];/;
+
 let sw = fs.readFileSync(SW, 'utf8');
-sw = sw.replace(/const VERSION = \/\* __VERSION__ \*\/ '[^']*';/, `const VERSION = '${version}';`);
-sw = sw.replace(/const ASSETS = \/\* __ASSETS__ \*\/ \[[^\]]*\];/, `const ASSETS = ${JSON.stringify(uniq)};`);
+if (!VERSION_RE.test(sw) || !ASSETS_RE.test(sw)) {
+  console.error('sw.js template not recognised (no VERSION/ASSETS line) — refusing to write');
+  process.exit(1);
+}
+sw = sw.replace(VERSION_RE, `const VERSION = '${version}';`);
+sw = sw.replace(ASSETS_RE, `const ASSETS = ${JSON.stringify(uniq)};`);
 if (sw.includes('__VERSION__') || sw.includes('__ASSETS__')) {
-  console.error('sw.js placeholders not found — refusing to write');
+  console.error('sw.js placeholders not filled — refusing to write');
   process.exit(1);
 }
 fs.writeFileSync(SW, sw);

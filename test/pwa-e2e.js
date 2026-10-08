@@ -628,6 +628,153 @@ const TOUR = [
     await browser.close();
   }
 
+  /* ==================== 9. stem lab — the whole chain ==================== */
+  console.log('\n== 9. stem lab: load → separate → play → export → hand off ==');
+  {
+    const { browser, page } = await launch();
+    await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplashAndDemo(page);
+    await page.click('.nav-btn[data-view="stems"]');
+    await new Promise(r => setTimeout(r, 250));
+
+    /* drop a song on the drop zone the way a browser does it: a real File in a
+       real DataTransfer (this is the path a user's drag-and-drop takes) */
+    const dropped = await page.evaluate(async () => {
+      const sr = 44100, secs = 6, n = sr * secs;
+      const bytes = 44 + n * 4;
+      const buf = new ArrayBuffer(bytes);
+      const v = new DataView(buf);
+      const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      str(0, 'RIFF'); v.setUint32(4, bytes - 8, true); str(8, 'WAVE'); str(12, 'fmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+      v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true);
+      v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 4, true);
+      let o = 44;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        /* centred 440 Hz “vocal”, wide 330 Hz “guitar”, 110 Hz bass, a hat every 0.5 s */
+        const vocal = Math.sin(2 * Math.PI * 440 * t) * 0.3;
+        const guitar = Math.sin(2 * Math.PI * 330 * t) * 0.25;
+        const bass = Math.sin(2 * Math.PI * 110 * t) * 0.3;
+        const beat = t % 0.5, hat = beat < 0.02 ? (Math.random() * 2 - 1) * 0.3 * (1 - beat / 0.02) : 0;
+        [vocal + guitar + bass + hat, vocal - guitar + bass + hat].forEach(s => {
+          const x = Math.max(-1, Math.min(1, s));
+          v.setInt16(o, Math.round(x < 0 ? x * 0x8000 : x * 0x7fff), true); o += 2;
+        });
+      }
+      const file = new File([buf], 'e2e-song.wav', { type: 'audio/wav' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const el = document.getElementById('st-drop');
+      ['dragenter', 'dragover', 'drop'].forEach(type =>
+        el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt })));
+      return true;
+    });
+    ok(dropped, 'stem lab: a dropped file is accepted');
+    const loaded = await waitFor(page, () => /Loaded/.test(document.getElementById('st-status').textContent), 20000, 'decode');
+    ok(loaded, 'stem lab: the dropped song is decoded');
+    ok(await page.evaluate(() => !document.getElementById('st-btn-run').disabled),
+      'stem lab: “Separate it” unlocks once something is loaded');
+
+    /* separate with the first recipe — it must run off the main thread, and the
+       page must keep answering while it does */
+    await page.evaluate(() => {
+      window.__ticks = 0;
+      window.__tickTimer = setInterval(() => { window.__ticks++; }, 50);
+      document.querySelector('#st-presets .st-preset').click();   /* 🎤 Instrumental maker */
+    });
+    const sepT0 = Date.now();
+    const done = await waitFor(page, () => !!(TT.stems.state && TT.stems.state.result)
+      && !document.getElementById('st-btn-run').disabled, 180000, 'separate');
+    const sepMs = Date.now() - sepT0;
+    const run = await page.evaluate(() => ({
+      ticks: window.__ticks,
+      worker: !!TT.stems.state.result.worker,
+      len: TT.stems.state.result.channels[0].length,
+      ch: TT.stems.state.result.channels.length,
+      pct: document.getElementById('st-pct').textContent,
+      status: document.getElementById('st-status').textContent,
+      resultShown: !document.getElementById('st-result').hidden,
+      peak: (() => { let p = 0; const a = TT.stems.state.result.channels[0]; for (let i = 0; i < a.length; i++) p = Math.max(p, Math.abs(a[i])); return +p.toFixed(3); })()
+    }));
+    await page.evaluate(() => clearInterval(window.__tickTimer));
+    ok(done && run.len > 0 && run.ch === 2, 'stem lab: the separation produced audio', run.status.slice(0, 60));
+    ok(run.worker, 'stem lab: it runs in a background worker, so the interface stays alive');
+    ok(run.ticks >= (sepMs / 50) * 0.5,
+      'stem lab: the page kept painting while a whole song was separated',
+      run.ticks + ' timer ticks in ' + sepMs + ' ms');
+    ok(run.resultShown && run.pct === '100%', 'stem lab: the result panel and progress bar landed at the end', run.pct);
+    ok(run.peak <= 1.0, 'stem lab: the result never clips', 'peak ' + run.peak);
+
+    /* play / stop */
+    await page.click('#st-btn-play');
+    await new Promise(r => setTimeout(r, 400));
+    const playing = await page.evaluate(() => ({ on: TT.stems.state.playing, label: document.getElementById('st-btn-play').textContent }));
+    await page.click('#st-btn-play');
+    await new Promise(r => setTimeout(r, 200));
+    const stopped = await page.evaluate(() => ({ on: TT.stems.state.playing, label: document.getElementById('st-btn-play').textContent }));
+    ok(playing.on && /Stop/.test(playing.label) && !stopped.on && /Play/.test(stopped.label),
+      'stem lab: play and stop work');
+
+    /* export: a real RIFF/WAVE container of the right length */
+    const wav = await page.evaluate(async () => {
+      let captured = null;
+      const orig = URL.createObjectURL;
+      URL.createObjectURL = b => { captured = b; return orig.call(URL, b); };
+      document.getElementById('st-btn-wav').click();
+      URL.createObjectURL = orig;
+      if (!captured) return null;
+      const ab = await captured.arrayBuffer();
+      const dv = new DataView(ab);
+      const tag = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+      const ch = dv.getUint16(22, true), sr = dv.getUint32(24, true), bits = dv.getUint16(34, true);
+      return { tag, bytes: ab.byteLength, ch, sr, bits, expect: 44 + TT.stems.state.result.channels[0].length * 2 * ch };
+    });
+    ok(wav && wav.tag === 'RIFF' && wav.bytes === wav.expect && wav.ch === 2 && wav.bits === 16,
+      'stem lab: “Save as WAV” writes a correct 16-bit stereo container',
+      wav ? wav.bytes + ' bytes @ ' + wav.sr + ' Hz' : 'no blob');
+
+    /* the tab maker reads the separated audio back */
+    await page.click('#st-btn-tab');
+    await waitFor(page, () => document.getElementById('view-maker').classList.contains('active'), 8000, 'maker');
+    const sheet = await page.evaluate(() => (document.getElementById('mk-sheet') || {}).textContent || '');
+    ok(sheet.length > 200, 'stem lab: the result is handed to the tab maker', sheet.length + ' chars of chart');
+
+    /* the backing studio hands a bed over without a download */
+    await page.click('.nav-btn[data-view="backing"]');
+    await waitFor(page, () => !!document.getElementById('bk-generate'), 8000, 'backing view');
+    await page.click('#bk-generate');
+    const rendered = await waitFor(page, () => !document.getElementById('bk-summary').hidden, 20000, 'render');
+    ok(rendered, 'backing studio: a bed renders for the hand-off');
+    await page.evaluate(() => document.getElementById('bk-stems').click());
+    await new Promise(r => setTimeout(r, 400));
+    const handoff = await page.evaluate(() => ({
+      active: document.getElementById('view-stems').classList.contains('active'),
+      hasAudio: !!(TT.stems.state.channels && TT.stems.state.channels.length),
+      status: document.getElementById('st-status').textContent,
+      enabled: !document.getElementById('st-btn-run').disabled
+    }));
+    ok(handoff.active && handoff.hasAudio && handoff.enabled,
+      'stem lab: the backing bed arrives ready to separate', handoff.status.slice(0, 70));
+
+    /* and the room recording opens the microphone by itself (shortened take) */
+    await page.evaluate(() => { TT.stems.state.recordSeconds = 1; });
+    await page.click('#st-btn-mic');
+    const recStatus = await waitFor(page, () => /Recording/.test(document.getElementById('st-status').textContent), 12000, 'recording');
+    ok(recStatus, 'stem lab: the record button asks for the microphone and starts recording');
+    const recDone = await waitFor(page, () => /Recorded/.test(document.getElementById('st-status').textContent), 30000, 'take');
+    const take = await page.evaluate(() => ({
+      ch: TT.stems.state.channels.length,
+      seconds: +(TT.stems.state.channels[0].length / TT.stems.state.sr).toFixed(1),
+      mic: TT.audio.micState,
+      enabled: !document.getElementById('st-btn-run').disabled
+    }));
+    ok(recDone && take.ch >= 1 && take.enabled, 'stem lab: the take is loaded and ready to separate', take.seconds + ' s, mic now ' + take.mic);
+    ok(take.mic !== 'on', 'stem lab: the microphone is released after the recording');
+    ok(page._errors.length === 0, 'stem lab: zero JS errors', page._errors.slice(0, 3).join(' | '));
+    await browser.close();
+  }
+
   console.log(failures === 0 ? '\n✅ ALL PWA E2E TESTS PASSED' : `\n❌ ${failures} PWA E2E check(s) failed`);
   process.exit(failures === 0 ? 0 : 1);
 })().catch(e => { console.error('ERROR', e); process.exit(1); });

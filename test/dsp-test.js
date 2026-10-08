@@ -335,5 +335,155 @@ console.log('\nTrill Tuner — audio lab tests\n');
   ok(level(acoustic, { remove: true }) < -1, 'acoustic chop: with the acoustic on its own the chop bites', 'acoustic alone ' + level(acoustic, { remove: true }).toFixed(2) + ' dB');
 })();
 
-console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);
-process.exit(failures ? 1 : 0);
+/* ------------------------------------------------------------------ */
+/* 12. edges and leftovers: a separated file must start and end cleanly, */
+/*     must never leave the fold, and must be stoppable mid-way.        */
+/* ------------------------------------------------------------------ */
+(async function () {
+  const SECS = 3, N = SR * SECS;
+  /* a song that starts on a hit — the shape that used to come back as a bang at
+   * the head of the file: a decaying thump plus sustained pad and top end */
+  const L = new Float32Array(N), R = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = i / SR;
+    const body = 0.25 * Math.sin(2 * Math.PI * 220 * t) + 0.2 * Math.sin(2 * Math.PI * 660 * t) + 0.12 * Math.sin(2 * Math.PI * 3000 * t);
+    const hit = 0.6 * Math.exp(-t / 0.02) * Math.sin(2 * Math.PI * 200 * t);
+    L[i] = body + hit;
+    R[i] = body * 0.85 + hit * 0.9;               /* a little width, not a pure centre */
+  }
+  let srcPeak = 0;
+  for (let i = 0; i < N; i++) srcPeak = Math.max(srcPeak, Math.abs(L[i]), Math.abs(R[i]));
+
+  const edgeWindow = Math.round(0.05 * SR);          /* first/last 50 ms */
+  const modes = Object.keys(D.PROFILES);
+  let worstHead = 0, worstTail = 0, worstAny = 0, worstMode = '', worstHeadMode = '';
+  modes.forEach(m => {
+    [true, false].forEach(remove => {
+      const r = D.separate([L.slice(), R.slice()], SR, m, { remove: remove, amount: 0.92 });
+      r.channels.forEach(ch => {
+        for (let i = 0; i < N; i++) {
+          const v = Math.abs(ch[i]);
+          if (v > worstAny) { worstAny = v; worstMode = m + (remove ? ' remove' : ' isolate'); }
+          if (i < edgeWindow && v > worstHead) { worstHead = v; worstHeadMode = m + (remove ? ' remove' : ' isolate'); }
+          if (i >= N - edgeWindow && v > worstTail) worstTail = v;
+        }
+      });
+    });
+  });
+  ok(worstHead <= srcPeak * 1.02,
+    'a separation does not bang at the head of the file',
+    'loudest first 50 ms ' + worstHead.toFixed(3) + ' vs source peak ' + srcPeak.toFixed(3) + ' (' + worstHeadMode + ')');
+  ok(worstTail <= srcPeak * 1.02,
+    'a separation does not bang at the tail of the file',
+    'loudest last 50 ms ' + worstTail.toFixed(3));
+  ok(worstAny <= 1.0, 'no separation sample leaves the −1…1 fold anywhere',
+    'peak ' + worstAny.toFixed(3) + ' (' + worstMode + ')');
+
+  /* the chunked path splices slices together — the joins must be as clean as the
+   * ends of the file (this is where the old window-sum floor used to bite) */
+  const long = Math.round(9.5 * SR);
+  const big = [new Float32Array(long), new Float32Array(long)];
+  let bigPeak = 0;
+  let noiseSeed = 11;
+  const noise = () => (noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+  for (let i = 0; i < long; i++) {
+    const t = i / SR;
+    const beat = (i % Math.round(SR * 0.5)) / SR;
+    /* broadband hits on purpose: a spectral mask is at its most content
+     * dependent with noise, so this is the fixture that shows a bad splice */
+    const hit = 0.6 * Math.exp(-beat * 22) * noise();
+    big[0][i] = 0.3 * Math.sin(2 * Math.PI * 440 * t) + 0.3 * Math.sin(2 * Math.PI * 220 * t) + hit;
+    big[1][i] = 0.3 * Math.sin(2 * Math.PI * 440 * t) - 0.3 * Math.sin(2 * Math.PI * 220 * t) + hit * 0.95;
+    bigPeak = Math.max(bigPeak, Math.abs(big[0][i]), Math.abs(big[1][i]));
+  }
+  const chunked = await D.separateChunked(big, SR, 'vocals', { remove: true, amount: 0.9, sliceSeconds: 4 });
+  let joinPeak = 0;
+  for (let s = 1; s < chunked.slices; s++) {
+    const at = Math.round(s * 4 * SR);
+    for (let i = Math.max(0, at - 441); i < Math.min(long, at + 441); i++) joinPeak = Math.max(joinPeak, Math.abs(chunked.channels[0][i]));
+  }
+  ok(chunked.slices > 1, 'the chunked path really did split the file', chunked.slices + ' slices');
+  ok(joinPeak <= bigPeak * 1.02, 'slice joins do not stand out by level',
+    'loudest ±10 ms around a join ' + joinPeak.toFixed(3) + ' vs source peak ' + bigPeak.toFixed(3));
+
+  /* loudness is not the whole story. Two things actually matter at a join: the
+   * sliced result has to land on the same audio as separating the whole file in
+   * one go, and the join must not be a step. (The slices are cross-faded and
+   * framed on the same grid as a whole-song pass, so both hold.) */
+  const oneShot = D.separate(big, SR, 'vocals', { remove: true, amount: 0.9 });
+  let trackDiff = 0, seamJump = 0, bodyJump = 0, worstOwn = 0;
+  for (let i = 0; i < long; i++) trackDiff = Math.max(trackDiff, Math.abs(chunked.channels[0][i] - oneShot.channels[0][i]));
+  for (let i = 1; i < long; i++) {
+    let nearJoin = false;
+    for (let s = 1; s < chunked.slices; s++) if (Math.abs(i - Math.round(s * 4 * SR)) <= 441) nearJoin = true;
+    const dj = Math.abs((chunked.channels[0][i] - oneShot.channels[0][i]) - (chunked.channels[0][i - 1] - oneShot.channels[0][i - 1]));
+    if (nearJoin) seamJump = Math.max(seamJump, dj); else bodyJump = Math.max(bodyJump, dj);
+    worstOwn = Math.max(worstOwn, Math.abs(chunked.channels[0][i] - chunked.channels[0][i - 1]));
+  }
+  ok(trackDiff <= bigPeak * 0.02,
+    'the sliced path lands on the whole-song result — the slice context changes nothing audible',
+    'biggest disagreement with a whole-file pass ' + trackDiff.toFixed(4) + ' = ' + (100 * trackDiff / bigPeak).toFixed(2) + '% of the source peak');
+  ok(seamJump <= bodyJump + 1e-6,
+    'a join is not a special place — the result is as smooth there as anywhere else',
+    'biggest sample-to-sample move of (sliced − whole-file) at a join ' + seamJump.toExponential(2) +
+    ' vs ' + bodyJump.toExponential(2) + ' elsewhere · biggest move of the result itself ' + worstOwn.toFixed(3));
+  ok(worstOwn <= bigPeak * 1.02, 'the sliced result never steps out of the source fold',
+    'biggest sample-to-sample move ' + worstOwn.toFixed(3) + ' vs source peak ' + bigPeak.toFixed(3));
+
+  /* every result the app hands over goes through the chunked path, and nothing
+   * it produces may leave the fold — a wide-band isolate or the classic
+   * centre-cancel can legitimately be louder than the song it came from, so the
+   * path measures the take once and levels it only when it really has to */
+  let hotRaw = 0, hotMode = '';
+  for (let m = 0; m < modes.length; m++) {
+    for (let d = 0; d < 2; d++) {
+      const r = D.separate([L.slice(), R.slice()], SR, modes[m], { remove: !!d, amount: 1 });
+      let p = 0;
+      r.channels.forEach(ch => { for (let i = 0; i < N; i++) p = Math.max(p, Math.abs(ch[i])); });
+      if (p > hotRaw) { hotRaw = p; hotMode = modes[m] + (d ? ' remove' : ' isolate'); }
+    }
+  }
+  /* a deliberately hot take: a wide-band layer isolated from a noisy mix */
+  const noisy = [new Float32Array(SR * 2), new Float32Array(SR * 2)];
+  for (let i = 0; i < noisy[0].length; i++) {
+    const t = i / SR;
+    const drum = 0.8 * Math.exp(-((i % Math.round(SR * 0.25)) / SR) * 30) * Math.sin(2 * Math.PI * 3100 * t);
+    const tone = 0.3 * Math.sin(2 * Math.PI * 440 * t);
+    noisy[0][i] = drum + tone;
+    noisy[1][i] = drum + tone * 0.9;
+  }
+  let rawNoisy = 0;
+  D.separate(noisy, SR, 'drums', { remove: false, amount: 1 }).channels.forEach(ch => {
+    for (let i = 0; i < ch.length; i++) rawNoisy = Math.max(rawNoisy, Math.abs(ch[i]));
+  });
+  const guarded = await D.separateChunked(noisy, SR, 'drums', { remove: false, amount: 1, sliceSeconds: 4 });
+  let guardedPeak = 0;
+  guarded.channels.forEach(ch => { for (let i = 0; i < ch.length; i++) guardedPeak = Math.max(guardedPeak, Math.abs(ch[i])); });
+  ok(guardedPeak <= 1 && (guarded.gain === 1 || guarded.gain < 1),
+    'nothing the app hands over leaves the fold — a hot take is levelled, a fitting one untouched',
+    'raw isolate peaked ' + rawNoisy.toFixed(3) + ' → handed over at ' + guardedPeak.toFixed(3) +
+    (guarded.gain < 1 ? ' (levelled by ' + (20 * Math.log10(guarded.gain)).toFixed(2) + ' dB)' : ' (no levelling needed)') +
+    ' · loudest raw profile was ' + hotRaw.toFixed(3) + ' on ' + hotMode);
+  /* and the guard itself is honest: it leaves an ordinary take bit-for-bit alone */
+  const quietIn = [new Float32Array([0.2, -0.4, 0.3])];
+  const quietOut = D.limitPeak(quietIn);
+  const hotIn = [new Float32Array([0.5, -1.6, 1.2])];
+  const hotOut = D.limitPeak(hotIn);
+  let hotPeak = 0;
+  for (let i = 0; i < hotOut.channels[0].length; i++) hotPeak = Math.max(hotPeak, Math.abs(hotOut.channels[0][i]));
+  ok(quietOut.gain === 1 && quietOut.channels === quietIn && hotPeak <= 0.990001 && Math.abs(hotIn[0][1]) === Math.fround(1.6),
+    'the peak guard copies nothing it does not have to touch, and it never edits the caller’s buffer',
+    'quiet take gain ' + quietOut.gain + ' (same array: ' + (quietOut.channels === quietIn) + ') · hot take ' + hotIn[0][1] +
+    ' → ' + hotPeak.toFixed(3) + ' with gain ' + hotOut.gain.toFixed(3) + ', input left at ' + hotIn[0][1] + ' (unchanged: ' + (hotIn[0][1] === Math.fround(-1.6)) + ')');
+
+  /* stopping: a long separation can be abandoned between slices */
+  let aborted = null;
+  try {
+    await D.separateChunked(big, SR, 'drums', { remove: true, shouldAbort: () => true, sliceSeconds: 4 });
+  } catch (e) { aborted = e; }
+  ok(!!aborted && aborted.aborted === true, 'a separation can be stopped between slices',
+    aborted ? '“' + aborted.message + '”' : 'nothing was thrown');
+
+  console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);
+  process.exit(failures ? 1 : 0);
+})();

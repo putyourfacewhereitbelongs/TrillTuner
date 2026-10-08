@@ -67,5 +67,8 @@
 
   const api = { fft: fft, magnitudeSpectrum: magnitudeSpectrum, goertzel: goertzel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.fft = api; }
+  const root = typeof window !== 'undefined' ? window
+    : typeof globalThis !== 'undefined' ? globalThis : self;
+  root.TT = root.TT || {};
+  root.TT.fft = api;
 })();

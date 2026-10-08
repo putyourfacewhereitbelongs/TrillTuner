@@ -426,6 +426,46 @@ function kept(out, src) {
         'HTTP check against the running server',
         false, 'the server is not answering on port 3000 (' + e.message + ') — start it with `node server.js`');
     }
+    /* the long-song path of the Stem lab: a song is separated in slices, and the
+     * slices have to add up to the same audio as a whole-file pass — and what
+     * comes out has to fit in the fold, or the WAV and the sound card clip it */
+    try {
+      const long = Math.round(9.5 * SR);
+      const seg = [new Float32Array(long), new Float32Array(long)];
+      let seed = 11;
+      const nz = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+      let segPeak = 0;
+      for (let i = 0; i < long; i++) {
+        const t = i / SR, beat = (i % Math.round(SR * 0.5)) / SR;
+        const hit = 0.6 * Math.exp(-beat * 22) * nz();
+        seg[0][i] = 0.3 * Math.sin(TAU * 440 * t) + 0.3 * Math.sin(TAU * 220 * t) + hit;
+        seg[1][i] = 0.3 * Math.sin(TAU * 440 * t) - 0.3 * Math.sin(TAU * 220 * t) + hit * 0.95;
+        segPeak = Math.max(segPeak, Math.abs(seg[0][i]), Math.abs(seg[1][i]));
+      }
+      const whole = D.separate(seg, SR, 'vocals', { remove: true, amount: 0.9 });
+      const sliced = await D.separateChunked(seg, SR, 'vocals', { remove: true, amount: 0.9, sliceSeconds: 4 });
+      let track = 0, peak = 0;
+      for (let i = 0; i < long; i++) {
+        track = Math.max(track, Math.abs(sliced.channels[0][i] - whole.channels[0][i]));
+        peak = Math.max(peak, Math.abs(sliced.channels[0][i]));
+      }
+      let stopped = null;
+      try { await D.separateChunked(seg, SR, 'drums', { remove: true, shouldAbort: () => true, sliceSeconds: 4 }); }
+      catch (e) { stopped = e; }
+      const lab = read('public/js/stemlab.js');
+      const ui = ['st-btn-cancel', 'st-btn-mic', 'st-btn-wav', 'st-btn-play', 'st-btn-run'].filter(id => read('public/index.html').indexOf('id="' + id + '"') > 0);
+      const micTake = /recordSeconds/.test(lab) && /startMic|stopMic/.test(read('public/js/audio.js'));
+      item(16, 'The Stem lab holds up on a whole song — the slices add up, nothing clips, and a long run can be stopped',
+        'a 9.5 s song separated twice (whole file, and in 4 s slices through the same path the page uses), the results compared sample by sample, plus the lab’s own controls',
+        track <= segPeak * 0.02 && peak <= 1 && stopped && stopped.aborted === true && ui.length >= 5 && micTake,
+        sliced.slices + ' slices land within ' + (100 * track / segPeak).toFixed(2) + '% of the whole-file pass (peak ' + peak.toFixed(3) + ', fold ' +
+        (peak <= 1 ? 'clean' : 'broken') + '), a run can be stopped (“' + (stopped ? stopped.message : 'nothing thrown') + '”), and the lab offers ' +
+        ui.length + ' of 5 controls, mic take ' + (micTake ? 'wired' : 'missing') + ')');
+    } catch (e) {
+      item(16, 'The Stem lab holds up on a whole song — the slices add up, nothing clips, and a long run can be stopped',
+        'the sliced separation path', false, 'threw ' + e.message);
+    }
+
     finish();
   };
 

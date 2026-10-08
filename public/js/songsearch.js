@@ -332,8 +332,13 @@
       if (res.songs.some(x => x.chordMatch)) line += ' — including songs that use those chords';
     }
     setStatus(line, '');
-    if (state.query.length >= 2) onlineSearch(state.query);
-    else if (els.online) els.online.innerHTML = '<div class="dim">Search with two or more letters and this will also check the online lyric database.</div>';
+    /* only ask the server when there IS a server to ask — offline (PWA) and
+     * inside the APK (file://) the offline library is the whole answer */
+    const canAskServer = navigator.onLine && location.protocol.indexOf('http') === 0;
+    if (state.query.length >= 2 && canAskServer) onlineSearch(state.query);
+    else if (els.online) els.online.innerHTML = '<div class="dim">' + (canAskServer
+      ? 'Search with two or more letters and this will also check the online lyric database.'
+      : 'You are offline — the built-in library above is everything (it is all on this device).') + '</div>';
   };
 
   SS.openSong = function (id) {

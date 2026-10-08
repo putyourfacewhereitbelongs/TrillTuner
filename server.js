@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 'use strict';
-/* Trill Tuner — tiny zero-dependency server: static files + lyrics search proxy */
+/* Trill Tuner — tiny zero-dependency server: static files + lyrics search proxy
+ * + the APK download + LAN host info + remote-tuner sessions (SSE). */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   /* 0.0.0.0 so sandbox/preview proxies can reach it */
@@ -14,11 +17,13 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
-  '.webm': 'video/webm'
+  '.webm': 'video/webm',
+  '.apk': 'application/vnd.android.package-archive'
 };
 
 function send(res, code, obj) {
@@ -149,6 +154,38 @@ async function searchSongs(q) {
   return out.slice(0, 24);
 }
 
+/* ---------- remote-tuner sessions (zero-dependency SSE) ----------
+ * One device hosts a session and shows a QR code; a second device on the same
+ * network scans it, loads this same app from the host and the two tuners sync
+ * live over Server-Sent Events. Sessions live in memory and expire. */
+const SESSION_TTL_MS = 30 * 60 * 1000;
+const sessions = new Map();   /* id -> { hosts: [entry], joiners: [entry], created } */
+
+function broadcast(session, role, obj) {
+  const list = role === 'host' ? session.hosts : session.joiners;
+  const line = 'data: ' + JSON.stringify(obj) + '\n\n';
+  for (const entry of list) {
+    try { entry.res.write(line); } catch (e) { /* dead socket — cleaned on close */ }
+  }
+}
+
+function dropEntry(session, entry) {
+  for (const list of [session.hosts, session.joiners]) {
+    const i = list.indexOf(entry);
+    if (i >= 0) list.splice(i, 1);
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of sessions) {
+    if (now - s.created > SESSION_TTL_MS) {
+      for (const entry of [...s.hosts, ...s.joiners]) { try { entry.res.end(); } catch (e) {} }
+      sessions.delete(id);
+    }
+  }
+}, 60 * 1000).unref();
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
 
@@ -166,7 +203,11 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, { ok: true, result });
     } catch (e) {
       console.error('[lyrics]', e.message, '|', e.detail || '');
-      send(res, 404, { ok: false, error: e.message });
+      /* "no results" (offline, unknown song) is a handled outcome, not an HTTP
+       * error: answer 200 with ok:false, exactly like /api/songs below, so a
+       * graceful offline search never logs a console error in the browser.
+       * The client reads the body's ok flag either way. */
+      send(res, 200, { ok: false, error: e.message });
     }
     return;
   }
@@ -180,6 +221,105 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       send(res, 200, { ok: false, error: e.message, results: [] });
     }
+    return;
+  }
+
+  /* ---------- the app's own LAN address (for the connect / share QR codes) ---------- */
+  if (u.pathname === '/api/host') {
+    const ips = [];
+    const ifs = os.networkInterfaces();
+    for (const name of Object.keys(ifs)) {
+      for (const a of ifs[name] || []) {
+        if ((a.family === 'IPv4' || a.family === 4) && !a.internal) ips.push(a.address);
+      }
+    }
+    send(res, 200, { ok: true, ips: ips, port: PORT });
+    return;
+  }
+
+  /* ---------- the Android APK, hosted by the app itself ---------- */
+  if (u.pathname === '/download/trill-tuner.apk' || u.pathname === '/download/TrillTuner.apk') {
+    const fp = path.join(PUBLIC, 'downloads', 'TrillTuner.apk');
+    fs.stat(fp, (err, st) => {
+      if (err || !st.isFile()) {
+        send(res, 404, { ok: false, error: 'The APK has not been built yet — run `node tools/build-apk.py` on the host.' });
+        return;
+      }
+      let apkVersion = '';
+      try { apkVersion = require('./package.json').version || ''; } catch (e) {}
+      const headers = {
+        'Content-Type': MIME['.apk'],
+        'Content-Disposition': 'attachment; filename="TrillTuner.apk"',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+        'X-APK-Version': apkVersion
+      };
+      const range = req.headers.range;
+      if (range) {
+        const m = /bytes=(\d*)-(\d*)/.exec(range);
+        let start = m && m[1] ? parseInt(m[1], 10) : 0;
+        let end = m && m[2] ? parseInt(m[2], 10) : st.size - 1;
+        if (start > end || end >= st.size) { res.writeHead(416, { 'Content-Range': 'bytes */' + st.size }); res.end(); return; }
+        if (start >= st.size) start = 0;
+        res.writeHead(206, Object.assign(headers, {
+          'Content-Range': 'bytes ' + start + '-' + end + '/' + st.size,
+          'Content-Length': end - start + 1
+        }));
+        if (req.method === 'HEAD') { res.end(); return; }
+        fs.createReadStream(fp, { start: start, end: end }).pipe(res);
+        return;
+      }
+      res.writeHead(200, Object.assign(headers, { 'Content-Length': st.size }));
+      if (req.method === 'HEAD') { res.end(); return; }
+      fs.createReadStream(fp).pipe(res);
+    });
+    return;
+  }
+
+  /* ---------- remote-tuner sessions ---------- */
+  const sessMatch = u.pathname.match(/^\/api\/sessions\/([a-z0-9]{6,16})\/(events|msg)$/);
+  if (u.pathname === '/api/sessions' && req.method === 'POST') {
+    if (sessions.size > 200) { send(res, 503, { ok: false, error: 'too many sessions' }); return; }
+    const id = crypto.randomBytes(5).toString('hex');
+    sessions.set(id, { hosts: [], joiners: [], created: Date.now() });
+    send(res, 200, { ok: true, id: id });
+    return;
+  }
+  if (sessMatch && sessMatch[2] === 'events') {
+    const s = sessions.get(sessMatch[1]);
+    if (!s) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    const role = u.searchParams.get('as') === 'join' ? 'join' : 'host';
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    });
+    res.write('retry: 3000\n\n');
+    const entry = { res: res, role: role };
+    (role === 'host' ? s.hosts : s.joiners).push(entry);
+    const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) {} }, 15000);
+    req.on('close', () => {
+      clearInterval(ping);
+      dropEntry(s, entry);
+      if (role === 'join') broadcast(s, 'host', { type: 'left', from: 'join' });
+      else broadcast(s, 'join', { type: 'left', from: 'host' });
+    });
+    if (role === 'join') broadcast(s, 'host', { type: 'joined', from: 'join' });
+    else broadcast(s, 'join', { type: 'joined', from: 'host' });
+    return;
+  }
+  if (sessMatch && sessMatch[2] === 'msg' && req.method === 'POST') {
+    const s = sessions.get(sessMatch[1]);
+    if (!s) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', () => {
+      let msg;
+      try { msg = JSON.parse(body); } catch (e) { send(res, 400, { ok: false, error: 'bad json' }); return; }
+      if (!msg || (msg.from !== 'host' && msg.from !== 'join')) { send(res, 400, { ok: false, error: 'bad message' }); return; }
+      broadcast(s, msg.from === 'host' ? 'join' : 'host', { type: 'msg', from: msg.from, data: msg.data });
+      send(res, 200, { ok: true });
+    });
     return;
   }
 

@@ -3,3 +3,7 @@ node_modules/
 package-lock.json.bak
 .DS_Store
 *.log
+
+# APK build intermediates + tool caches (the APK itself IS committed)
+build/
+tools/.cache/

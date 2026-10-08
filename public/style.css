@@ -603,8 +603,13 @@ body.gig-on { overflow: hidden; }
     flex-direction: row; position: sticky; bottom: 0; z-index: 20;
     border-right: 0; border-top: 1px solid var(--line);
     background: rgba(13, 16, 24, .92); backdrop-filter: blur(8px); padding: 8px 10px;
+    /* 16 nav buttons never fit one row on a phone: let the bar swipe-scroll
+     * instead of forcing the whole page grid wide (a scroll container's
+     * automatic minimum size is 0, so the 1fr track can shrink again) */
+    overflow-x: auto; scrollbar-width: none;
   }
-  .nav-btn { flex-direction: column; gap: 4px; font-size: 11px; padding: 8px 6px; }
+  .sidenav::-webkit-scrollbar { display: none; }
+  .nav-btn { flex-direction: column; gap: 4px; font-size: 11px; padding: 8px 6px; flex: 0 0 auto; }
   .nav-btn svg { width: 22px; height: 22px; }
   .nav-foot { display: none; }
   .content { padding: 14px; }
@@ -1237,3 +1242,91 @@ button.chip-btn:hover { border-color: var(--accent); }
 .mine-step > div { flex: 1; }
 .mine-act { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
 .mine-kind { font: 700 10.5px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); min-width: 62px; }
+
+/* ============================================================
+   GUIDED DEMO (tour overlay)
+   ============================================================ */
+.demo-overlay { position: fixed; inset: 0; z-index: 210; }
+.demo-spot {
+  position: fixed; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--amber), 0 0 0 9999px rgba(5, 7, 12, .62);
+  transition: left .22s ease, top .22s ease, width .22s ease, height .22s ease;
+}
+.demo-card {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  width: min(660px, 92vw); background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow);
+}
+.demo-step { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.demo-title { font-size: 19px; font-weight: 700; margin: 4px 0 6px; }
+.demo-text { color: var(--text); opacity: .92; line-height: 1.5; margin: 0 0 14px; font-size: 14.5px; }
+.demo-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.demo-dots { display: flex; gap: 4px; margin: 0 auto; }
+.demo-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+.demo-dots i.on { background: var(--amber); }
+
+/* ============================================================
+   REMOTE TUNER + QR SHARE CARDS
+   ============================================================ */
+.remote-card { grid-column: 1 / -1; }
+.remote-grid { display: grid; grid-template-columns: minmax(280px, 1.2fr) minmax(280px, 1fr); gap: 20px; }
+.remote-qr-wrap, .apk-share { display: flex; gap: 16px; align-items: flex-start; margin-top: 12px; }
+.qr-canvas { width: 180px; height: 180px; border-radius: 12px; background: #fff; padding: 6px; flex: none; }
+.remote-qr-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.remote-readout { display: flex; align-items: center; gap: 18px; margin: 10px 0 6px; }
+.remote-meta { display: flex; flex-direction: column; gap: 2px; }
+.link-out { width: 100%; }
+
+/* ---------- mobile touch polish ---------- */
+button, select, .btn, .seg-btn, .chip, .nav-btn, .tab { touch-action: manipulation; }
+* { -webkit-tap-highlight-color: transparent; }
+
+@media (max-width: 900px) {
+  .remote-grid { grid-template-columns: 1fr; }
+  .remote-qr-wrap, .apk-share { flex-direction: column; }
+  .qr-canvas { width: 150px; height: 150px; }
+  .demo-card { bottom: 86px; }
+  .demo-dots { display: none; }
+}
+
+/* ============================================================
+   DESKTOP: persistent sidebar
+   The 16-button sidenav used to scroll away with the page and slide
+   UNDER the sticky topbar (which spans the full width, nav column
+   included) — nav buttons became unclickable while the page was
+   scrolled. Sticky below the topbar keeps every button reachable;
+   the divider line moves to the content's left edge so it still
+   spans the full row height. Mobile (bottom bar) is untouched.
+   ============================================================ */
+@media (min-width: 901px) {
+  .sidenav {
+    position: sticky; top: 65px; align-self: start;
+    max-height: calc(100vh - 65px); overflow-y: auto; scrollbar-width: thin;
+    border-right: 0;
+  }
+  .sidenav::-webkit-scrollbar { width: 6px; }
+  .sidenav::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .content { border-left: 1px solid var(--line); }
+}
+
+/* Mobile: the toast stack sat at bottom: 22px — right on top of the sticky
+ * bottom nav bar, hiding its buttons for the first few seconds. Keep the
+ * toasts above the bar. */
+@media (max-width: 900px) {
+  #toasts { bottom: 76px; }
+}
+
+/* Mobile: grids whose desktop minimum column is wider than a phone must
+ * collapse to a single track, and the metronome's BPM row must shrink
+ * (its fixed min-width pushed it past the screen edge). */
+@media (max-width: 900px) {
+  .lyr-grid, .learn-grid, .cof-grid { grid-template-columns: minmax(0, 1fr); }
+  .bpm-big { min-width: 0; font-size: 42px; }
+  .bpm-row { flex-wrap: wrap; gap: 6px; }
+}
+
+/* Mobile: the spec/fret tables are wider than a phone — let them scroll
+ * inside their own panes instead of pushing the whole page sideways. */
+@media (max-width: 900px) {
+  #tension-out, #setup-info, #fret-table { overflow-x: auto; }
+}

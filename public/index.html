@@ -2,12 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Trill Tuner — Guitar Tuner, Amp & Pedals, Practice Studio</title>
 <meta name="description" content="Trill Tuner — a from-scratch guitar tuner with 94 tunings, 52 amplifiers and 125 pedals with real settings, a learning academy, practice studio, advanced tools, progress sharing and backups. Works offline, no account.">
+<meta name="theme-color" content="#f59e0b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trill Tuner">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B8%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<script>/* Register the service worker as early as possible so the very first
+  visit is already enough to make the app work fully offline. On file:// (the
+  Android APK) registration is rejected — everything is local there anyway. */
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }</script>
 </head>
 <body class="theme-acoustic">
 <div class="splash" id="splash" hidden>
@@ -243,6 +258,62 @@
           <div class="tone-bright" id="tone-bright"></div>
           <div class="card-h small">Auto assistant</div>
           <ul class="assistant" id="assistant-log"></ul>
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="btn-tour">🧭 Take the tour</button>
+            <button class="btn btn-ghost" id="btn-install" hidden>📱 Install app</button>
+          </div>
+        </div>
+
+        <div class="card remote-card">
+          <div class="card-h">Remote tuner <span class="dim">— sync two devices over your network</span></div>
+          <div class="remote-grid">
+            <div class="remote-host">
+              <p class="hint">Host a tuning session on this device. Scan the QR code with a second phone or laptop on the same Wi-Fi and both tuners mirror each other live — fully inclusive: each side sees the other's note, cents and progress.</p>
+              <div class="row-btns">
+                <button class="btn btn-primary" id="btn-remote-host">📡 Host a session</button>
+                <button class="btn btn-ghost" id="btn-remote-stop" hidden>■ Stop hosting</button>
+              </div>
+              <div class="remote-qr-wrap" id="remote-qr-wrap" hidden>
+                <canvas id="remote-qr" class="qr-canvas" width="180" height="180"></canvas>
+                <div class="remote-qr-side">
+                  <div class="card-h small">Scan to join — or open this link</div>
+                  <input type="text" id="remote-link" class="link-out" readonly>
+                  <div class="row-btns">
+                    <button class="btn btn-ghost tiny" id="btn-remote-copy">📋 Copy link</button>
+                    <button class="btn btn-ghost tiny" id="btn-remote-share">📤 Share</button>
+                  </div>
+                  <div class="dim smallish" id="remote-status">Waiting for a device to connect…</div>
+                </div>
+              </div>
+            </div>
+            <div class="remote-live" id="remote-live" hidden>
+              <div class="card-h small" id="remote-live-title">Connected device</div>
+              <div class="remote-readout">
+                <div class="note-big" id="remote-note">–</div>
+                <div class="remote-meta">
+                  <div class="cents" id="remote-cents">–¢</div>
+                  <div class="tune-status" id="remote-status-line">listening…</div>
+                </div>
+              </div>
+              <div class="chips" id="remote-chips"></div>
+              <p class="hint" id="remote-hint"></p>
+            </div>
+            <div class="remote-join" id="remote-join" hidden>
+              <div class="card-h small">You joined a remote session</div>
+              <p class="hint">This device is mirrored to the host. Play a string — the host sees your note, cents and in-tune state live, and you see theirs below.</p>
+              <div class="remote-readout">
+                <div class="note-big" id="remote-peer-note">–</div>
+                <div class="remote-meta">
+                  <div class="cents" id="remote-peer-cents">–¢</div>
+                  <div class="tune-status" id="remote-peer-line">waiting for the host…</div>
+                </div>
+              </div>
+              <div class="dim smallish" id="remote-peer-hint"></div>
+              <div class="row-btns">
+                <button class="btn btn-ghost tiny" id="btn-remote-leave">Leave session</button>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -1138,6 +1209,25 @@
           <p class="hint">The card, the summary and the link all contain only the numbers you see — no audio, no account, no server. A shared link carries a snapshot inside the URL itself.</p>
         </div>
 
+        <div class="card apk-card">
+          <div class="card-h">Get the Android app <span class="badge">APK</span></div>
+          <p class="hint">Trill Tuner as a native Android app — every feature, fully offline, mic permission handled. The APK is hosted by this app itself: scan the code with another phone, or open the link on it.</p>
+          <div class="apk-share">
+            <canvas id="apk-qr" class="qr-canvas" width="180" height="180"></canvas>
+            <div class="remote-qr-side">
+              <div class="card-h small">Scan to download — or open this link</div>
+              <input type="text" id="apk-link" class="link-out" readonly>
+              <div class="row-btns">
+                <button class="btn btn-primary" id="btn-apk-open">⤓ Download TrillTuner.apk</button>
+                <button class="btn btn-ghost" id="btn-apk-copy">📋 Copy link</button>
+                <button class="btn btn-ghost" id="btn-apk-share">📤 Share</button>
+              </div>
+              <div class="dim smallish" id="apk-meta">—</div>
+            </div>
+          </div>
+          <p class="hint">On Android: allow “install from unknown sources” when asked. The app needs the microphone (for the tuner) and network access (for lyric lookups and updates) — everything else runs on the device.</p>
+        </div>
+
         <div class="card">
           <div class="card-h">Backup &amp; restore <span class="dim">never lose your progress</span></div>
           <div class="row-btns">
@@ -1187,6 +1277,22 @@
   <div class="gig-hint">target string · green = in tune · <b>G</b> or <b>Esc</b> exits</div>
 </div>
 
+<!-- Guided demo overlay -->
+<div class="demo-overlay" id="demo-overlay" hidden>
+  <div class="demo-spot" id="demo-spot" hidden></div>
+  <div class="demo-card" id="demo-card">
+    <div class="demo-step" id="demo-step"></div>
+    <div class="demo-title" id="demo-title"></div>
+    <p class="demo-text" id="demo-text"></p>
+    <div class="demo-actions">
+      <button class="btn btn-ghost" id="demo-skip">Skip tour</button>
+      <span class="demo-dots" id="demo-dots"></span>
+      <button class="btn" id="demo-back">← Back</button>
+      <button class="btn btn-primary" id="demo-next">Next →</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script src="js/lib/yin.js"></script>
@@ -1226,6 +1332,12 @@
 <script src="js/practice.js"></script>
 <script src="js/rig.js"></script>
 <script src="js/share.js"></script>
+<script src="js/lib/qrcode.js"></script>
+<script src="js/qr.js"></script>
+<script src="js/pwa.js"></script>
+<script src="js/remote.js"></script>
+<script src="js/apkshare.js"></script>
+<script src="js/demo.js"></script>
 <script src="js/app.js"></script>
 <script src="js/splash.js"></script>
 </body>

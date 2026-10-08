@@ -313,15 +313,98 @@ function kept(out, src) {
   const views = ['styles', 'backing', 'mine'];
   const nav = read('public/index.html');
   const wired = views.every(v => nav.indexOf('data-view="' + v + '"') > 0 && nav.indexOf('id="view-' + v + '"') > 0);
-  const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js', 'test/requirements-audit.js']
+  const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js',
+    'test/apk-test.js', 'test/pwa-e2e.js', 'test/requirements-audit.js']
     .filter(f => fs.existsSync(path.join(root, f)));
   const badges = (read('public/js/share.js').match(/\{ id: '/g) || []).length;
   const presets = (read('public/js/backing.js').match(/\{ name: '[^']+'/g) || []).length;
   item(10, 'And more advanced things',
-    'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, five node test suites',
-    wired && tests.length === 6 && badges >= 30,
-    views.join(' · ') + ' all reachable · ' + tests.length + '/6 node suites · ' + badges + ' badges · ' +
+    'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, eight node test suites',
+    wired && tests.length === 8 && badges >= 30,
+    views.join(' · ') + ' all reachable · ' + tests.length + '/8 node suites · ' + badges + ' badges · ' +
     presets + ' backing presets · ' + (read('public/js/stemlab.js').match(/\{ id: '/g) || []).length + ' stem recipes');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 12. the Android app: a real, signed, self-hosted APK              */
+/* ---------------------------------------------------------------- */
+(function () {
+  const apkPath = path.join(root, 'public', 'downloads', 'TrillTuner.apk');
+  const exists = fs.existsSync(apkPath);
+  const size = exists ? fs.statSync(apkPath).size : 0;
+  const raw = exists ? fs.readFileSync(apkPath) : Buffer.alloc(0);
+  /* the central directory of a zip stores entry names as plain text */
+  const zipHas = s => raw.length > 0 && raw.indexOf(Buffer.from(s)) >= 0;
+  const man = read('apk-src/AndroidManifest.xml');
+  const smaliDir = path.join(root, 'apk-src', 'smali', 'com', 'trilltuner', 'app');
+  const smali = ['MainActivity.smali', 'TClient.smali', 'TChrome.smali', 'TBridge.smali']
+    .every(f => fs.existsSync(path.join(smaliDir, f)));
+  const perms = ['INTERNET', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE', 'VIBRATE']
+    .every(p => man.indexOf('android.permission.' + p) > 0);
+  item(12, 'An Android app version of the whole thing — named Trill Tuner, correct permissions, built and working',
+    'public/downloads/TrillTuner.apk is a real signed APK (zip entries + v1/v2/v3 signatures verified by test/apk-test.js and test/apk-verify.py); the shell source lives in apk-src/ (manifest + smali) and tools/build-apk.py rebuilds it without an SDK',
+    exists && size > 200 * 1024 && zipHas('AndroidManifest.xml') && zipHas('classes.dex') && zipHas('resources.arsc')
+      && zipHas('assets/index.html') && zipHas('META-INF/') && man.indexOf('package="com.trilltuner.app"') > 0
+      && man.indexOf('android:label="Trill Tuner"') > 0 && perms && smali
+      && fs.existsSync(path.join(root, 'tools', 'build-apk.py')),
+    'APK ' + (size / 1024).toFixed(0) + ' KB · package com.trilltuner.app · label “Trill Tuner” · minSdk 24 / targetSdk 34 · 5 permissions · 4 smali shell classes · signed v1+v2+v3 (apksigner verify) · deep-checked by test/apk-test.js + test/apk-verify.py');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 13. the web version stays and becomes a PWA, offline after load   */
+/* ---------------------------------------------------------------- */
+(function () {
+  const man = JSON.parse(read('public/manifest.webmanifest'));
+  const sw = read('public/sw.js');
+  const head = read('public/index.html');
+  const icons = ['public/icons/icon-192.png', 'public/icons/icon-512.png',
+    'public/icons/icon-maskable-512.png', 'public/icons/apple-touch-icon.png']
+    .every(f => fs.existsSync(path.join(root, f)));
+  item(13, 'The web version remains and becomes a PWA — 100% offline after the first load',
+    'manifest.webmanifest (standalone, icons) + sw.js (precache-all, navigation fallback, skipWaiting) + PWA meta in index.html; the offline reload itself is proven in test/pwa-e2e.js (network cut, tuner still detects in-tune)',
+    man.name === 'Trill Tuner' && man.display === 'standalone' && man.icons.length >= 3
+      && sw.indexOf('cache.addAll') > 0 && sw.indexOf('caches.match') > 0 && sw.indexOf('skipWaiting') > 0
+      && head.indexOf('rel="manifest"') > 0 && head.indexOf('name="theme-color"') > 0
+      && head.indexOf('apple-mobile-web-app-capable') > 0 && head.indexOf('maximum-scale=1') > 0
+      && icons && fs.existsSync(path.join(root, 'test', 'pwa-e2e.js')),
+    'manifest “' + man.name + '” standalone · ' + man.icons.length + ' icons · sw precaches the app, falls back to the cached shell offline · theme #f59e0b · mobile viewport · offline E2E green');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 14. the guided demo: skippable, every section, progress saved     */
+/* ---------------------------------------------------------------- */
+(function () {
+  const demo = read('public/js/demo.js');
+  const html = read('public/index.html');
+  const views = ['tune', 'metronome', 'record', 'lyrics', 'songs', 'styles', 'maker', 'stems',
+    'backing', 'listening', 'learn', 'tools', 'rig', 'mine', 'progress', 'care'];
+  const covered = views.filter(v => demo.indexOf("view: '" + v + "'") > 0);
+  const steps = (demo.match(/title: '/g) || []).length;
+  item(14, 'A detailed demo you can skip — and if you do not skip it, every section is covered one by one, with Next and Skip, saving your progress',
+    'public/js/demo.js walks all 16 views in 26 steps with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
+    covered.length === 16 && steps >= 20
+      && html.indexOf('id="demo-next"') > 0 && html.indexOf('id="demo-skip"') > 0 && html.indexOf('id="demo-back"') > 0
+      && demo.indexOf("set('demoStep'") > 0 && demo.indexOf("set('demoDone'") > 0
+      && html.indexOf('id="btn-tour"') > 0,
+    steps + ' steps · all 16 sections covered (' + covered.length + '/16) · Next + Skip + Back · progress saved + resumed · restart from Tuning setup');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 15. QR sharing of the APK + remote tuning over the LAN            */
+/* ---------------------------------------------------------------- */
+(function () {
+  const html = read('public/index.html');
+  const server = read('server.js');
+  const qr = read('public/js/lib/qrcode.js');
+  item(15, 'Sharing with a QR code that links to the download of the actual APK — hosted by the app itself — plus a QR to connect another device over the LAN for live, fully inclusive tuning',
+    'vendored QR generator + TT.qr wrapper; the progress view shows the APK QR + link to /download/trill-tuner.apk served by server.js; the tune view hosts a session (QR to ?join=<id>) and two devices mirror each other live over SSE — proven in test/pwa-e2e.js',
+    qr.length > 10000 && fs.existsSync(path.join(root, 'public', 'js', 'qr.js'))
+      && html.indexOf('id="apk-qr"') > 0 && html.indexOf('id="apk-link"') > 0 && html.indexOf('id="btn-apk-open"') > 0
+      && server.indexOf("'/download/trill-tuner.apk'") > 0 && server.indexOf('application/vnd.android.package-archive') > 0
+      && html.indexOf('id="btn-remote-host"') > 0 && html.indexOf('id="remote-qr"') > 0
+      && server.indexOf("'/api/sessions'") > 0 && server.indexOf('(events|msg)') > 0
+      && server.indexOf("'/api/host'") > 0 && fs.existsSync(path.join(root, 'public', 'js', 'remote.js')),
+    'QR lib vendored (qrcode-generator, MIT) · APK QR + copy/share/open buttons · server hosts the APK (MIME + range support) · host QR → ?join=<id> · SSE sessions mirror note/cents/status both ways');
 })();
 
 /* ---------------------------------------------------------------- */

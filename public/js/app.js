@@ -51,6 +51,7 @@
     if (id === 'mine' && TT.mine && TT.mine.render) TT.mine.render();
     if (id === 'styles' && TT.styles) TT.styles.init();
     if (id === 'progress' && TT.share) TT.share.render();
+    if (id === 'progress' && TT.apkshare) TT.apkshare.render();
     if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
   };
 
@@ -130,6 +131,10 @@
     wire('practice', () => TT.practiceTools.init());
     wire('rig', () => TT.rig.init());
     wire('share', () => TT.share.init());
+    wire('pwa', () => TT.pwa.init());
+    wire('remote', () => TT.remote.init());
+    wire('apkshare', () => TT.apkshare.init());
+    wire('demo', () => TT.demo.init());
     bindNav();
     bindMode();
     bindMicPill();

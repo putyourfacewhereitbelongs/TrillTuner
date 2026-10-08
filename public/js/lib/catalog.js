@@ -212,7 +212,7 @@
     S('Slow Dancing in a Burning Room', 'John Mayer', 'C', 70, 5, 0, ['C', 'Am', 'F', 'G', 'Em', 'Dm', 'G/B'],
       'Verse: C  Am  F  G │ Pre: Em  Dm  C  G/B', ['blues pop', 'touch', 'dynamics'],
       'The feel is everything: play it loud-soft-loud with your fingers and let the low strings carry it.'),
-    S('Neon', 'John Mayer', 'E♭', 130, 5, 2, ['E', 'B7', 'A', 'F#m7', 'B7sus4', 'E7'],
+    S('Neon', 'John Mayer', 'E', 130, 5, 0, ['E', 'B7', 'A', 'F♯m7', 'B7sus4', 'E7'],
       'E  B7  A  F#m7  B7sus4 (thumb and fingers)', ['thumb independence', 'groove', 'hard'],
       'A modern Travis-picking masterclass. Learn the thumb part alone for a week before adding any fingers.'),
     S('Fast Car', 'Tracy Chapman', 'A', 104, 3, 0, ['A', 'D', 'F#m', 'E', 'Esus4'],
@@ -520,6 +520,28 @@
   ];
   SONGS.push.apply(SONGS, MORE);
 
+  /* ---------------- the last few artist pages: advanced / jazz / modern ------- */
+  SONGS.push.apply(SONGS, [
+    S('Ain’t Talkin’ ’bout Love', 'Eddie Van Halen', 'Am', 140, 2, 0, ['Am', 'G', 'F', 'E'],
+      'Am  G  F  E (descending, over and over)', ['riff', 'classic rock', 'power chords'],
+      'Four chords walking down the A minor scale with open strings ringing. The riff is the point: learn it, then let everything ring.'),
+    S('Cosmic Sans', 'Cory Wong', 'E', 118, 4, 0, ['E9', 'A13', 'B12', 'F♯m7'],
+      'E9  A13 │ B12  F♯m7 (16th-note funk)', ['funk', '16ths', 'rhythm'],
+      'A funk workout: tight 16th-note scratches with a choked right hand. Play it completely muted first, then add the sound.'),
+    S('Shenandoah', 'Bill Frisell', 'C', 66, 3, 0, ['C', 'Am', 'F', 'G', 'Em'],
+      'C  Am  F  G (slow, rubato)', ['ambient', 'melody', 'touch'],
+      'Treat it as a chord melody: hold each chord and let the melody note sit on top. Nothing here is rushed.'),
+    S('All the Things You Are', 'Joe Pass', 'Fm', 120, 5, 0, ['Fm', 'B♭m', 'E♭', 'A♭', 'D♭', 'G7', 'C'],
+      'Fm  B♭m  E♭  A♭ │ D♭  G7  C (the famous turnaround)', ['jazz', 'turnaround', 'standards'],
+      'A chain of ii–V–I movements through four keys. Learn the shapes in order and a large part of the neck opens up.'),
+    S('CAFO', 'Tosin Abasi', 'F♯m', 98, 5, 0, ['F♯m', 'A', 'E', 'B'],
+      'F♯m  A  E  B in 7/8 (count 1-2-3 · 1-2-3 · 1-2)', ['djent', '7/8', 'tapping'],
+      'A 7/8 tapping study: the accent pattern is everything. Tap it slowly with a metronome on 7 before you touch the distortion.'),
+    S('Marigold', 'Periphery', 'Dm', 132, 5, 0, ['Dm', 'B♭', 'F', 'C', 'Gm'],
+      'Dm  B♭  F  C (odd grouping: 7 + 5 sixteenths)', ['djent', 'odd meter', 'muting'],
+      'The riff is an odd grouping of sixteenths — count 1-2-3-4-5-6-7 against the kick instead of playing to the beat.')
+  ]);
+
   /* ------------------------------------------------------------------ */
   /* technique lessons: what to learn and which songs teach it           */
   /* ------------------------------------------------------------------ */
@@ -703,7 +725,7 @@
       ['samba batida', 'right-hand independence', 'extended chords'], ['Mas Que Nada', 'Chove Chuva']),
     A('Tosin Abasi', ['progressive metal', 'djent'], 'Eight strings, thumb independence and one-handed playing',
       'An 8-string with active pickups into a tightly filtered high-gain tone',
-      ['tapping', 'thumb slapping', 'odd time', 'clean-to-brutal dynamics'], ['Animals as Leaders material']),
+      ['tapping', 'thumb slapping', 'odd time', 'clean-to-brutal dynamics'], ['CAFO', 'The Woven Web', 'Animals as Leaders material']),
     A('Buckethead', ['instrumental rock'], 'A bucket, a Les Paul and a thousand released records',
       'A custom Les Paul with a kill switch and a huge clean delay rig',
       ['kill switch stutter', 'tapping', 'chromatic runs', 'wide dynamics'], ['Soothsayer', 'Jordan']),
@@ -745,16 +767,16 @@
       ['chicken scratch', 'ninth chords', 'sixteenth-note strumming', 'compression'], ['Le Freak', 'Good Times', 'Get Lucky']),
     A('Cory Wong', ['funk'], 'Modern rhythm guitar with a metronome for a heart',
       'A Strat-sized guitar with a compressor at every stage and a very precise right hand',
-      ['sixteenth-note funk', 'silence as rhythm', 'compression stacking'], ['Funk workouts']),
+      ['sixteenth-note funk', 'silence as rhythm', 'compression stacking'], ['Cosmic Sans', 'Dean Town', 'Funk workouts']),
     A('Bill Frisell', ['jazz', 'Americana'], 'Ambient, folk and jazz guitar in one voice',
       'A Telecaster and a lot of delay and reverb, with chords used as weather',
-      ['swelling chords', 'volume pedal', 'folk melody in a jazz setting'], ['Ambient jazz work']),
+      ['swelling chords', 'volume pedal', 'folk melody in a jazz setting'], ['Shenandoah', 'Throughout', 'Ambient jazz work']),
     A('Wes Montgomery', ['jazz'], 'Octaves and thumbed chords that changed jazz guitar',
       'A Gibson L-5 played with the thumb, and octave melodies that sing',
       ['octaves', 'thumb picking', 'chord solos'], ['Four on Six', 'West Coast Blues']),
     A('Joe Pass', ['jazz'], 'Walking bass, chords and melody at the same time',
       'One archtop guitar, no effects, all arrangement',
-      ['chord melody', 'walking bass', 'bebop lines'], ['Virtuoso material']),
+      ['chord melody', 'walking bass', 'bebop lines'], ['All the Things You Are', 'Autumn Leaves', 'Virtuoso material']),
     A('Chet Atkins', ['country', 'fingerstyle'], 'Inventing the modern acoustic guitar style',
       'A Gretsch or a nylon-string guitar with a thumbpick and three fingers',
       ['travis picking', 'chord melody', 'thumb independence'], ['Mr. Sandman', 'Windy and Warm']),
@@ -767,9 +789,9 @@
     A('Slash to modern rock', ['hard rock'], 'The sound of the big chorus',
       'Les Paul into a Marshall, with the amp doing the singing and the pedal only pushing it',
       ['vibrato', 'bend control', 'melodic solos'], ['Sweet Child O’ Mine', 'November Rain']),
-    A('Prog / djent players', ['progressive metal'], 'Riffs where the rhythm is the melody',
+    A('Periphery', ['progressive metal', 'djent'], 'Riffs where the rhythm is the melody',
       'Multi-scale 7 and 8-string guitars, tight low-end filtering and precise muting',
-      ['odd meters', 'palm-muted chugs', 'syncopation'], ['Animals as Leaders', 'Periphery', 'Plini']),
+      ['odd meters', 'palm-muted chugs', 'syncopation'], ['Marigold', 'Animals as Leaders', 'Periphery', 'Plini']),
     A('Flamenco / classical players', ['classical', 'flamenco'], 'Right-hand techniques that turn the guitar into a drum',
       'Nylon strings and a right hand with five distinct attacks',
       ['rasgueado', 'tremolo', 'picado', 'alzapúa'], ['Asturias', 'Entre Dos Aguas']),
@@ -967,6 +989,17 @@
     parseChord, transposeChord, PITCH: NOTE_SHARP, FLAT_OF: FLAT_OF,
     counts: { songs: SONGS.length, lessons: LESSONS.length, artists: ARTISTS.length },
     songById: id => SONGS.find(s => s.id === id) || null,
+    /* Which songs in the book belong to an artist page? Songs filed under the
+     * artist's own name, plus any of the signature titles we do have — so a
+     * “David Gilmour” page can still hand you the Pink Floyd songs we carry. */
+    artistSongs: (name) => {
+      const a = ARTISTS.filter(x => x.name === name)[0];
+      if (!a) return [];
+      const norm = t => String(t).toLowerCase().replace(/[’'`.,!?()\[\]]/g, '').replace(/\s+/g, ' ').trim();
+      const sig = (a.songs || []).map(norm);
+      return SONGS.filter(s => s.artist === name || sig.indexOf(norm(s.title)) >= 0);
+    },
+
     chordsInLibrary: (() => { const set = {}; SONGS.forEach(s => s.chords.forEach(c => { set[c] = (set[c] || 0) + 1; })); return set; })()
   };
   G.TT = G.TT || {};

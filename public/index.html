@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Trill Guitar — Tuner, Metronome, Recorder, Lyrics & Lessons</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B8%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-acoustic">
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f6b04b"/><stop offset="1" stop-color="#d97706"/>
+        </linearGradient></defs>
+        <path fill="url(#lg)" d="M50 4C36 4 26 10 26 20c0 12 5 26 12 38 5 8 9 16 12 34 3-18 7-26 12-34 7-12 12-26 12-38C74 10 64 4 50 4z"/>
+        <circle cx="50" cy="22" r="9" fill="#1a1408" opacity=".85"/>
+      </svg>
+      <div>
+        <h1>Trill Guitar</h1>
+        <span class="tagline">tune · play · record · learn</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="seg" id="seg-mode" title="Instrument mode — changes the guitar shown and how the tuner listens">
+        <button class="seg-btn active" data-mode="acoustic">🎸 Acoustic</button>
+        <button class="seg-btn" data-mode="electric">⚡ Electric</button>
+      </div>
+      <button class="gig-btn" id="btn-gig" title="Gig mode (G) — giant high-contrast stage display">◑ Gig mode</button>
+      <button class="mic-pill" id="mic-pill" title="Toggle microphone">
+        <span class="dot"></span><span id="mic-pill-text">Mic off</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="sidenav" id="nav">
+    <button class="nav-btn active" data-view="tune">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v5a6 6 0 0 0 12 0V3"/><path d="M12 14v7"/></svg>
+      <span>Tune</span>
+    </button>
+    <button class="nav-btn" data-view="metronome">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 18H6z"/><path d="M12 14 17 5"/></svg>
+      <span>Metronome</span>
+    </button>
+    <button class="nav-btn" data-view="record">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
+      <span>Record</span>
+    </button>
+    <button class="nav-btn" data-view="lyrics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
+      <span>Lyrics</span>
+    </button>
+    <button class="nav-btn" data-view="learn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 12v4.5c0 1.7 2.4 3 5 3s5-1.3 5-3V12"/></svg>
+      <span>Learn</span>
+    </button>
+    <button class="nav-btn" data-view="care">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+      <span>Care</span>
+    </button>
+    <div class="nav-foot">
+      <div>Trill Guitar</div>
+      <div class="dim">Pitch detection runs<br>100% on your device</div>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <!-- ==================== TUNE ==================== -->
+    <section class="view active" id="view-tune">
+      <div class="tune-grid">
+
+        <div class="card guitar-card">
+          <div class="card-h">Neck &amp; strings <span class="dim" id="guitar-kind-label">acoustic</span></div>
+          <div id="guitar-box" class="guitar-box"></div>
+        </div>
+
+        <div class="card wave-card">
+          <div class="card-h">
+            <span id="active-string-title">Auto-detect</span>
+            <span class="card-h-right">
+              <span class="seg seg-mini" id="seg-display" title="Display style — strobe freezes solid when you're dead in tune">
+                <button class="seg-btn active" data-display="wave">Wave</button>
+                <button class="seg-btn" data-display="strobe">Strobe</button>
+              </span>
+              <span class="sig" id="signal-meter" title="Input level"><i></i></span>
+            </span>
+          </div>
+          <div class="wave-wrap">
+            <canvas id="wave-canvas"></canvas>
+            <div class="wave-note left">
+              <div class="note-big" id="note-detected">–</div>
+              <div class="note-sub" id="note-detected-sub">listening…</div>
+            </div>
+            <div class="wave-note right">
+              <div class="note-big" id="note-target">–</div>
+              <div class="note-sub" id="note-target-sub">auto-detect</div>
+            </div>
+            <div class="mic-overlay" id="mic-overlay">
+              <p class="mic-title">Let's get you in tune</p>
+              <p class="mic-sub"><b>Standard tuning</b> is loaded (E A D G B E). Allow mic access, then strum a string — the wave line turns <span class="g">green</span> when you're in tune, <span class="r">red</span> while you're not.</p>
+              <button class="btn btn-primary" id="btn-mic-start">🎤 Start listening</button>
+              <p class="mic-hint">Your audio never leaves this page. Mic stays off until you say go.</p>
+              <button class="btn btn-ghost tiny" id="btn-newtab">Open in a new tab ↗</button>
+              <p class="mic-error" id="mic-error" hidden></p>
+            </div>
+            <div class="strum-panel" id="strum-panel" hidden>
+              <div class="strum-head">
+                <b id="strum-title">Strum check</b>
+                <button class="strum-x" id="strum-close" title="Close">✕</button>
+              </div>
+              <div class="strum-rows" id="strum-rows"></div>
+            </div>
+          </div>
+          <div class="cents-row">
+            <div class="cents" id="cents-val">–¢</div>
+            <div class="tune-status" id="tune-status">Waiting for sound…</div>
+          </div>
+          <div class="chips" id="string-chips"></div>
+          <div class="wave-actions">
+            <button class="btn" id="btn-strum" title="Strum all strings at once — I'll grade every string in one go">⚡ Strum check</button>
+            <button class="btn btn-ghost" id="btn-guide" title="What this tuning sounds like + famous songs that use it">📖 Tuning guide</button>
+          </div>
+        </div>
+
+        <div class="card settings-card">
+          <div class="card-h">Tuning setup</div>
+          <label class="field"><span>Tuning preset</span>
+            <select id="select-tuning"></select>
+          </label>
+          <div class="field"><span>Reference pitch A4 = <b id="a4-val">440</b> Hz</span>
+            <input type="range" id="range-a4" min="415" max="466" step="1" value="440">
+          </div>
+          <label class="field"><span>In-tune window</span>
+            <select id="select-tol">
+              <option value="3">±3¢ — studio strict</option>
+              <option value="5" selected>±5¢ — recommended</option>
+              <option value="10">±10¢ — relaxed</option>
+            </select>
+          </label>
+          <label class="field"><span>Sweetened tuning</span>
+            <select id="select-sweet" title="Per-string cent offsets that make real guitars sound sweeter"></select>
+          </label>
+          <div class="off-row" id="off-row"></div>
+          <div class="tiny-hint dim">per-string offsets (¢) — edit a box to build your own sweetener</div>
+          <label class="field"><span>Capo position</span>
+            <select id="select-capo" title="Shifts all targets up — tune with the capo clamped on">
+              <option value="0">No capo</option>
+              <option value="1">Fret 1</option>
+              <option value="2">Fret 2</option>
+              <option value="3">Fret 3</option>
+              <option value="4">Fret 4</option>
+              <option value="5">Fret 5</option>
+              <option value="6">Fret 6</option>
+              <option value="7">Fret 7</option>
+            </select>
+          </label>
+          <p class="hint capo-hint" id="capo-hint" hidden></p>
+          <label class="check"><input type="checkbox" id="chk-autodetect" checked><span>Auto string detect</span></label>
+          <label class="check"><input type="checkbox" id="chk-autoadvance" checked><span>Auto-advance when in tune</span></label>
+          <label class="check"><input type="checkbox" id="chk-filter"><span>Smart filter — reject room noise</span></label>
+          <label class="check"><input type="checkbox" id="chk-settle" checked><span>Attack settle — skip the pluck spike</span></label>
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="btn-hear-all">🔊 Hear all strings</button>
+            <button class="btn btn-ghost" id="btn-reset-tuned">Reset progress</button>
+          </div>
+          <div class="suggest" id="suggest-box" hidden></div>
+          <div class="card-h small">Tone &amp; harmonics</div>
+          <canvas id="tone-canvas" class="tone-canvas" title="Overtone profile of the note you're playing"></canvas>
+          <div class="tone-bright" id="tone-bright"></div>
+          <div class="card-h small">Auto assistant</div>
+          <ul class="assistant" id="assistant-log"></ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== METRONOME ==================== -->
+    <section class="view" id="view-metronome">
+      <div class="metro-grid">
+        <div class="card metro-card">
+          <div class="card-h">Metronome</div>
+          <div class="bpm-row">
+            <button class="btn btn-ghost bpm-step" data-d="-5">−5</button>
+            <button class="btn btn-ghost bpm-step" data-d="-1">−1</button>
+            <div class="bpm-big"><span id="bpm-num">100</span><small>BPM</small></div>
+            <button class="btn btn-ghost bpm-step" data-d="1">+1</button>
+            <button class="btn btn-ghost bpm-step" data-d="5">+5</button>
+          </div>
+          <input type="range" id="bpm-range" min="30" max="280" value="100">
+          <div class="metro-btns">
+            <button class="btn btn-primary big" id="btn-metro-start">▶ Start</button>
+            <button class="btn" id="btn-tap">Tap tempo</button>
+          </div>
+          <div class="beat-leds" id="beat-leds"></div>
+          <div class="pendulum"><div class="pend-base"></div><div class="arm" id="pendulum-arm"><div class="bob"></div></div></div>
+          <div class="metro-presets" id="metro-presets">
+            <span class="dim">Quick:</span>
+            <button class="btn tiny" data-bpm="60">60</button>
+            <button class="btn tiny" data-bpm="80">80</button>
+            <button class="btn tiny" data-bpm="100">100</button>
+            <button class="btn tiny" data-bpm="120">120</button>
+            <button class="btn tiny" data-bpm="140">140</button>
+          </div>
+        </div>
+        <div class="card metro-opts">
+          <div class="card-h">Time & feel</div>
+          <label class="field"><span>Time signature</span>
+            <select id="select-sig">
+              <option value="2">2/4</option>
+              <option value="3">3/4</option>
+              <option value="4" selected>4/4</option>
+              <option value="5">5/4</option>
+              <option value="6">6/8</option>
+              <option value="7">7/8</option>
+              <option value="9">9/8</option>
+            </select>
+          </label>
+          <label class="field"><span>Subdivision</span>
+            <select id="select-subdiv">
+              <option value="1" selected>♩ Quarter notes</option>
+              <option value="2">♪ Eighths</option>
+              <option value="3">♪҉ Triplets</option>
+              <option value="4">♬ Sixteenths</option>
+            </select>
+          </label>
+          <label class="field"><span>Click volume</span>
+            <input type="range" id="metro-vol" min="0" max="1" step="0.01" value="0.9">
+          </label>
+          <div class="practice-box" id="practice-stats"></div>
+          <div class="card-h small">Jam track</div>
+          <label class="check"><input type="checkbox" id="chk-jam"><span>Strum a backing loop with the click</span></label>
+          <label class="field"><span>Key</span>
+            <select id="select-jam-key">
+              <option value="9">A</option><option value="2">D</option><option value="4">E</option>
+              <option value="7">G</option><option value="0">C</option><option value="5">F</option>
+              <option value="11">B</option><option value="10">B♭</option><option value="3">E♭</option>
+            </select>
+          </label>
+          <label class="field"><span>Progression</span>
+            <select id="select-jam-prog">
+              <option value="blues12">12-bar blues (I7–IV7–V7)</option>
+              <option value="p154" selected>I–V–vi–IV pop</option>
+              <option value="classic">I–IV–V rock</option>
+              <option value="jazz">ii–V–I jazz</option>
+            </select>
+          </label>
+          <label class="field"><span>Backing volume</span>
+            <input type="range" id="jam-vol" min="0" max="1" step="0.01" value="0.7">
+          </label>
+          <div class="jam-now-box"><span class="dim">now</span><span class="jam-now" id="jam-now">—</span><span class="dim" id="jam-next"></span></div>
+          <p class="hint">Start the metronome with the jam on — strums follow your BPM and get recorded too.</p>
+          <p class="hint">Tip: <kbd>Space</kbd> starts/stops the metronome anywhere in the app. Numbers <kbd>1</kbd>–<kbd>7</kbd> pick a string on the tuner.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== RECORD ==================== -->
+    <section class="view" id="view-record">
+      <div class="rec-grid">
+        <div class="card rec-card">
+          <div class="card-h">Recorder</div>
+          <div class="rec-big">
+            <button class="rec-btn" id="btn-record" title="Record a take"><span class="rec-dot"></span></button>
+            <div class="rec-info">
+              <div class="rec-timer" id="rec-timer">00:00</div>
+              <div class="rec-status" id="rec-status">Ready</div>
+            </div>
+          </div>
+          <div class="rec-meter"><i id="rec-level"></i></div>
+          <label class="check"><input type="checkbox" id="opt-metronome" checked><span>Record with the metronome click</span></label>
+          <label class="check"><input type="checkbox" id="opt-countin"><span>One-bar count-in before recording starts</span></label>
+          <p class="hint">Your mic and the metronome are both captured. Takes live in this session — download the keepers (⤓).</p>
+        </div>
+        <div class="card takes-card">
+          <div class="card-h">Takes <span class="badge" id="takes-count">0</span></div>
+          <ul class="takes" id="takes-list"><li class="empty">No takes yet. Hit record and play!</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== LYRICS ==================== -->
+    <section class="view" id="view-lyrics">
+      <div class="lyr-grid">
+        <div class="card lyr-card">
+          <div class="card-h">Song lyric search</div>
+          <form id="lyr-form" class="lyr-form">
+            <input id="lyr-artist" placeholder="Artist — e.g. Fleetwood Mac" autocomplete="off">
+            <input id="lyr-title" placeholder="Song — e.g. Dreams" autocomplete="off">
+            <button class="btn btn-primary" type="submit">Search</button>
+          </form>
+          <div class="chipwrap" id="lyr-suggest"></div>
+          <div class="lyr-status" id="lyr-status"></div>
+          <div class="lyr-result" id="lyr-result" hidden>
+            <div class="lyr-head">
+              <div>
+                <div class="lyr-title" id="lyr-r-title"></div>
+                <div class="lyr-artist" id="lyr-r-artist"></div>
+              </div>
+              <div class="lyr-actions">
+                <button class="btn btn-ghost tiny" id="btn-lyr-copy">Copy</button>
+                <button class="btn btn-ghost tiny" id="btn-lyr-fav">☆ Favorite</button>
+              </div>
+            </div>
+            <pre class="lyrics" id="lyr-body"></pre>
+            <div class="lyr-src" id="lyr-src"></div>
+          </div>
+          <div class="lyr-collections">
+            <div class="card-h small">★ Favorites</div>
+            <div class="chipwrap" id="lyr-favs"></div>
+            <div class="card-h small">Recent searches</div>
+            <div class="chipwrap" id="lyr-history"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== LEARN ==================== -->
+    <section class="view" id="view-learn">
+      <div class="learn-grid">
+        <div class="card learn-card">
+          <div class="learn-head">
+            <div class="card-h">Learning path — easy to hard</div>
+            <div class="progress-wrap">
+              <div class="progress"><i id="learn-progress"></i></div>
+              <span id="learn-progress-text">0%</span>
+            </div>
+          </div>
+          <div class="tabs" id="learn-tabs">
+            <button class="tab active" data-tab="beginner">Beginner</button>
+            <button class="tab" data-tab="intermediate">Intermediate</button>
+            <button class="tab" data-tab="advanced">Advanced</button>
+            <button class="tab" data-tab="chords">Chord library</button>
+            <button class="tab" data-tab="ear">Ear training</button>
+          </div>
+
+          <div id="tab-beginner" class="tabpane active"><div class="lesson-list"></div></div>
+          <div id="tab-intermediate" class="tabpane"><div class="lesson-list"></div></div>
+          <div id="tab-advanced" class="tabpane"><div class="lesson-list"></div></div>
+
+          <div id="tab-chords" class="tabpane">
+            <input id="chord-search" placeholder="Search chords — try “m”, “barre”, “7”, “power”…" autocomplete="off">
+            <div class="chord-grid" id="chord-grid"></div>
+          </div>
+
+          <div id="tab-ear" class="tabpane">
+            <div class="ear-setup">
+              <label class="field"><span>Mode</span>
+                <select id="ear-mode">
+                  <option value="open">Open-string notes (easy)</option>
+                  <option value="cmaj">C major scale (medium)</option>
+                  <option value="chrom">All 12 notes (hard)</option>
+                  <option value="majmin">Major vs minor chords (medium)</option>
+                </select>
+              </label>
+              <div class="ear-stats">Score <b id="ear-score">0</b> · Streak <b id="ear-streak">0</b> · Best streak <b id="ear-best">0</b></div>
+            </div>
+            <div class="ear-play">
+              <button class="btn btn-primary" id="ear-play">▶ Play note</button>
+              <button class="btn btn-ghost" id="ear-repeat">↻ Repeat</button>
+            </div>
+            <div class="ear-answers" id="ear-answers"></div>
+            <div class="ear-feedback" id="ear-feedback"></div>
+          </div>
+
+          <div class="practice-strip" id="practice-strip"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== CARE ==================== -->
+    <section class="view" id="view-care">
+      <div class="care-grid">
+        <div class="card care-strings">
+          <div class="card-h">String health</div>
+          <div class="str-top">
+            <span class="str-status-big" id="str-status">Log a change to start</span>
+            <span class="badge" id="str-age">—</span>
+          </div>
+          <div class="str-meter"><i id="str-wear-bar"></i></div>
+          <div class="str-meta" id="str-meta">Fresh strings ring brighter and hold tune longer — track yours below.</div>
+          <label class="field"><span>String brand / gauge (optional)</span>
+            <input type="text" id="str-brand" placeholder="e.g. D'Addario EXL110" autocomplete="off">
+          </label>
+          <div class="row-btns">
+            <button class="btn btn-primary" id="str-changed-btn">✔ I changed my strings today</button>
+          </div>
+          <p class="hint">Wear blends play-time and age. Dead strings sound dull, drop out of tune faster and snap mid-song — I'll nudge you near the 75% mark.</p>
+        </div>
+
+        <div class="card care-int">
+          <div class="card-h">Intonation helper</div>
+          <p class="hint">Compares each open string to its 12th-fret note. <b>Sharp at 12th</b> → move that saddle <b>back</b> (away from the neck) · <b>flat</b> → move it <b>forward</b>.</p>
+          <div class="int-list" id="int-list"></div>
+          <div class="row-btns">
+            <button class="btn" id="btn-int">▶ Auto-listen</button>
+            <button class="btn btn-ghost" id="btn-int-reset">Reset</button>
+          </div>
+          <p class="hint" id="int-summary"></p>
+        </div>
+
+        <div class="card care-env">
+          <div class="card-h">Room &amp; wood watch</div>
+          <div class="env-badge" id="env-badge">— tell me your room</div>
+          <label class="field"><span>Temperature °F</span>
+            <input type="number" id="env-temp" min="-20" max="120" placeholder="70">
+          </label>
+          <label class="field"><span>Humidity %</span>
+            <input type="number" id="env-hum" min="0" max="100" placeholder="45">
+          </label>
+          <p class="hint" id="env-advice">Wood breathes: keep a solid-top acoustic near 45–55% humidity. Big swings in temp or humidity pull your guitar out of tune — and can crack the top.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Tuning guide overlay -->
+<div class="guide-overlay" id="guide-overlay" hidden>
+  <div class="guide-card">
+    <div class="guide-head">
+      <div>
+        <div class="guide-title" id="guide-title"></div>
+        <div class="guide-notes" id="guide-notes"></div>
+      </div>
+      <button class="strum-x" id="guide-close" title="Close">✕</button>
+    </div>
+    <p class="guide-desc" id="guide-desc"></p>
+    <div class="card-h small">Famously heard in</div>
+    <ul class="guide-songs" id="guide-songs"></ul>
+    <div class="row-btns">
+      <button class="btn btn-primary" id="btn-guide-hear">🔊 Hear this tuning</button>
+    </div>
+  </div>
+</div>
+
+<!-- Gig mode overlay -->
+<div class="gig-overlay" id="gig-overlay" hidden>
+  <button class="gig-exit" id="gig-exit" title="Exit gig mode (Esc)">✕ exit</button>
+  <div class="gig-note" id="gig-note">–</div>
+  <div class="gig-cents" id="gig-cents"></div>
+  <div class="gig-status" id="gig-status">listening…</div>
+  <canvas id="gig-disc" class="gig-disc"></canvas>
+  <div class="gig-hint">target string · green = in tune · <b>G</b> or <b>Esc</b> exits</div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="js/lib/yin.js"></script>
+<script src="js/lib/notes.js"></script>
+<script src="js/lib/store.js"></script>
+<script src="js/lib/fft.js"></script>
+<script src="js/lib/poly.js"></script>
+<script src="js/lib/sweeteners.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/tunings.js"></script>
+<script src="js/guitar.js"></script>
+<script src="js/tuner.js"></script>
+<script src="js/metronome.js"></script>
+<script src="js/jam.js"></script>
+<script src="js/recorder.js"></script>
+<script src="js/lyrics.js"></script>
+<script src="js/learn.js"></script>
+<script src="js/care.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

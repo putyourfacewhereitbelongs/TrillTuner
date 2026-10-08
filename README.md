@@ -8,19 +8,23 @@ Built as **Trill Tuner** (the app was renamed from its earlier working title; an
 practice time or presets saved under the old name are migrated automatically, so nothing is lost).
 
 **At a glance** — 52 amps · 122 amp tones · 125 pedals · 22 genre recipes · 26 famous rigs · 94 tunings ·
-26 scales · 31 chord types · 15 lessons · 12 practice riffs · 9 drills · 24 badges — all local, no
-accounts, no uploads.
+26 scales · 31 chord types · 165 songs · 30 lessons · 51 artists · 28 techniques · 8 backing feels ·
+13 views · 33 badges — all local, no accounts, no uploads.
 
 ## Run it
 
 ```bash
-node server.js        # → http://localhost:3000  (zero npm dependencies)
+node server.js        # → http://localhost:3000  (no runtime dependencies)
 ```
 
-`npm test` runs the pitch-detection unit tests. `npm run test:e2e` runs the full
-browser end-to-end suite (requires `npm i puppeteer` and a running server).
-`node test/dom-smoke.js` runs the dependency-light DOM smoke suite (jsdom) that boots the whole app,
-walks every view/pane/control and checks the libraries, rig, practice, sharing and persistence.
+```bash
+npm test              # yin + poly + audio lab (dsp) + backing studio + songbook, all in node
+node test/dom-smoke.js   # the whole app booted in jsdom: every view, control and hand-off
+npm run test:e2e      # full browser end-to-end (needs puppeteer + a running server)
+```
+
+`npm test` needs no browser and no audio files: every suite synthesises the signal it measures
+(a plucked string, a strummed triad, a full band mix) and checks the engine against it.
 
 ## The tuner
 
@@ -50,9 +54,10 @@ walks every view/pane/control and checks the libraries, rig, practice, sharing a
   note you're holding: diagnose muddy vs zingy strings.
 - **Gig mode** (`G` key) — a full-screen, high-contrast stage display readable from
   six feet away on a dark stage; Esc exits.
-- **19 tuning presets** — Standard (default), Drop D, Half Step Down, Full Step Down,
-  Drop D♭, Drop C, Drop B, Drop A, 7-String, Open G/D/E/C, DADGAD, Double Drop D,
-  bass (standard + Drop D), ukulele, mandolin.
+- **94 tunings in 9 categories** — Standard (default), Drop D, Half Step Down, Full Step Down,
+  Drop D♭, Drop C, Drop B, Drop A, 7- and 8-string, Open G/D/E/C, DADGAD, Double Drop D,
+  Nashville, mandolin, mandocello, ukulele, guitalele, baritone, bass (standard, 5- and 6-string,
+  Drop D) and more, each with string gauges, tension and famous songs.
 - **Tuning guide** — every preset ships with a description and famous songs that
   use it, plus a **hear-it** strum so you know the target before you tune.
 - **Neck display** — an SVG guitar neck (headstock, tuning pegs, fretboard) with all
@@ -181,11 +186,14 @@ at any time to skip straight to the app.
   by the recorder. Tune up → hit Space → jam.
 - **Recorder** — records your mic **plus the metronome click and jam track**, optional
   one-bar count-in, take management with playback and download.
-- **Lyrics** — artist + title search (server proxies lrclib.net → lyrics.ovh), with
-  favorites and recent history.
-- **Learn** — 15 lessons from first chord to modes & improvisation across 9 tabs (beginner →
-  intermediate → advanced, chords, scales, technique, theory, songs, ear training, practice),
-  a 23-chord library with playable diagrams, and an ear-training game with easy→hard modes.
+- **Lyrics** — **one search box**: a song title on its own, an artist on its own, or both — either
+  field is enough. The offline songbook is searched first and rendered straight away, then the
+  server proxy checks lrclib.net → lyrics.ovh, so a missing connection degrades to "here is what I
+  already know" instead of an error. Favourites and recent searches are kept locally.
+- **Learn** — **30 lessons** from first chord to modes & improvisation across 9 tabs (beginner →
+  intermediate → advanced, chords, technique, drills, riff player, rhythm trainer, intervals),
+  a chord library with playable diagrams fed by the theory engine, an ear-training game with
+  easy→hard modes, and a session builder that lays out a 15/30/45-minute routine.
 - **Care** —
   - **String health**: log string changes; a wear meter blends play-time and age,
     warns when strings are dull and at breakage risk.
@@ -196,3 +204,82 @@ at any time to skip straight to the app.
 
 Everything runs client-side; the server only serves static files and proxies
 lyric searches. Audio never leaves your machine.
+
+## Songs, styles and players
+
+- **Songbook (165 songs)** — every entry carries the key, tempo, capo, the chords **as the shapes you
+  actually play**, the progression written out, difficulty and playing notes. The offline catalogue
+  also holds 30 technique lessons, 51 artist pages and 25 techniques of style guides — no connection
+  needed, ever.
+- **Search that works from any field** — a half-remembered title, an artist on its own, a genre
+  ("shoegaze"), a difficulty, or a chord list ("G C D") all find songs; results carry play-along
+  charts, lyrics, metronome settings, a favourite star and a copyable chart.
+- **Styles & players** — a page per artist: what they are known for, the gear, the moves, the songs
+  we can hand you, the songs worth listening to that we do not carry, a **rig recipe** loaded and
+  configured for that genre, the lessons that build the skill, and 28 glossary entries that each say
+  what the technique is, who is famous for it and the drill that teaches it.
+- **Theory engine** — every song in the book maps onto roman numerals (I–V–vi–IV, blues, secondary
+  dominants, borrowed chords, with a chromatic label for anything outside the key), all 24 keys
+  build a chord library, 20 progressions are scored against what you played, and the capo engine
+  answers the real question: *which capo and which shapes make this song easy?*
+
+## Tab maker — it listens to the song
+
+Drop in any audio file (WAV/MP3/M4A/OGG) and the tab maker reads it: **key, mode, tempo and the
+actual chord sequence**, with confidence, over a bar grid and a chord library for that key — plus
+the capo position, the progressions it matches and similar songs to learn next. Everything is
+`lib/dsp.js`: a from-scratch FFT, an exclusive-assignment chroma with fundamental weighting, a
+triad/seventh template match with an octave-disambiguated spectrum, and autocorrelation tempo
+estimation. Reading a library song works with no audio at all; the sheet transposes, prints, and
+plays back through the practice suite.
+
+## Stem lab — a whole band, minus the part you choose
+
+30 recipes over 28 separation modes: **vocals out (karaoke)**, drums/bass/electric/acoustic **out or
+isolated**, keys, strings, synths, all guitars, plus the **classic karaoke with the bass kept**. Each
+one is a real spectral mask (Hann FFT, per-bin tonal × percussive × stereo-coherence × presence
+gating, a robust 25th-percentile noise floor and a neighbourhood-widened notch), not a filter sweep.
+
+The **"Remove ONLY the acoustic guitar"** mode is the hard one, and it is tuned for exactly that
+request: a strummed acoustic is harmonic like a distorted electric, so the mask also looks for what
+only a plucked string does — a **narrow harmonic peak that rises and decays** — and for **stereo
+spread**, which a doubled acoustic usually has and a centred electric usually does not. The measured
+behaviour on a synthesised band (acoustic + held electric + kit) is checked in `npm test`: in **remove**
+mode the acoustic loses clearly more level than the electric and the drums barely move; in **isolate**
+mode the acoustic is the layer the mask keeps. Results can be handed straight to the tab maker.
+
+Long files are processed in overlapping slices through `separateChunked`, so a 10-minute song does not
+freeze the page; progress is reported as it goes.
+
+## Live listener — told both when you are wrong and when you are right
+
+Turn the microphone on and the listener scores what you play against the tuning you are in, a scale, a
+song's chords or your own note names: **YIN pitch detection** on the live stream, a stability gate so a
+stray noise cannot score, string-by-string targets, a tolerance slider and an optional "must be in
+tune" rule. It answers both ways round:
+
+- a wrong note says which note it heard, which one it wanted, whether it was sharp or flat, and **how
+  far** — "one fret above", "a whole octave below", "2 semitones apart";
+- the right note is confirmed with the note name and the running streak;
+- a right note at the wrong pitch gets the tuning advice instead (loosen or tighten, bend up or down);
+- streaks, best run, cents trend, a miss log and a history of rounds are kept in local storage.
+
+## Backing studio — a band that plays what you tell it
+
+Pick a **key**, a **mode** (major, minor, dorian, mixolydian, blues), one of **8 feels** (strum,
+fingerpicked arpeggio, rock/palm mute, shuffle, funk 16ths, reggae off-beat, ballad, country
+boom-chick), a tempo, a bar count, swing, meters 4/4 or 3/4 and which parts you want — then it renders
+a practice bed: from-scratch **Karplus–Strong** strings for the chords, bass and arpeggios and a
+synthesised kit (sine-sweep kick, filtered-noise snare, difference-filtered hats). It is deterministic
+for a given seed, normalised, exportable as a **WAV**, playable in the app, and readable by the
+analysis engine — the tab maker reads the key, the tempo and the chords straight back out of the
+render, which is what the backing tests assert.
+
+## My stuff — favourites, history and a session that builds itself
+
+Star songs, tunings and rigs; the store keeps them (local storage, no account). The page also shows
+what you have actually been doing (charts read, separations run, listener best, lessons, tunings
+tried, badges) and builds a **practice plan** of 10/20/30/45 minutes from it: tune up in the tuning you
+use, warm up with the drill for the level you are playing at, run your hardest song at 70/85/100 % of
+its tempo with the metronome, play into the listener, then record one clean pass — with a button on
+every step that actually starts that step.

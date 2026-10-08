@@ -1144,3 +1144,96 @@ button.chip-btn:hover { border-color: var(--accent); }
 .ls-hist { display: flex; gap: 12px; background: #0e1119; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .ls-hist span:first-child { font: 700 13px ui-monospace, monospace; min-width: 46px; }
 .ls-hist.bad { border-color: rgba(239, 68, 68, .35); }
+
+/* ===================================================================== */
+/* 4.x — Styles, Backing studio and My stuff                             */
+/* ===================================================================== */
+
+.pill {
+  display: inline-block; font-size: 11.5px; letter-spacing: .02em; color: var(--muted);
+  background: #0e1119; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+}
+
+/* ---------- Styles & players ---------------------------------------- */
+.sy-layout { display: grid; gap: 16px; align-content: start; max-width: 1180px; margin: 12px auto; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1000px) { .sy-layout { grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); } }
+.sy-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0 4px; }
+.sy-listcard { max-height: 70vh; overflow: auto; }
+.sy-list { display: grid; gap: 9px; }
+.sy-card {
+  background: var(--card2); border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; cursor: pointer;
+  transition: border-color .15s, transform .1s;
+}
+.sy-card:hover { border-color: var(--accent); transform: translateX(2px); }
+.sy-card.open { border-color: var(--accent); background: var(--accent-soft); }
+.sy-name { font-weight: 700; font-size: 15px; }
+.sy-genres { display: flex; gap: 5px; flex-wrap: wrap; margin: 5px 0; }
+.sy-known { font-size: 13px; color: var(--muted); }
+.sy-counts { font-size: 11.5px; color: #7f889c; margin-top: 6px; }
+.sy-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sy-title { font-size: 21px; font-weight: 700; }
+.sy-block { margin: 13px 0; font-size: 13.5px; line-height: 1.6; }
+.sy-block > b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 4px; }
+.sy-songs { display: grid; gap: 9px; }
+.sy-song { background: #0e1119; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; cursor: pointer; }
+.sy-song:hover { border-color: var(--accent); }
+.sy-song-t { font-weight: 700; font-size: 14px; }
+.sy-song-b { display: flex; gap: 7px; margin-top: 7px; flex-wrap: wrap; }
+.sy-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.sy-lessons { display: grid; gap: 8px; }
+.sy-lesson { background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; cursor: pointer; }
+.sy-lesson:hover { border-color: var(--accent); }
+.sy-tech { border-top: 1px solid var(--line); padding: 11px 0; font-size: 13.5px; line-height: 1.58; }
+.sy-tech-h { display: flex; align-items: center; gap: 9px; }
+.sy-drill { margin-top: 5px; font-size: 13px; color: #b9c1d1; }
+.sy-drill b { color: var(--accent); }
+#sy-tech-q { background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; color: var(--fg); min-width: 220px; }
+
+/* ---------- Backing studio ------------------------------------------ */
+.bk-controls { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: flex-end; margin: 12px 0; }
+.bk-controls .field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.bk-controls select, .bk-controls input[type="number"] {
+  background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; color: var(--fg); font-size: 14px;
+}
+.bk-wide { min-width: 230px; }
+.bk-wide input[type="range"] { width: 100%; }
+.bk-parts { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.bk-note { flex-basis: 100%; margin: -6px 0 2px; }
+.bk-status { font-size: 13.5px; color: var(--muted); min-height: 20px; margin: 6px 0; }
+.bk-status.err { color: var(--red); }
+.bk-status.ok { color: var(--green); }
+.bk-summary { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.bk-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 9px; margin-bottom: 12px; }
+.bk-fact { background: #0e1119; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+.bk-fact b { display: block; font-size: 15px; }
+.bk-fact span { font-size: 11px; }
+.bk-prog { display: flex; gap: 9px; flex-wrap: wrap; margin: 8px 0; }
+.bk-chord {
+  background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px;
+  display: grid; gap: 2px; min-width: 92px;
+}
+.bk-chord b { font-size: 17px; color: var(--accent); }
+.bk-romans { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: #b9c1d1; }
+.bk-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 8px; }
+
+/* ---------- My stuff ------------------------------------------------ */
+.mine-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); max-width: 1180px; margin: 0 auto; align-content: start; }
+@media (min-width: 1000px) { .mine-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mine-wide { grid-column: 1 / -1; }
+#mine-pick-q { background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; color: var(--fg); width: 100%; margin: 8px 0; }
+.mine-row {
+  display: flex; align-items: center; gap: 9px; justify-content: space-between;
+  background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; margin-bottom: 7px;
+}
+.mine-main { min-width: 0; }
+.mine-pick { margin-top: 10px; }
+.mine-plan-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 10px 0 6px; }
+.mine-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; counter-reset: step; }
+.mine-step {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  background: #0e1119; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+}
+.mine-step::before { counter-increment: step; content: counter(step); font: 700 12px ui-monospace, monospace; color: var(--accent); }
+.mine-step > div { flex: 1; }
+.mine-act { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.mine-kind { font: 700 10.5px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); min-width: 62px; }

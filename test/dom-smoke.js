@@ -785,6 +785,193 @@ check('navigation: the new views all have working controls', () => {
   return ids.length + ' controls across 4 new views';
 });
 
+
+/* ===================================================================== */
+/* the 3.x views: styles, backing studio and my stuff                    */
+/* ===================================================================== */
+
+check('styles: every player has a page with songs, moves and a rig', () => {
+  const doc = window.document;
+  const TT = window.TT;
+  TT.styles.init();
+  const all = TT.styles.filtered();
+  if (all.length !== TT.catalog.ARTISTS.length) throw new Error('listed ' + all.length + ' of ' + TT.catalog.ARTISTS.length + ' players');
+  /* the genre filter must actually filter */
+  const genre = doc.getElementById('sy-genre');
+  const options = [...genre.querySelectorAll('option')].map(o => o.value).filter(Boolean);
+  if (options.length < 8) throw new Error('only ' + options.length + ' genres offered');
+  genre.value = options[0];
+  genre.dispatchEvent(new window.Event('change', { bubbles: true }));
+  const inGenre = TT.styles.filtered();
+  if (!inGenre.length || inGenre.some(a => (a.genres || []).indexOf(options[0]) < 0)) throw new Error('the genre filter let the wrong players through');
+  genre.value = '';
+  genre.dispatchEvent(new window.Event('change', { bubbles: true }));
+  /* every artist page must be able to hand over something playable */
+  const empty = TT.catalog.ARTISTS.filter(a => !TT.catalog.artistSongs(a.name).length);
+  if (empty.length) throw new Error('no song for: ' + empty.map(a => a.name).join(', '));
+  /* the detail panel of the open player */
+  const detail = doc.getElementById('sy-detail').textContent;
+  if (!/Play these|Nothing of theirs/.test(detail)) throw new Error('the detail panel has no songs section');
+  if (!doc.querySelector('#sy-detail .sy-song')) throw new Error('no song rows rendered');
+  if (!doc.querySelector('#sy-list .sy-card')) throw new Error('no player cards rendered');
+  /* a genre must be able to load a real rig recipe */
+  if (TT.styles.recipeFor(['shoegaze', 'noise pop']) !== 'shoegaze') throw new Error('shoegaze did not map to its recipe');
+  if (TT.styles.recipeFor(['funk', 'soul']) !== 'funk') throw new Error('funk did not map to its recipe');
+  return all.length + ' players · ' + options.length + ' genres · ' + TT.styles.TECHNIQUES.length + ' techniques';
+});
+
+check('styles: the technique glossary explains each move and its drill', () => {
+  const list = window.TT.styles.TECHNIQUES;
+  if (list.length < 20) throw new Error('only ' + list.length + ' techniques');
+  const thin = list.filter(t => !t.name || !t.what || !t.who || !t.drill || t.drill.length < 20);
+  if (thin.length) throw new Error('thin entries: ' + thin.map(t => t.name).join(', '));
+  const rendered = window.document.querySelectorAll('#sy-glossary .sy-tech');
+  if (rendered.length !== list.length) throw new Error('glossary rendered ' + rendered.length + ' of ' + list.length);
+  /* the filter works */
+  const q = window.document.getElementById('sy-tech-q');
+  q.value = 'tapping';
+  q.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const filtered = window.document.querySelectorAll('#sy-glossary .sy-tech');
+  if (!filtered.length || filtered.length >= list.length) throw new Error('the glossary filter did nothing');
+  q.value = '';
+  q.dispatchEvent(new window.Event('input', { bubbles: true }));
+  return list.length + ' moves, each with a drill';
+});
+
+check('backing: a key, a feel and a tempo become a real rendering', () => {
+  const TT = window.TT;
+  const lib = TT.backingLib;
+  if (!lib) throw new Error('the backing engine is not loaded');
+  const r = lib.render({ key: 'C', mode: 'major', style: 'strum', bpm: 90, bars: 4, sr: 22050 });
+  if (r.channels.length !== 2) throw new Error('not stereo');
+  const expected = Math.ceil(4 * 4 * (60 / 90) * 22050);
+  if (r.channels[0].length < expected || r.channels[0].length > expected + 22050) throw new Error('bad length ' + r.channels[0].length + ' vs ' + expected);
+  if (!(r.peak > 0.85 && r.peak <= 0.91)) throw new Error('not normalised: ' + r.peak);
+  if (r.progression.join(' ') !== 'C G Am F') throw new Error('wrong progression: ' + r.progression.join(' '));
+  /* it must be audible, not silence */
+  let sum = 0;
+  for (let i = 0; i < r.channels[0].length; i++) sum += r.channels[0][i] * r.channels[0][i];
+  const rms = Math.sqrt(sum / r.channels[0].length);
+  if (!(rms > 0.02)) throw new Error('the render is silent (rms ' + rms.toFixed(4) + ')');
+  /* and it must be readable by the analysis engine that the tab maker uses */
+  const mono = r.channels[0].slice(0, 22050 * 4);
+  const read = TT.dsp.analyseChords(mono, r.sr, { fftSize: 4096, hop: 2048 });
+  if (!read.key || read.key.key !== 'C') throw new Error('the key did not come back: ' + JSON.stringify(read.key));
+  const names = read.chords.map(c => c.name[0]);
+  if (names.indexOf('C') < 0 || names.indexOf('G') < 0) throw new Error('the chords did not come back: ' + read.chords.map(c => c.name).join(' '));
+  /* the parts switches must actually remove parts */
+  const nodrums = lib.render({ key: 'C', mode: 'major', style: 'strum', bpm: 90, bars: 4, sr: 22050, parts: { drums: false, bass: false, chords: true } });
+  if (nodrums.progression.length !== 4) throw new Error('a parts render lost its progression');
+  /* minor keys and odd meters */
+  const waltz = lib.render({ key: 'G', mode: 'minor', style: 'ballad', bpm: 120, bars: 3, meter: 3, sr: 22050 });
+  if (waltz.beatsPerBar !== 3) throw new Error('3/4 was ignored');
+  if (waltz.seconds < 4.4 || waltz.seconds > 5.1) throw new Error('3/4 length wrong: ' + waltz.seconds.toFixed(2) + 's');
+  return r.seconds.toFixed(1) + 's · ' + r.progression.join(' ') + ' · key reads back as ' + read.key.key + ' ' + read.key.mode + ' · rms ' + rms.toFixed(3);
+});
+
+check('backing: the view is wired to build, play, export and hand off', () => {
+  const doc = window.document;
+  const TT = window.TT;
+  TT.backing.init();
+  const ids = ['bk-key', 'bk-mode', 'bk-style', 'bk-bpm', 'bk-bars', 'bk-meter', 'bk-swing', 'bk-level', 'bk-generate', 'bk-presets', 'bk-status', 'bk-summary'];
+  const missing = ids.filter(id => !doc.getElementById(id));
+  if (missing.length) throw new Error('missing controls: ' + missing.join(', '));
+  if (doc.getElementById('bk-key').options.length !== 12) throw new Error('keys: ' + doc.getElementById('bk-key').options.length);
+  if (doc.getElementById('bk-mode').options.length !== 5) throw new Error('modes: ' + doc.getElementById('bk-mode').options.length);
+  if (doc.getElementById('bk-style').options.length !== 8) throw new Error('feels: ' + doc.getElementById('bk-style').options.length);
+  if (doc.querySelectorAll('#bk-presets .chip').length !== TT.backing.PRESETS.length) throw new Error('presets not rendered');
+  /* a preset must load its settings and render */
+  doc.querySelectorAll('#bk-presets .chip')[0].click();
+  if (TT.backing.state.result === null) throw new Error('the preset did not render');
+  if (doc.getElementById('bk-summary').hidden) throw new Error('the summary stayed hidden');
+  if (!/BPM/.test(doc.getElementById('bk-summary').textContent)) throw new Error('the summary has no tempo');
+  if (!/s$/.test(doc.getElementById('bk-len').textContent)) throw new Error('the length readout is blank');
+  /* the hand-off buttons exist and the WAV is a real container */
+  ['bk-play', 'bk-wav', 'bk-analyse', 'bk-metro', 'bk-listen', 'bk-stems'].forEach(id => {
+    if (!doc.getElementById(id)) throw new Error('no ' + id + ' button');
+  });
+  const res = TT.backing.state.result;
+  const raw = TT.dsp.encodeWav(res.channels, res.sr);
+  if (raw.byteLength !== 44 + res.channels[0].length * 4) throw new Error('bad wav: ' + raw.byteLength);
+  /* changing a control then building again must produce a new render */
+  const bpm = doc.getElementById('bk-bpm');
+  bpm.value = '150';
+  bpm.dispatchEvent(new window.Event('input', { bubbles: true }));
+  if (!/150 BPM/.test(doc.getElementById('bk-bpm-out').textContent)) throw new Error('the tempo readout did not follow');
+  doc.getElementById('bk-generate').click();
+  if (TT.backing.state.result.bpm !== 150) throw new Error('the new tempo was not used');
+  return '3 modes · ' + doc.getElementById('bk-style').options.length + ' feels · ' + TT.backing.PRESETS.length + ' presets · wav ' + (raw.byteLength / 1048576).toFixed(2) + ' MB';
+});
+
+check('my stuff: favourites persist, the picker adds songs and the plan builds', () => {
+  const doc = window.document;
+  const TT = window.TT;
+  TT.mine.init();
+  /* start clean so the check is about behaviour, not leftovers */
+  TT.store.set('favSongs', []);
+  TT.mine.render();
+  if (doc.querySelectorAll('#mine-songs .mine-row').length !== 0) throw new Error('favourites were not empty to begin with');
+  const on = TT.mine.toggleSong('wonderwall');
+  if (!on || !TT.mine.isFav('wonderwall')) throw new Error('starring a song did nothing');
+  if (!TT.store.get('favSongs', []).length) throw new Error('the favourite was not written to storage');
+  TT.mine.render();
+  if (!doc.querySelectorAll('#mine-songs .mine-row').length) throw new Error('the favourite did not render');
+  if (!/Wonderwall/.test(doc.getElementById('mine-songs').textContent)) throw new Error('the wrong song rendered');
+  /* the picker searches the book and toggles */
+  const q = doc.getElementById('mine-pick-q');
+  q.value = 'dylan';
+  q.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const chips = [...doc.querySelectorAll('#mine-pick .chip')];
+  if (!chips.length) throw new Error('the picker found nothing for “dylan”');
+  chips[0].click();
+  if (TT.mine.favSongs().length !== 2) throw new Error('the picker did not add a second favourite: ' + TT.mine.favSongs().length);
+  /* rigs and tunings */
+  TT.mine.saveRig('Test rig', ['ts808', 'analog-delay'], 'deluxe-reverb-65');
+  if (!TT.mine.favRigs().length) throw new Error('saving a rig did nothing');
+  TT.mine.toggleTuning('drop-d', 'Drop D');
+  if (!TT.mine.favTunings().length) throw new Error('starring a tuning did nothing');
+  TT.mine.render();
+  if (!doc.querySelectorAll('#mine-rigs .mine-row').length) throw new Error('the saved rig did not render');
+  if (!doc.querySelectorAll('#mine-tunings .chip').length) throw new Error('the favourite tuning did not render');
+  /* the plan: assembled from the favourites, every step runnable */
+  TT.store.set('tuningsUsed', ['drop-d', 'standard']);
+  const plan = TT.mine.buildPlan(20);
+  if (plan.steps.length < 3) throw new Error('plan too thin: ' + plan.steps.length);
+  if (plan.total > 26) throw new Error('the plan does not fit the session: ' + plan.total + ' min');
+  if (!plan.steps.every(s => typeof s.run === 'function' && s.label)) throw new Error('a plan step is not runnable');
+  if (!plan.steps.some(s => /Wonderwall/.test(s.title))) throw new Error('the plan does not use the favourite songs');
+  /* a 45-minute plan must be bigger than a 10-minute one */
+  const big = TT.mine.buildPlan(45);
+  if (big.total < plan.total) throw new Error('a longer session built a shorter plan');
+  /* running a step must not throw */
+  doc.querySelectorAll('#mine-plan-pick [data-mins]')[1].click();
+  const btns = [...doc.querySelectorAll('#mine-plan [data-step]')];
+  if (!btns.length) throw new Error('no step buttons rendered');
+  btns[0].click();
+  if (!doc.getElementById('view-tune').classList.contains('active')) throw new Error('the tune step did not open the tuner');
+  TT.metronome.stop();
+  TT.store.set('favSongs', []);        /* leave the store tidy for other checks */
+  TT.store.set('favRigs', []);
+  TT.store.set('favTunings', []);
+  return TT.mine.buildPlan(20).steps.length + ' step plan · favourites, rigs and tunings all persist';
+});
+
+check('navigation: the three new views are reachable and hold their controls', () => {
+  const doc = window.document;
+  ['styles', 'backing', 'mine'].forEach(v => {
+    if (!doc.querySelector('.nav-btn[data-view="' + v + '"]')) throw new Error('no nav button for ' + v);
+    window.TT.app.showView(v);
+    if (!doc.getElementById('view-' + v).classList.contains('active')) throw new Error(v + ' did not open');
+  });
+  const ids = ['sy-q', 'sy-genre', 'sy-sort', 'sy-list', 'sy-detail', 'sy-glossary',
+    'bk-key', 'bk-mode', 'bk-style', 'bk-generate', 'bk-presets',
+    'mine-plan', 'mine-pick-q', 'mine-songs', 'mine-rigs', 'mine-tunings', 'mine-activity'];
+  const missing = ids.filter(id => !doc.getElementById(id));
+  if (missing.length) throw new Error('missing: ' + missing.join(', '));
+  window.TT.app.showView('tune');
+  return ids.length + ' controls · 3 views · ' + doc.querySelectorAll('.nav-btn').length + ' nav buttons';
+});
+
 Promise.all(pending).then(() => {
   console.log('\n' + (errors.length ? '❌ ' + errors.length + ' problem(s):' : '✅ all checks passed'));
   errors.forEach(e => console.log('   · ' + e));

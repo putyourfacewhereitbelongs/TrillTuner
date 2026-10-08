@@ -18,6 +18,8 @@
     ['Practice tools', () => !!(TT.practiceTools && TT.tools)],
     ['Play-along songbook', () => !!(TT.catalog && TT.catalog.counts.songs > 100)],
     ['Audio lab (chords, stems, listener)', () => !!(TT.dsp && TT.chords && TT.dsp.separateChunked)],
+    ['Backing studio', () => !!(TT.backingLib && TT.backingLib.render)],
+    ['Players, plans & favourites', () => !!(TT.styles && TT.mine)],
     ['Ready', () => true]
   ];
 

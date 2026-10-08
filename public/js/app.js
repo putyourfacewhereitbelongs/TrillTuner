@@ -47,6 +47,9 @@
     if (id !== 'listening' && TT.listener && TT.listener.state && TT.listener.state.running) TT.listener.stop();
     if (id === 'care' && TT.care) TT.care.render();
     if (id === 'rig' && TT.rig) TT.rig.rebuild();
+    if (id !== 'backing' && TT.backing && TT.backing.stop) TT.backing.stop();
+    if (id === 'mine' && TT.mine && TT.mine.render) TT.mine.render();
+    if (id === 'styles' && TT.styles) TT.styles.init();
     if (id === 'progress' && TT.share) TT.share.render();
     if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
   };
@@ -115,6 +118,9 @@
     wire('recorder', () => TT.recorder.init());
     wire('lyrics', () => TT.lyrics.init());
     wire('songs', () => TT.songs.init());
+    wire('styles', () => TT.styles.init());
+    wire('backing', () => TT.backing.init());
+    wire('mine', () => TT.mine.init());
     wire('tabmaker', () => TT.tablab.init());
     wire('stems', () => TT.stems.init());
     wire('listener', () => TT.listener.init());
@@ -136,7 +142,7 @@
     const firstRun = !TT.store.get('visited', false);
     TT.store.set('visited', true);
     if (firstRun) {
-      assist('Welcome to Trill Tuner 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E. There are 94 tunings, a full amp & pedal studio in the Rig tab, plus the new Songs, Tab maker, Stems and Listener tools.');
+      assist('Welcome to Trill Tuner 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E. There are 94 tunings, a full amp & pedal studio in the Rig tab, plus the songbook, tab maker, stem lab, listener, backing studio and My stuff.');
       toast('Welcome to Trill Tuner! 🎸');
     } else {
       assist('Welcome back 🎸 Your settings, rig and practice history were restored.');

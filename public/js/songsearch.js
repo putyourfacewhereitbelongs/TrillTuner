@@ -154,6 +154,15 @@
     const b3 = el('button', 'btn btn-ghost tiny', inSetlist(s.id) ? '★ Saved' : '☆ Save');
     b3.type = 'button'; b3.addEventListener('click', () => { toggleSetlist(s); b3.textContent = inSetlist(s.id) ? '★ Saved' : '☆ Save'; });
     btns.appendChild(b3);
+    const favBtn = el('button', 'btn btn-ghost tiny', (TT.mine && TT.mine.isFav(s.id)) ? '♥ Favourite' : '♡ Favourite');
+    favBtn.type = 'button';
+    favBtn.addEventListener('click', () => {
+      if (!TT.mine) return;
+      const on = TT.mine.toggleSong(s.id);
+      favBtn.textContent = on ? '♥ Favourite' : '♡ Favourite';
+      TT.app.toast(on ? 'Added to My stuff ♥' : 'Removed from My stuff');
+    });
+    btns.appendChild(favBtn);
     const b4 = el('button', 'btn btn-ghost tiny', '♩ ' + s.bpm + ' BPM');
     b4.type = 'button';
     b4.addEventListener('click', () => {

@@ -54,6 +54,14 @@
       stringChangedAt: strings.changedAt || null, stringBrand: strings.brand || '',
       rigPresets: rigPresets, rigPedals: rig && rig.pedals ? rig.pedals.length : 0, rigAmp: rig && rig.ampId ? rig.ampId : '',
       rhythmPlays: TT.store.get('rhythmPlays', 0) || 0,
+      setlist: (TT.store.get('setlist', []) || []).length,
+      favSongs: (TT.store.get('favSongs', []) || []).length,
+      chartsRead: (TT.store.get('tabHistory', []) || []).length,
+      stemsRun: (TT.store.get('stemHistory', []) || []).length,
+      beds: TT.store.get('bkRenders', 0) || 0,
+      plans: TT.store.get('minePlans', 0) || 0,
+      listenStreak: (TT.store.get('listenerBest', null) || {}).streak || 0,
+      lyricFavs: (TT.store.get('lyricsFavs', []) || []).length,
       memberSince: TT.store.get('firstRun', null)
     };
   };
@@ -85,7 +93,16 @@
     { id: 'rig-pedals-5', name: 'Board builder', desc: 'Put 5 pedals on the virtual board', test: s => s.rigPedals >= 5 },
     { id: 'new-strings', name: 'Fresh strings', desc: 'Log a string change', test: s => !!s.stringChangedAt },
     { id: 'care-30', name: 'Gentle owner', desc: 'Keep strings under 30 days old', test: s => s.stringChangedAt && (Date.now() - s.stringChangedAt) < 30 * 864e5 },
-    { id: 'capo', name: 'Capo user', desc: 'Tune with a capo on', test: s => s.capo >= 1 }
+    { id: 'capo', name: 'Capo user', desc: 'Tune with a capo on', test: s => s.capo >= 1 },
+    { id: 'setlist-1', name: 'Set list', desc: 'Set a song aside to play', test: s => s.setlist >= 1 },
+    { id: 'repertoire', name: 'Repertoire', desc: 'Save 5 songs to your favourites', test: s => s.favSongs >= 5 },
+    { id: 'chart-1', name: 'Chart reader', desc: 'Have the tab maker read a song', test: s => s.chartsRead >= 1 },
+    { id: 'stem-1', name: 'Stem surgeon', desc: 'Run your first stem separation', test: s => s.stemsRun >= 1 },
+    { id: 'stem-10', name: 'Stem lab habit', desc: 'Run 10 stem separations', test: s => s.stemsRun >= 10 },
+    { id: 'listener-10', name: 'Ten clean notes', desc: 'Get a 10-note streak in the live listener', test: s => s.listenStreak >= 10 },
+    { id: 'listener-50', name: 'Note perfect', desc: 'Get a 50-note streak in the live listener', test: s => s.listenStreak >= 50 },
+    { id: 'bed-1', name: 'Band in a box', desc: 'Build a backing track in the studio', test: s => s.beds >= 1 },
+    { id: 'plan-1', name: 'Session planner', desc: 'Build a practice plan from your favourites', test: s => s.plans >= 1 }
   ];
 
   function badgeState() {

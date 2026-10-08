@@ -729,6 +729,47 @@ check('stems: the room recording opens the microphone itself and loads the take'
   return 'mic opened, 20 s captured at ' + (ctx.sampleRate / 1000) + ' kHz, mic released';
 });
 
+check('stems: a take is honest while it runs, and it never clobbers a song opened mid-recording', async () => {
+  const TT = window.TT;
+  const doc = window.document;
+  const ctx = TT.audio.ensure();
+  const before = (ctx._sps || []).length;
+  if (TT.audio.micSource) TT.audio.stopMic();
+  TT.stems.state.recordSeconds = 3;
+  doc.getElementById('st-btn-mic').click();
+  for (let i = 0; i < 40 && TT.audio.micState !== 'on'; i++) await new Promise(r => setTimeout(r, 5));
+  if (TT.audio.micState !== 'on') throw new Error('the microphone was never opened');
+  /* while the take is running the tab must not offer a button that does nothing */
+  if (!doc.getElementById('st-btn-run').disabled) throw new Error('“Separate it” stayed live during a recording');
+  if (!/Recording from the microphone/.test(doc.getElementById('st-run-note').textContent)) {
+    throw new Error('the run row did not explain what is happening: “' + doc.getElementById('st-run-note').textContent + '”');
+  }
+  /* the user opens a song while the take is still recording */
+  const other = new Float32Array(ctx.sampleRate);
+  for (let i = 0; i < other.length; i++) other[i] = 0.2 * Math.sin(2 * Math.PI * 330 * i / ctx.sampleRate);
+  TT.stems.loadBuffer(other, 'opened mid-take', 22050);
+  let sp = null;
+  for (let i = 0; i < 40 && !sp; i++) {
+    sp = (ctx._sps || []).slice(before).find(n => n && typeof n.onaudioprocess === 'function');
+    if (!sp) await new Promise(r => setTimeout(r, 5));
+  }
+  if (!sp) throw new Error('the recorder tap was never created');
+  const take = new Float32Array(Math.floor(ctx.sampleRate * 3));
+  for (let i = 0; i < take.length; i++) take[i] = 0.5 * Math.sin(2 * Math.PI * 440 * i / ctx.sampleRate);
+  sp.onaudioprocess({ inputBuffer: { getChannelData: () => take } });
+  for (let i = 0; i < 60 && !/discarded/.test(doc.getElementById('st-status').textContent); i++) await new Promise(r => setTimeout(r, 5));
+  const status = doc.getElementById('st-status').textContent;
+  if (!/discarded/.test(status)) throw new Error('the take was not dropped: “' + status + '”');
+  if (!/opened mid-take/.test(doc.getElementById('st-source').textContent)) {
+    throw new Error('the take overwrote the song that was opened mid-recording (' + doc.getElementById('st-source').textContent + ')');
+  }
+  if (TT.stems.state.channels[0].length !== other.length) throw new Error('the wrong buffer is loaded');
+  if (doc.getElementById('st-btn-run').disabled) throw new Error('“Separate it” is still disabled after the take');
+  if (doc.getElementById('st-run-note').textContent) throw new Error('the run row kept its recording note');
+  TT.stems.state.recordSeconds = 20;
+  return 'the run row told the truth, the take was discarded, and “opened mid-take” survived';
+});
+
 check('stems: a backing-studio render is handed over and separated here', async () => {
   const TT = window.TT;
   const doc = window.document;

@@ -29,6 +29,7 @@
     gain: null,
     playing: false,
     busy: false,          /* a separation or a recording is running */
+    recording: false,     /* and if it is the room recording, which can be cancelled by loading something */
     recordSeconds: 20,    /* how long the room recording runs (the tests shorten it) */
     cancel: false,        /* the user asked to stop */
     sourceName: '',
@@ -101,6 +102,7 @@
 
   S.loadFile = async function (file) {
     if (!file) return;
+    if (state.recording) state.recording = false;   /* the take in flight is now unwanted */
     clearResult();
     state.file = file;
     state.channels = null;
@@ -127,6 +129,7 @@
    * samples in memory. */
   S.loadBuffer = function (buffer, name, sampleRate) {
     if (!buffer) return false;
+    if (state.recording) state.recording = false;
     let buf = buffer;
     if (typeof buf.getChannelData !== 'function') {
       /* a plain mono take as returned by TT.audio.captureBuffer */
@@ -205,7 +208,12 @@
   async function fromMic() {
     if (state.busy) return;
     state.busy = true;
+    state.recording = true;
     if (els.btnMic) els.btnMic.disabled = true;
+    /* nothing else can be started while the take is running, so say so rather
+     * than leave a button that looks live and does nothing */
+    if (els.btnRun) els.btnRun.disabled = true;
+    if (els.runNote) els.runNote.textContent = 'Recording from the microphone…';
     const alreadyOn = TT.audio.micState === 'on' && !!TT.audio.micSource;
     try {
       if (!alreadyOn) {
@@ -220,6 +228,13 @@
       setStatus('Recording ' + secs + ' seconds — play the song out loud, close to the microphone…');
       const buf = await TT.audio.captureBuffer(secs, f => setProgress(f));
       const sr = (TT.audio.ctx && TT.audio.ctx.sampleRate) || state.sr;
+      /* if a song was opened (or dropped) while the microphone was recording,
+       * that song is what the user wants — do not overwrite it with the take */
+      if (state.recording === false) {
+        setStatus('The take was discarded — something else was loaded while it was recording.', '');
+        setProgress(0);
+        return;
+      }
       if (!S.loadBuffer(buf, 'Microphone take', sr)) throw new Error('the take came back empty');
       setStatus('Recorded ' + secs + ' seconds. Pick a recipe — or record again.', 'ok');
       setProgress(1);
@@ -228,7 +243,10 @@
       setStatus(micErrorText(e), 'err');
     } finally {
       state.busy = false;
+      state.recording = false;
       if (els.btnMic) els.btnMic.disabled = false;
+      if (els.btnRun) els.btnRun.disabled = !state.channels;
+      if (els.runNote) els.runNote.textContent = '';
       /* release the microphone if this button opened it */
       if (!alreadyOn && TT.audio.micState === 'on') {
         try { TT.audio.stopMic(); } catch (e) {}

@@ -7,7 +7,7 @@ guitar-care kit** — with pitch detection written from scratch (no audio librar
 Built as **Trill Tuner** (the app was renamed from its earlier working title; any settings, lessons,
 practice time or presets saved under the old name are migrated automatically, so nothing is lost).
 
-**At a glance** — 52 amps · 122 amp tones · 125 pedals · 22 genre recipes · 26 famous rigs · 90 tunings ·
+**At a glance** — 52 amps · 122 amp tones · 125 pedals · 22 genre recipes · 26 famous rigs · 94 tunings ·
 26 scales · 31 chord types · 15 lessons · 12 practice riffs · 9 drills · 24 badges — all local, no
 accounts, no uploads.
 
@@ -166,7 +166,7 @@ Web Audio engine that is already in the page.
 
 ## Splash screen
 
-Every launch shows a branded splash — logo, version, live library counters ("90 tunings · 125
+Every launch shows a branded splash — logo, version, live library counters ("94 tunings · 125
 pedals · 52 amps"), a boot log that reports what actually loaded and what was skipped (mic, storage,
 polyphony), a progress bar, and then it lets you in. Press **Enter** (or *Enter without waiting*)
 at any time to skip straight to the app.

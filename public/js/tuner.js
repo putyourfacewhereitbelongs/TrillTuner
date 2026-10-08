@@ -182,7 +182,7 @@
   }
 
   /* ---------- UI building ---------- */
-  /* The library is big now (90 sets), so the select is grouped by category and
+  /* The library is big now (94 sets), so the select is grouped by category and
    * has a live filter that searches the name, the notes, the category, the
    * famous songs and the players who used it. */
   function buildPresetSelect(filter) {

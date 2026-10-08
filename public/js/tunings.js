@@ -512,7 +512,27 @@
       '8-string tuned so the low pair is octaves in A — massive in the mix and still solo-friendly up top.',
       ['Modern djent & progressive metal', 'Extended-range ambient work'],
       'The two A strings an octave apart let you double a riff low and high at once.',
-      '8-string set 10–74', 'Djent & prog metal')
+      '8-string set 10–74', 'Djent & prog metal'),
+
+    /* ------------------------------------------------------------------ */
+    /* More instruments & studio standards                                 */
+    /* ------------------------------------------------------------------ */
+    P('mandocello', C.inst, 'Mandocello (C G D A)', ['C2', 'G2', 'D3', 'A3'],
+      'The cello of the mandolin family: same intervals as a mandola, an octave lower, with a warm, woody sustain that sits between guitar and cello.',
+      ['Mandolin orchestras', 'Modern folk & session writing'],
+      'Neck tension is high — use the instrument’s own heavy gauges, and expect to retune it more often than a guitar. It is a chord-melody instrument; strum lightly and let the low C ring.', 'C2 .065-.070w · G2 .042w · D3 .024w · A3 .014', 'Mandolin orchestras'),
+    P('uke_bb', C.inst, 'Ukulele — B♭ tuning (F B♭ D G)', ['F3', 'Bb3', 'D4', 'G4'],
+      'The older “key of B♭” ukulele tuning still printed on a lot of sheet music — a step and a half below the modern C tuning, darker and more mellow.',
+      ['Sheet-music era standards', 'Vintage uke records'],
+      'If your uke is in C tuning and the dots do not match the songbook, this is usually why: transpose or retune down to B♭. Use a slightly lighter set so the tension does not fight you.', 'Soprano set, B♭ tuning (a.k.a. “Canadian/key of B♭”)', 'Vintage ukulele players'),
+    P('guitalele', C.inst, 'Guitalele / Guilele (A D G C E A)', ['A2', 'D3', 'G3', 'C4', 'E4', 'A4'],
+      'A six-string mini guitar tuned a fourth above a guitar — guitar chord shapes, ukulele-adjacent range, and a sound that cuts through a mix like a mandolin.',
+      ['Travel & practice', 'Yamaha GL1 players'],
+      'Because the shapes are all standard guitar shapes, this is the easiest way to keep practising on a plane or in a hotel room. Capo the guitar at fret 5 for the same pitches.', 'Guitalele set (or a very light acoustic set)', 'Travelling guitarists'),
+    P('bass_vi', C.inst, 'Bass VI (E A D G B E, octave down)', ['E1', 'A1', 'D2', 'G2', 'B2', 'E3'],
+      'The six-string bass that guitarists can actually play: guitar tuning, an octave lower, with a thin sound that sits in its own layer of a mix.',
+      ['The Cure — Robert Smith', 'Surf, twang and “tic-tac” studio bass parts'],
+      'Play it with a pick and a light touch — the low E will flub if you dig in. A short delay and a bright amp turn it into the twangy 60s studio sound.', 'Bass VI set (.024-.084) — do not use guitar strings', 'The Cure, session players'),
   ];
 
   const BY_ID = {};

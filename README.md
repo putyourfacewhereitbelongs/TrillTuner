@@ -276,13 +276,14 @@ recipe. Results can be handed straight to the tab maker.
 
 ### The player: waveform, clock, skip, and an A–B loop
 
-A finished take comes with a **waveform and a clock**. Click or drag anywhere on the wave to skip
-through the song; drop **⟦ A** and **Set B ⟧** wherever you like (or press `[` and `]` at the
-playhead, and drag the handles on the wave) and tick **Loop the section** to play just that part round
-and round — the loop is handed to the audio node itself (`loopStart`/`loopEnd`), so there is no
-glitch at the wrap. With nothing set it loops the whole take. Arrow keys skip ±5 s, `Home`/`End` jump
-to the ends. The playhead follows the AudioContext clock rather than a wall timer, so the picture and
-the sound cannot drift apart.
+The moment a song is loaded — before any separation — it comes up with a **waveform and a clock**.
+Click or drag anywhere on the wave to skip through the song; drop **⟦ A** and **Set B ⟧** wherever
+you like (or press `[` and `]` at the playhead, and drag the handles on the wave) and tick **Loop the
+section** to play just that part round and round — the loop is handed to the audio node itself
+(`loopStart`/`loopEnd`), so there is no glitch at the wrap. With nothing set it loops the whole take.
+Arrow keys skip ±5 s, `Home`/`End` jump to the ends. The playhead follows the AudioContext clock
+rather than a wall timer, so the picture and the sound cannot drift apart. After you separate, the
+same player switches to the result (Save as WAV and “read its chords” unlock then).
 
 ### Not fading the voice
 
@@ -290,19 +291,20 @@ The mask is applied as a **running gain**, not frame by frame. A soft per-frame 
 voice by its own confidence, which is audible: words ramp in when isolating, and the first tenth of
 every word leaks through the notch when removing. So the gain now snaps in the direction that
 *protects* the target — the notch deepens and the island opens on the very frame a note appears — and
-relaxes over ~40 ms (isolate) / ~110 ms (remove) once it stops. The acoustic profile is deliberately
-excluded: its whole discriminator is the *shape* of the envelope, and holding gains across frames
-would smooth away the feature it is measuring.
+eases *towards the new target* over ~40 ms (isolate) / ~110 ms (remove) once it stops (decaying
+towards silence instead was a fade all by itself: a held vowel wandered down 4 dB). The acoustic
+profile is deliberately excluded: its whole discriminator is the *shape* of the envelope, and holding
+gains across frames would smooth away the feature it is measuring.
 
-Measured against the real voice (10 ms frames, synthesised words over a band, the numbers `npm test`
-prints):
+Measured against the real voice (10 ms frames, synthesised words over a band, plus a dead-steady
+vowel — the numbers `npm test` prints):
 
-| | word onset (first 40 ms) | steady part of the word |
+| | word onset vs steady | held vowel |
 |---|---|---|
-| isolate, before | 3.5 dB off the real voice | 1.7 dB |
-| isolate, now | **0.9 dB** | **−0.6 dB** |
-| remove, before | 1.9 dB *more* voice leaks at the onset than mid-word | |
-| remove, now | −6.1 dB at the onset vs **−7.0 dB** mid-word — no swell back in | |
+| isolate, before | onset 3.5 dB off, 1.8 dB quieter than the body (a fade-in) | **−4 dB and falling** |
+| isolate, now | onset and body within **1.6 dB** of each other | **−0.4 dB**, ripple ±1.8 dB |
+| remove, before | 1.9 dB *more* voice leaked at the onset than mid-word | |
+| remove, now | −10 dB at the onset vs −11 dB mid-word — no swell back in | |
 
 What is left at a word's onset is the analysis window's own resolution (a 4096-point Hann window at
 22 kHz smears a transient over ±90 ms); making that shorter would cost the frequency resolution the

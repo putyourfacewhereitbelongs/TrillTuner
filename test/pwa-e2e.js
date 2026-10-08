@@ -675,6 +675,26 @@ const TOUR = [
     ok(loaded, 'stem lab: the dropped song is decoded');
     ok(await page.evaluate(() => !document.getElementById('st-btn-run').disabled),
       'stem lab: “Separate it” unlocks once something is loaded');
+    const pre = await page.evaluate(() => {
+      const c = document.getElementById('st-wave');
+      const g = c && c.getContext && c.getContext('2d');
+      let ink = 0;
+      if (g) {
+        const d = g.getImageData(0, 0, c.width, c.height).data;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 8) ink++;
+      }
+      const t = TT.stems.transport();
+      return {
+        shown: !document.getElementById('st-result').hidden,
+        heading: (document.getElementById('st-result-h') || {}).textContent || '',
+        dur: t.dur, result: !!(TT.stems.state && TT.stems.state.result),
+        wavOff: document.getElementById('st-btn-wav').disabled,
+        ink: ink, px: c ? c.width * c.height : 0
+      };
+    });
+    ok(pre.shown && /song/i.test(pre.heading) && pre.dur > 5 && !pre.result && pre.wavOff && pre.ink > pre.px * 0.05,
+      'stem lab: the original song already has a waveform, a clock and skip, before any separation',
+      'heading “' + pre.heading + '”, ' + pre.dur.toFixed(1) + ' s, ' + pre.ink + ' pixels painted');
 
     /* separate with the first recipe — it must run off the main thread, and the
        page must keep answering while it does */

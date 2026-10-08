@@ -350,7 +350,9 @@
        * window's main lobe (three bins at 2048/4), so widening is what makes a
        * notch actually notch — but widening also eats the neighbours, so a
        * profile that has to remove one plucked part out of a dense mix asks for
-       * a narrower spread (`widen`). */
+       * a narrower spread (`widen`). Isolating does not get a wider island than
+       * this: extra spread lets accompaniment through, which reads as the voice
+       * being over-loud (and “fading” as the leak comes and goes). */
       const D = prof.widen == null ? 2 : prof.widen;
       const out = new Float32Array(bins);
       for (let b = 0; b < bins; b++) {
@@ -421,10 +423,15 @@
         prevGain.set(g);
       } else {
         for (let b = 0; b < bins; b++) {
+          /* Ease *towards the target*, not towards 0 (isolate) or 1 (remove).
+           * Decaying towards zero made a held note's gain random-walk down —
+           * a fade all by itself, measured at −4 dB mean with ±3 dB of ripple
+           * on a dead-steady vowel. Protect the target instantly (the notch
+           * deepens, the island opens), then approach the new value over the
+           * release window. */
           const target = g[b], p = prevGain[b];
-          prevGain[b] = remove
-            ? (target < p ? target : p + (1 - p) * (1 - releaseCoef))
-            : (target > p ? target : p * releaseCoef);
+          const fast = remove ? (target < p) : (target > p);
+          prevGain[b] = fast ? target : p + (target - p) * (1 - releaseCoef);
         }
       }
       synthesize(an, prevGain);

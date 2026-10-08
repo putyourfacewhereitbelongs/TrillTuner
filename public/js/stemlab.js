@@ -100,6 +100,39 @@
     state.result = null;
     if (els.result) els.result.hidden = true;
     if (els.effect) els.effect.innerHTML = '';
+    if (els.btnWav) els.btnWav.disabled = true;
+    if (els.btnTab) els.btnTab.disabled = true;
+    if (els.resultH) els.resultH.textContent = 'The song';
+  }
+
+  /* What the player draws and plays: the separated result if there is one,
+   * otherwise the song that was just loaded. The wave, the clock, skip and
+   * A–B all work on the original too — you can loop a verse *before* you
+   * take it apart. */
+  function playable() {
+    if (state.result && state.result.channels && state.result.channels[0] && state.result.channels[0].length) {
+      return state.result;
+    }
+    if (state.channels && state.channels[0] && state.channels[0].length) {
+      return { channels: state.channels, sr: state.sr || 44100, preview: true };
+    }
+    return null;
+  }
+
+  /* Show the player as soon as there is audio (the original, then the result). */
+  function armPlayer() {
+    const src = playable();
+    if (!src) { clearResult(); return; }
+    if (els.result) els.result.hidden = false;
+    const preview = !!src.preview;
+    if (els.resultH) els.resultH.textContent = preview ? 'The song' : 'Result';
+    if (els.btnWav) els.btnWav.disabled = preview;
+    if (els.btnTab) els.btnTab.disabled = preview;
+    if (preview && els.effect) {
+      els.effect.innerHTML = '<b>The song.</b> Press play, skip anywhere on the wave, or drop A and B to loop a section. Pick a recipe and press Separate it to take it apart.';
+    }
+    wave.key = '';
+    resetPlayer();
   }
 
   S.loadFile = async function (file) {
@@ -117,9 +150,10 @@
       state.channels = [];
       for (let c = 0; c < buf.numberOfChannels; c++) state.channels.push(buf.getChannelData(c));
       setSource(file.name, `${buf.numberOfChannels === 1 ? 'mono' : 'stereo'} · ${(buf.sampleRate / 1000).toFixed(1)} kHz · ${mmss(buf.duration)}`);
-      setStatus('Loaded. Pick a recipe or build your own below.');
+      setStatus('Loaded. Press play, skip, or set A and B — or pick a recipe to take it apart.');
       setProgress(0);
       if (els.btnRun) els.btnRun.disabled = false;
+      armPlayer();
     } catch (e) {
       setStatus('Could not decode that file. Try WAV, MP3 or M4A. (' + (e && e.message ? e.message : 'unknown error') + ')', 'err');
     }
@@ -153,6 +187,7 @@
     setSource(name || 'Audio take', `${buf.numberOfChannels === 1 ? 'mono' : 'stereo'} · ${(state.sr / 1000).toFixed(1)} kHz · ${mmss(buf.duration || state.channels[0].length / state.sr)}`);
     setProgress(0);
     if (els.btnRun) els.btnRun.disabled = false;
+    armPlayer();
     return true;
   };
 
@@ -180,7 +215,8 @@
     setSource(name, `${channels.length === 1 ? 'mono' : 'stereo'} · ${(sr / 1000).toFixed(1)} kHz · ${mmss(seconds)} · ${detail}`);
     setProgress(0);
     if (els.btnRun) els.btnRun.disabled = false;
-    setStatus(name + ' loaded — pick a recipe and separate it.', 'ok');
+    setStatus(name + ' loaded — press play, or pick a recipe and separate it.', 'ok');
+    armPlayer();
     return true;
   };
 
@@ -364,14 +400,13 @@
         ? ` It was a hot take (peak ${res.peak.toFixed(2)}), so it has been levelled by ${(20 * Math.log10(res.gain)).toFixed(1)} dB — nothing clips.`
         : '';
       setStatus(`Done — ${mmss(res.channels[0].length / res.sr)} of audio, ${res.slices > 1 ? res.slices + ' slices, ' : ''}${Math.round(mins * 60)}s source. Press play, or save it as a WAV.${levelled}`, 'ok');
-      if (els.result) els.result.hidden = false;
       if (els.effect) {
         els.effect.innerHTML = isClassic
           ? `<b>Classic karaoke.</b> Everything that is identical in both channels is cancelled — which is exactly where a lead vocal lives. ${mode === 'classic-keep-bass' ? 'The low end is left alone so the song keeps its bottom.' : 'The result is mono, like a 1990s karaoke machine.'}`
           : `<b>${PROFILE_LABEL[mode] || mode}: ${remove ? 'removed' : 'isolated'}.</b> The engine built a sustained-content spectrogram (a per-bin median over time), a transient map (how far each frame sits above that median) and a centre/side split, then weighed them per frequency band for this instrument. ${mode === 'acoustic-guitar' ? 'The acoustic profile leans hard on the sustained, wide, mid-band content, so the electric guitar and the drums stay where they are.' : ''}`;
       }
       if (els.amountShow) els.amountShow.textContent = Math.round(amount * 100) + '%';
-      resetPlayer();
+      armPlayer();
       if (TT.store) {
         const log = TT.store.get('stemHistory', []);
         log.unshift({ mode: mode, remove: remove, amount: amount, name: state.sourceName || (state.file ? state.file.name : 'microphone'), at: Date.now() });
@@ -436,7 +471,8 @@
    * the loop runs over that section: ticked on, it loops there; ticked off, it
    * plays the section once and returns the playhead to A. */
   function play(at) {
-    if (!state.result) return;
+    const src = playable();
+    if (!src) return;
     const ctx = TT.audio.ensure();
     const dur = resultDuration();
     if (!dur) return;
@@ -449,7 +485,7 @@
     if (sp.set && (start < sp.a || start >= sp.b - 0.02)) start = sp.a;
     if (start >= dur) start = 0;
     const node = ctx.createBufferSource();
-    node.buffer = toAudioBuffer(state.result);
+    node.buffer = toAudioBuffer(src);
     if (looping) {
       node.loop = true;
       if (sp.set) { node.loopStart = sp.a; node.loopEnd = Math.max(sp.a + 0.05, sp.b); }
@@ -520,7 +556,7 @@
   }
 
   function resultDuration() {
-    const r = state.result;
+    const r = playable();
     return r && r.channels[0] && r.sr ? r.channels[0].length / r.sr : 0;
   }
 
@@ -578,15 +614,15 @@
 
   function drawStatic() {
     const g0 = waveContext(els.wave);
-    if (!g0 || !state.result) return;
+    if (!g0 || !playable()) return;
     const size = waveSize();
     if (!wave.canvas) {
       wave.canvas = document.createElement('canvas');
     }
     const off = waveContext(wave.canvas);
     if (!off) return;
-    const r = state.result;
-    const key = [r.channels[0].length, r.sr, r.mode, r.remove ? 1 : 0, state.a, state.b, size.w, size.h].join('|');
+    const r = playable();
+    const key = [r.channels[0].length, r.sr, r.mode, r.remove ? 1 : 0, r.preview ? 1 : 0, state.a, state.b, size.w, size.h].join('|');
     if (key === wave.key && wave.w === size.w && wave.h === size.h) return;
     wave.key = key; wave.w = size.w; wave.h = size.h; wave.dpr = size.dpr;
     wave.canvas.width = size.w; wave.canvas.height = size.h;
@@ -650,7 +686,7 @@
     if (wave.canvas && (size.w !== wave.w || size.h !== wave.h)) { wave.key = ''; drawStatic(); return; }
     g.clearRect(0, 0, size.w, size.h);
     if (wave.canvas) g.drawImage(wave.canvas, 0, 0);
-    if (state.result) {
+    if (playable()) {
       const x = xOf(state.pos, size);
       g.fillStyle = '#ffd28a';
       g.fillRect(Math.max(0, x - Math.max(1, wave.dpr)), 0, Math.max(2, wave.dpr * 1.5), size.h);
@@ -778,6 +814,7 @@
       bar: document.getElementById('st-bar'),
       pct: document.getElementById('st-pct'),
       result: document.getElementById('st-result'),
+      resultH: document.getElementById('st-result-h'),
       effect: document.getElementById('st-effect'),
       btnPlay: document.getElementById('st-btn-play'),
       btnWav: document.getElementById('st-btn-wav'),

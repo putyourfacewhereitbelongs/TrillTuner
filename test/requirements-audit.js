@@ -544,11 +544,11 @@ function kept(out, src) {
         const iso = measure(D.separate(mix, FS, 'vocals', { remove: false, amount: 0.92 }).channels);
         const rem = measure(D.separate(mix, FS, 'vocals', { remove: true, amount: 0.92 }).channels);
         item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
-          'a synthesised voice with ten words over guitar, bass and drums, measured in 10 ms frames against the real voice: isolating, how far off the first 40 ms of a word is versus the steady part; removing, how much voice leaks at a word’s onset versus mid-word',
-          Math.abs(iso.on) <= 3 && Math.abs(iso.on - iso.st) <= 3 && Math.abs(rem.on) - Math.abs(rem.st) <= 1.5,
+          'a synthesised voice with ten words over guitar, bass and drums, measured in 10 ms frames against the real voice: isolating, the first 40 ms of a word must not sit below the steady part (a fade-in); removing, the notch must already be shut at a word’s onset',
+          iso.on >= -3 && Math.abs(iso.on - iso.st) <= 3 && rem.on <= -5 && rem.st <= -5 && Math.abs(Math.abs(rem.on) - Math.abs(rem.st)) <= 1.5,
           'isolated voice: word onset ' + iso.on.toFixed(1) + ' dB off the real voice, steady part ' + iso.st.toFixed(1) +
-          ' dB (a per-frame mask used to read 3.5 / 1.7) · removed voice: ' + rem.on.toFixed(1) + ' dB leaked at the onset vs ' +
-          rem.st.toFixed(1) + ' dB mid-word — no swell back in, where it used to leak 1.9 dB more at the start of every word');
+          ' dB · removed voice: ' + rem.on.toFixed(1) + ' dB leaked at the onset vs ' +
+          rem.st.toFixed(1) + ' dB mid-word — no swell back in');
       } catch (e) {
         item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
           'the voice-envelope measurement', false, 'threw ' + e.message);

@@ -557,15 +557,50 @@ console.log('\nTrill Tuner — audio lab tests\n');
     const iso2 = D.separate(m2, FS, 'vocals', { remove: false, amount: 0.92 });
     const rem2 = D.separate(m2, FS, 'vocals', { remove: true, amount: 0.92 });
     const i1 = measure(iso2.channels), r1 = measure(rem2.channels);
-    /* isolating: the voice must arrive with the word, not 4 dB late */
-    ok(Math.abs(i1.onset) <= 3 && Math.abs(i1.steady) <= 1.5 && Math.abs(i1.onset - i1.steady) <= 3,
+    /* isolating: the voice must arrive with the word, not fade in. Absolute
+     * level can sit a couple of dB above the dry voice (island leak); what
+     * must not happen is the onset being several dB below the steady part. */
+    ok(i1.onset >= -3 && i1.onset <= 6 && Math.abs(i1.onset - i1.steady) <= 3,
       'isolating a voice keeps the voice’s own envelope — words start at level, not faded in',
       'the word onset sits ' + i1.onset.toFixed(1) + ' dB off the real voice, the steady part ' + i1.steady.toFixed(1) + ' dB');
-    /* removing: the notch must already be shut when a word starts */
-    ok(Math.abs(r1.onset) <= 7.5 && Math.abs(r1.onset) - Math.abs(r1.steady) <= 1.5,
+    /* removing: the notch must already be shut when a word starts, and stay shut */
+    ok(r1.onset <= -5 && r1.steady <= -5 && Math.abs(Math.abs(r1.onset) - Math.abs(r1.steady)) <= 1.5,
       'removing a voice does not let the first tenth of every word back in',
       'leaked voice at a word onset ' + r1.onset.toFixed(1) + ' dB vs ' + r1.steady.toFixed(1) + ' dB in the steady part ' +
       '(a plain −6 dB fade of the voice reads −6.0 dB at both)');
+
+    /* a held vowel must not wander down. The previous smoother decayed toward
+     * zero on every frame the mask was not snapping open, so a dead-steady note
+     * lost 4 dB — a fade with nothing in the music causing it. */
+    {
+      const HS = 22050, N = Math.round(2.4 * HS), TAU = Math.PI * 2;
+      const heldV = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const t = i / HS;
+        const envH = Math.min(1, t / 0.03) * Math.min(1, (2.4 - t) / 0.1);
+        let v = 0; for (let h = 1; h <= 8; h++) v += Math.sin(TAU * 220 * h * t) / (h * 1.3);
+        heldV[i] = 0.30 * envH * v;
+      }
+      const hL = new Float32Array(N), hR = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const t = i / HS;
+        hL[i] = heldV[i] + 0.16 * Math.sin(TAU * 196 * t);
+        hR[i] = heldV[i] + 0.16 * Math.sin(TAU * 196.5 * t);
+      }
+      const heldO = D.separate([hL, hR], HS, 'vocals', { remove: false, amount: 0.92 }).channels[0];
+      const W = Math.round(0.02 * HS);
+      const row = [];
+      for (let w = Math.round(0.4 * HS); w + W < N - Math.round(0.4 * HS); w += W) {
+        let num = 0, den = 0;
+        for (let i = w; i < w + W; i++) { num += heldO[i] * heldV[i]; den += heldV[i] * heldV[i]; }
+        row.push(20 * Math.log10(Math.abs(num / (den + 1e-20)) + 1e-9));
+      }
+      const mean = row.reduce((a, b) => a + b, 0) / row.length;
+      const sd = Math.sqrt(row.reduce((a, b) => a + (b - mean) * (b - mean), 0) / row.length);
+      ok(mean >= -2.0 && mean <= 2.5 && (2 * sd) <= 4.5,
+        'a held vowel keeps its level — the mask does not fade it down',
+        'mean ' + mean.toFixed(1) + ' dB off the real voice, ripple ±' + (2 * sd).toFixed(1) + ' dB');
+    }
   }
 
   console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);

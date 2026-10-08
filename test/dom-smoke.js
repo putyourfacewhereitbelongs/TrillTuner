@@ -812,6 +812,15 @@ check('stems: the result comes with a waveform, a clock, a skip and an A–B loo
     R[i] = 0.4 * Math.sin(2 * Math.PI * 440 * t) - 0.2 * Math.sin(2 * Math.PI * 220 * t);
   }
   TT.stems.loadBuffer({ numberOfChannels: 2, sampleRate: sr, length: n, duration: n / sr, getChannelData: c => (c ? R : L) }, 'transport fixture', sr);
+  /* the player is live on the original, before any separation */
+  if (doc.getElementById('st-result').hidden) throw new Error('the player stayed hidden after load');
+  if (TT.stems.state.result !== null) throw new Error('load invented a separated result');
+  const tPre = TT.stems.transport();
+  if (Math.abs(tPre.dur - 6) > 0.05) throw new Error('the clock does not know the song length: ' + tPre.dur);
+  TT.stems.seek(3);
+  if (doc.getElementById('st-pos').textContent !== '0:03') throw new Error('skip on the original: ' + doc.getElementById('st-pos').textContent);
+  if (!doc.getElementById('st-btn-wav').disabled) throw new Error('Save as WAV was on before anything was separated');
+  TT.stems.seek(0);
   TT.stems.state.mode = 'vocals'; TT.stems.state.remove = true;
   await TT.stems.run();
   const t0 = TT.stems.transport();
@@ -933,7 +942,9 @@ check('stems: a backing-studio render is handed over and separated here', async 
   TT.stems.state.channels = [render.channels[0].slice(), render.channels[1].slice()];
   TT.stems.state.result = null;
   if (!TT.stems.adopt(render, { title: 'Second render' })) throw new Error('adopt() refused a second render');
-  if (TT.stems.state.result !== null || !doc.getElementById('st-result').hidden) throw new Error('a stale result survived a new take');
+  if (TT.stems.state.result !== null) throw new Error('a stale result survived a new take');
+  if (doc.getElementById('st-result').hidden) throw new Error('the player should already be up on the new take');
+  if (!doc.getElementById('st-btn-wav').disabled) throw new Error('Save as WAV should stay off until something is separated');
   return 'render handed over, separated, and the old result cleared';
 });
 

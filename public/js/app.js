@@ -131,7 +131,7 @@
     const firstRun = !TT.store.get('visited', false);
     TT.store.set('visited', true);
     if (firstRun) {
-      assist('Welcome to Trill Tuner 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E. There are 78 tunings, a full amp & pedal studio in the Rig tab, and practice tools in Learn.');
+      assist('Welcome to Trill Tuner 🎸 Standard tuning is loaded. Hit “Start listening” and play your low E. There are 94 tunings, a full amp & pedal studio in the Rig tab, plus the new Songs, Tab maker, Stems and Listener tools.');
       toast('Welcome to Trill Tuner! 🎸');
     } else {
       assist('Welcome back 🎸 Your settings, rig and practice history were restored.');

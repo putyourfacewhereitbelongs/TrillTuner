@@ -1,11 +1,11 @@
 {
   "name": "trill-tuner",
   "version": "2.0.0",
-  "description": "Trill Tuner — a complete guitar companion: from-scratch YIN tuner with strobe + poly strum check, 90 tunings, metronome with jam tracks, recorder, lyric search, learning academy, practice studio, advanced toolkit, virtual amplifier + pedalboard (52 amps, 85 pedals, 18 famous rigs), progress sharing, backups and guitar care.",
+  "description": "Trill Tuner — a complete guitar companion: from-scratch YIN tuner with strobe + poly strum check, 94 tunings, metronome with jam tracks, recorder, lyric search (artist OR title), a play-along song library, a tab maker that listens to any song and tells you the chords, key, tempo and capo to play it, a stem lab that removes or isolates the vocals, drums, bass, electric and acoustic guitar of a track, a live accuracy listener that tells you when you play the wrong note, a learning academy, practice studio, advanced toolkit, virtual amplifier + pedalboard (52 amps, 125 pedals, 26 famous rigs), progress sharing, backups and guitar care.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/yin-test.js && node test/poly-test.js",
+    "test": "node test/yin-test.js && node test/poly-test.js && node test/dsp-test.js && node test/songs-test.js",
     "test:e2e": "node test/e2e.js && node test/layout.js",
     "test:dom": "node test/dom-smoke.js"
   },

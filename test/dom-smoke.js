@@ -204,7 +204,7 @@ check('E2E contract: #select-tuning has ≥18 options incl. dropd + halfstep', (
   if (!opts.includes('dropd') || !opts.includes('halfstep')) throw new Error('missing presets');
   return opts.length + ' options';
 });
-check('tuning finder filters the 90-set library', () => {
+check('tuning finder filters the 94-set library', () => {
   const sel = window.document.getElementById('select-tuning');
   const find = window.document.getElementById('tuning-find');
   if (!find) throw new Error('no tuning finder');

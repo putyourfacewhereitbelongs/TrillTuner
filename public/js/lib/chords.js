@@ -241,12 +241,23 @@
       return { roman: roman + seventh, fn: d.fn, inKey: true, degree: degree + 1 };
     }
     const lib = library(key, mode);
-    const exact = lib.borrowed.find(b => b.name === chord) ||
-                  lib.colour.find(c => c.name === chord) ||
-                  lib.sevenths.find(x => x.name === chord) ||
-                  lib.triads.find(t => t.name === chord);
-    if (exact) return { roman: exact.roman + (/maj9$|maj7$|m6$|^6$/.test(exact.roman) ? '' : ''), fn: exact.fn || '', inKey: false, borrowed: true };
-    return { roman: '?', fn: 'outside the key — a modulation, or a modal borrowing', inKey: false, borrowed: true };
+    const exact = lib.borrowed.find(b => primary(b.name) === primary(chord)) ||
+                  lib.colour.find(c => primary(c.name) === primary(chord)) ||
+                  lib.sevenths.find(x => primary(x.name) === primary(chord)) ||
+                  lib.triads.find(t => primary(t.name) === primary(chord));
+    if (exact) return { roman: exact.roman + (seventh && !/7|9|6$/.test(exact.roman) ? seventh : ''), fn: exact.fn || '', inKey: false, borrowed: true };
+    /* anything else still gets a name: its interval from the tonic, with the
+     * same accidental convention players use */
+    const flat = family(key, mode) === 'flat';
+    const CHROMATIC = ['I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV', 'V', '♭VI', 'VI', '♭VII', 'VII'];
+    const interval = ((rpc - pc(rootOf(key))) % 12 + 12) % 12;
+    const label = CHROMATIC[interval] + (quality === 'diminished' ? '°' : '') + seventh;
+    const caseFixed = quality === 'minor' ? label.toLowerCase() : label;
+    return {
+      roman: caseFixed,
+      fn: interval === 6 ? 'the tritone — outside the key, used for colour' : 'chromatic — outside the key, usually a passing chord',
+      inKey: false, borrowed: true, chromatic: true
+    };
   }
 
   /* which library progressions use the chords we actually found? */

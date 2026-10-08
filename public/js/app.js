@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const app = { VERSION: '2.0.0' };
+  const app = { VERSION: '2.1.0' };
   const feed = [];
 
   function toast(msg, opts) {
@@ -44,6 +44,7 @@
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
     if (id === 'tune') TT.tuner.resume(); else TT.tuner.pause();
     if (id === 'learn') TT.learn.renderPractice();
+    if (id !== 'listening' && TT.listener && TT.listener.state && TT.listener.state.running) TT.listener.stop();
     if (id === 'care' && TT.care) TT.care.render();
     if (id === 'rig' && TT.rig) TT.rig.rebuild();
     if (id === 'progress' && TT.share) TT.share.render();
@@ -113,6 +114,10 @@
     wire('jam', () => TT.jam.init());
     wire('recorder', () => TT.recorder.init());
     wire('lyrics', () => TT.lyrics.init());
+    wire('songs', () => TT.songs.init());
+    wire('tabmaker', () => TT.tablab.init());
+    wire('stems', () => TT.stems.init());
+    wire('listener', () => TT.listener.init());
     wire('learn', () => TT.learn.init());
     wire('care', () => TT.care.init());
     wire('tools', () => TT.tools.init());

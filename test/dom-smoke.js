@@ -415,6 +415,376 @@ check('rename: no old branding anywhere in the DOM', () => {
   return 'clean';
 });
 
+
+/* ================= the play-along feature set ================= */
+
+check('catalog: the offline songbook, lessons and artists are real data', () => {
+  const TT = window.TT;
+  const c = TT.catalog.counts;
+  if (c.songs < 150) throw new Error('too few songs: ' + c.songs);
+  if (c.lessons < 25) throw new Error('too few lessons: ' + c.lessons);
+  if (c.artists < 40) throw new Error('too few artists: ' + c.artists);
+  const broken = [];
+  TT.catalog.SONGS.forEach(s => {
+    if (!s.title || !s.artist || !s.key || !s.bpm || !s.chords.length) broken.push(s.title || '?');
+    if (!s.notes || s.notes.length < 20) broken.push('notes:' + s.title);
+    s.chords.forEach(ch => { if (TT.chords.pc(TT.chords.rootOf(ch)) < 0) broken.push(s.title + ' chord ' + ch); });
+    if (s.capo && (s.capo < 0 || s.capo > 11)) broken.push(s.title + ' capo');
+  });
+  if (broken.length) throw new Error('incomplete songs: ' + broken.slice(0, 6).join(', '));
+  const ids = TT.catalog.SONGS.map(s => s.id);
+  if (new Set(ids).size !== ids.length) throw new Error('duplicate song ids');
+  return c.songs + ' songs · ' + c.lessons + ' lessons · ' + c.artists + ' artists';
+});
+
+check('catalog: search answers to a title alone, an artist alone, and chords', () => {
+  const TT = window.TT;
+  const byTitle = TT.catalog.search('wonderwall');
+  if (!byTitle.songs.length || byTitle.songs[0].title.indexOf('Wonderwall') < 0) throw new Error('title search failed');
+  const byArtist = TT.catalog.search('fleetwood mac');
+  if (!byArtist.artists.length && !byArtist.songs.length) throw new Error('artist search failed');
+  if (!byArtist.songs.some(s => /Fleetwood Mac/i.test(s.artist))) throw new Error('artist search did not return their songs');
+  const byGenre = TT.catalog.search('fingerstyle');
+  if (!byGenre.songs.length && !byGenre.lessons.length) throw new Error('genre search failed');
+  const byChords = TT.catalog.search('Am F C G');
+  if (!byChords.songs.length) throw new Error('chord search failed');
+  return 'title ' + byTitle.songs.length + ' · artist ' + byArtist.songs.length + ' · genre ' + (byGenre.songs.length + byGenre.lessons.length) + ' · chords ' + byChords.songs.length;
+});
+
+check('catalog: every song maps onto the theory engine (key → chords → roman numerals)', () => {
+  const TT = window.TT;
+  const bad = [];
+  let progressions = 0;
+  TT.catalog.SONGS.slice(0, 60).forEach(s => {
+    const mode = /m$/.test(s.key) ? 'minor' : 'major';
+    const plan = TT.chords.planFor({ key: s.key.replace(/m$/, ''), mode: mode, chords: s.chords, tempo: s.bpm });
+    if (!plan.library.triads.length) bad.push(s.title + ' no library');
+    plan.detected.forEach(d => { if (!d.roman || d.roman === '?') bad.push(s.title + ' ' + d.name); });
+    progressions += plan.progressions.length;
+  });
+  if (!progressions) throw new Error('no song matched any library progression');
+  if (bad.length) throw new Error('unlabelled chords: ' + bad.slice(0, 6).join(', '));
+  return progressions + ' progression matches across 60 songs';
+});
+
+check('chords: 24 keys produce a full library with correct roman numerals', () => {
+  const TT = window.TT;
+  const bad = [];
+  TT.chords.KEYS.forEach(k => {
+    const lib = TT.chords.library(k.name, k.mode);
+    if (lib.triads.length !== 7) bad.push(k.name + ' ' + k.mode + ' triads=' + lib.triads.length);
+    if (!lib.borrowed.length) bad.push(k.name + ' no borrowed chords');
+    lib.triads.forEach((t, i) => {
+      if (!/^[A-G][#♯b♭]?/.test(t.name)) bad.push(k.name + ' bad name ' + t.name);
+      const degreeRoot = lib.scale[i].root;
+      if (t.name.indexOf(degreeRoot) !== 0) bad.push(k.name + ' ' + t.roman + ' named ' + t.name + ' but the degree is ' + degreeRoot);
+      if (lib.scale[i].name !== t.name) bad.push(k.name + ' degree/name mismatch ' + lib.scale[i].name + ' vs ' + t.name);
+    });
+    /* the tonic must be the tonic */
+    const tonic = lib.triads[0];
+    if (TT.chords.pc(lib.scale[0].root) !== TT.chords.pc(k.name)) bad.push(k.name + ' tonic is ' + tonic.name);
+    if (k.mode === 'minor' && !/m$|dim/.test(tonic.name)) bad.push(k.name + ' minor tonic ' + tonic.name);
+  });
+  if (bad.length) throw new Error(bad.slice(0, 8).join(', '));
+  return TT.chords.KEYS.length + ' keys · ' + TT.chords.PROGRESSIONS.length + ' progressions';
+});
+
+check('chords: secondary dominants are labelled, not hidden', () => {
+  const TT = window.TT;
+  const b7 = TT.chords.romanOf('B7', 'G', 'major');
+  if (b7.roman !== 'III7') throw new Error('B7 in G labelled ' + b7.roman);
+  if (!b7.secondary || !/vi/.test(b7.fn)) throw new Error('B7 not flagged as V/vi: ' + b7.fn);
+  const e7 = TT.chords.romanOf('E7', 'A', 'minor');
+  if (e7.roman !== 'V7' || !/i\b/.test(e7.fn)) throw new Error('E7 in Am labelled ' + e7.roman + ' / ' + e7.fn);
+  const d = TT.chords.romanOf('D', 'G', 'major');
+  if (d.roman !== 'V' || !d.inKey) throw new Error('D in G should be the in-key V');
+  return 'B7→' + b7.roman + ', E7→' + e7.roman + ', D→' + d.roman;
+});
+
+check('lyrics: one box, and an artist name on its own is enough', async () => {
+  const doc = window.document;
+  if (!doc.getElementById('lyr-q')) throw new Error('no single search box');
+  if (doc.getElementById('lyr-artist') || doc.getElementById('lyr-title')) throw new Error('the two-field form is still there');
+  /* jsdom has no fetch: the search must fail soft, not throw, and must still
+     show the offline songbook it found */
+  const res = await window.TT.lyrics.search('Fleetwood Mac');
+  const status = doc.getElementById('lyr-status').textContent;
+  const offline = doc.getElementById('lyr-offline').textContent;
+  if (/both/i.test(status)) throw new Error('still demanding both fields: ' + status);
+  if (!offline || !/Fleetwood/i.test(offline)) throw new Error('no offline fallback rendered: ' + offline);
+  return 'artist-only query degraded gracefully';
+});
+
+check('songs view: a search renders playable cards with keys, tempos and chords', () => {
+  const doc = window.document;
+  window.TT.songs.init();
+  window.TT.songs.search('blues');
+  const cards = doc.querySelectorAll('#ss-songs .song-card');
+  if (cards.length < 3) throw new Error('only ' + cards.length + ' cards');
+  const first = cards[0];
+  if (!first.querySelector('.song-chord')) throw new Error('no chord chips on a card');
+  if (!first.querySelector('.btn')) throw new Error('no action buttons on a card');
+  /* filters must actually filter */
+  const before = cards.length;
+  const advanced = doc.querySelector('#ss-level .seg-btn:last-child');
+  advanced.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const after = doc.querySelectorAll('#ss-songs .song-card').length;
+  const any = doc.querySelector('#ss-level .seg-btn');
+  any.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  if (after > before) throw new Error('difficulty filter added songs');
+  return before + ' blues results (' + after + ' advanced)';
+});
+
+check('songs view: the set list is saved, described and copyable', () => {
+  const doc = window.document;
+  const song = window.TT.catalog.SONGS.find(s => /Wonderwall/.test(s.title));
+  window.TT.songs.init();
+  window.TT.songs.search(song.title);
+  const card = [...doc.querySelectorAll('#ss-songs .song-card')].find(c => /Wonderwall/.test(c.textContent));
+  if (!card) throw new Error('song not found in the results');
+  const save = [...card.querySelectorAll('button')].find(b => /Save/.test(b.textContent));
+  save.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const list = window.TT.store.get('setlist', []);
+  if (list.indexOf(song.id) === -1) throw new Error('not saved');
+  const copy = doc.getElementById('ss-btn-copy-set');
+  copy.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const shown = doc.getElementById('ss-setlist').textContent;
+  if (!/Wonderwall/.test(shown)) throw new Error('set list did not render');
+  return 'saved and rendered: ' + shown.slice(0, 40);
+});
+
+check('tab maker: a library song becomes a chart, a chord library and a tab sheet', () => {
+  const doc = window.document;
+  window.TT.tablab.init();
+  const song = window.TT.catalog.SONGS.find(s => /Knockin/.test(s.title));
+  window.TT.tablab.openSong(song);
+  const bars = doc.querySelectorAll('#mk-chart .mk-bar');
+  if (bars.length !== song.chords.length) throw new Error('bar count ' + bars.length + ' for ' + song.chords.length + ' chords');
+  const cells = doc.querySelectorAll('#mk-plan .plan-cell');
+  if (cells.length !== 7) throw new Error('chord library cells: ' + cells.length);
+  const romans = [...doc.querySelectorAll('#mk-plan .plan-rom')].map(n => n.textContent);
+  if (romans.join(' ') !== 'I ii iii IV V vi vii°') throw new Error('roman numerals wrong: ' + romans.join(' '));
+  const progs = doc.querySelectorAll('#mk-plan .plan-prog');
+  if (!progs.length) throw new Error('no progressions suggested');
+  const sheet = doc.getElementById('mk-sheet').textContent;
+  ['TRILL TUNER — TAB SHEET', 'CHORD CHART', 'CHORD SHAPES', 'THE CHORD LIBRARY FOR', 'PROGRESSIONS THAT FIT', 'STRUMMING'].forEach(needle => {
+    if (sheet.indexOf(needle) === -1) throw new Error('tab sheet is missing “' + needle + '”');
+  });
+  song.chords.forEach(c => { if (sheet.indexOf(c) === -1) throw new Error('tab sheet is missing the chord ' + c); });
+  /* shapes must be real fret numbers, low string first */
+  const shape = sheet.match(/G {2,}(\d|x)( (\d|x)){5}/);
+  if (!shape) throw new Error('no guitar shape written out');
+  return bars.length + ' bars · 7 library chords · ' + progs.length + ' progressions · ' + sheet.length + ' char sheet';
+});
+
+check('tab maker: transpose moves every chord on the sheet', () => {
+  const doc = window.document;
+  window.TT.tablab.openSong(window.TT.catalog.SONGS.find(s => /Knockin/.test(s.title)));
+  const before = doc.getElementById('mk-sheet').textContent;
+  /* press +1 twice on the plan's transpose control */
+  const up = [...doc.querySelectorAll('#mk-plan .plan-transpose button')].find(b => b.textContent === '+1');
+  up.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  up.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  const after = doc.getElementById('mk-sheet').textContent;
+  if (before === after) throw new Error('the sheet did not change');
+  if (after.indexOf('A ') === -1 || after.indexOf('G ') === -1) throw new Error('A/G missing after transposing G up a tone');
+  const val = doc.querySelector('#mk-plan .plan-trval').textContent;
+  if (val !== '+2') throw new Error('transpose readout says ' + val);
+  return 'G → A after two clicks (' + val + ')';
+});
+
+check('tab maker: it reads the chords out of audio', () => {
+  const TT = window.TT;
+  /* a fake AudioBuffer holding a I–V–vi–IV progression, four bars of 2s */
+  const sr = 22050, dur = 8, n = sr * dur;
+  const data = new Float32Array(n);
+  const chords = [[261.63, 329.63, 392], [98, 123.47, 146.83], [110, 130.81, 164.81], [87.31, 110, 130.81]];
+  for (let i = 0; i < n; i++) {
+    const t = i / sr, seg = Math.min(3, Math.floor(t / 2));
+    let v = 0;
+    chords[seg].forEach(f => { v += Math.sin(2 * Math.PI * f * t) * 0.3; });
+    data[i] = v;
+  }
+  const fake = {
+    numberOfChannels: 2, sampleRate: sr, length: n, duration: dur,
+    getChannelData: () => data
+  };
+  const res = TT.tablab.analyseBuffer(fake, { maxSeconds: 20 });
+  const names = res.chords.map(c => c.name).join(' ');
+  if (names !== 'C G Am F') throw new Error('read “' + names + '” instead of “C G Am F”');
+  if (res.key.key !== 'C' || res.key.mode !== 'major') throw new Error('key: ' + res.key.key + ' ' + res.key.mode);
+  TT.tablab.adopt(res, { title: 'Smoke test song', artist: 'The Fixtures' });
+  const sheet = window.document.getElementById('mk-sheet').textContent;
+  if (sheet.indexOf('Smoke test song') === -1) throw new Error('the sheet does not name the song');
+  if (sheet.indexOf('C major') === -1) throw new Error('the sheet does not state the key');
+  const facts = window.document.getElementById('mk-summary').textContent;
+  if (!/C major/.test(facts)) throw new Error('summary missing the key: ' + facts);
+  return names + ' · ' + res.tempo.bpm + ' BPM · sheet ' + sheet.length + ' chars';
+});
+
+check('stems: every recipe is wired to a real separation mode', () => {
+  const doc = window.document;
+  window.TT.stems.init();
+  const cards = doc.querySelectorAll('#st-presets .st-preset');
+  if (cards.length < 14) throw new Error('only ' + cards.length + ' recipes');
+  const opts = [...doc.querySelectorAll('#st-mode option')].map(o => o.value);
+  window.TT.dsp.PROFILES && Object.keys(window.TT.dsp.PROFILES).forEach(k => {
+    if (opts.indexOf(k) === -1) throw new Error('no profile for ' + k);
+  });
+  ['classic-karaoke', 'classic-keep-bass'].forEach(k => { if (opts.indexOf(k) === -1) throw new Error('missing ' + k); });
+  const acoustic = [...cards].find(c => /ONLY the acoustic/.test(c.textContent));
+  if (!acoustic) throw new Error('the acoustic-only recipe is missing');
+  return cards.length + ' recipes · ' + opts.length + ' modes';
+});
+
+check('stems: the acoustic-only removal runs and describes itself', async () => {
+  const TT = window.TT;
+  const sr = 22050, n = sr * 3;
+  const L = new Float32Array(n), R = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    /* acoustic-ish wide tone + a centre vocal-ish tone, so removal has work to do */
+    L[i] = Math.sin(2 * Math.PI * 330 * t) * 0.4 + Math.sin(2 * Math.PI * 440 * t) * 0.3;
+    R[i] = Math.sin(2 * Math.PI * 330 * t) * 0.4 - Math.sin(2 * Math.PI * 440 * t) * 0.3;
+  }
+  const fake = { numberOfChannels: 2, sampleRate: sr, length: n, duration: 3, getChannelData: c => (c === 0 ? L : R) };
+  TT.stems.state.channels = [L, R];
+  TT.stems.state.sr = sr;
+  TT.stems.state.buffer = fake;
+  TT.stems.state.mode = 'acoustic-guitar';
+  TT.stems.state.remove = true;
+  await TT.stems.run();
+  const result = TT.stems.state.result;
+  if (!result || !result.channels || result.channels[0].length !== n) throw new Error('no separation result');
+  const box = window.document.getElementById('st-effect').textContent;
+  if (!/acoustic/i.test(box)) throw new Error('no explanation rendered');
+  if (!/electric|drums/i.test(box)) throw new Error('the electric guitar promise is not explained');
+  if (window.document.getElementById('st-result').hidden) throw new Error('result panel stayed hidden');
+  /* and the WAV export of that result must be a valid container */
+  const raw = TT.dsp.encodeWav(result.channels, result.sr);
+  const dv = new DataView(raw);
+  const tag = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+  if (tag !== 'RIFF') throw new Error('bad WAV header: ' + tag);
+  if (raw.byteLength !== 44 + n * 2 * result.channels.length) throw new Error('bad WAV length: ' + raw.byteLength);
+  const blob = new window.Blob([raw], { type: 'audio/wav' });
+  if (blob.size !== raw.byteLength) throw new Error('blob size mismatch');
+  return result.channels.length + ' channels · ' + (raw.byteLength / 1048576).toFixed(2) + ' MB wav';
+});
+
+check('stems: the recipe buttons load their settings and run', () => {
+  const doc = window.document;
+  const cards = [...doc.querySelectorAll('#st-presets .st-preset')];
+  const drumless = cards.find(c => /Remove the drums/.test(c.textContent));
+  drumless.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  if (window.TT.stems.state.mode !== 'drums') throw new Error('mode is ' + window.TT.stems.state.mode);
+  if (window.TT.stems.state.remove !== true) throw new Error('action is not remove');
+  const acapella = cards.find(c => /Isolate the vocals/.test(c.textContent));
+  acapella.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  if (window.TT.stems.state.remove !== false) throw new Error('isolate did not switch the action');
+  return 'recipes drive the mode, action and amount controls';
+});
+
+check('listener: targets can be built from the tuning, a scale, a song and free text', () => {
+  const TT = window.TT;
+  TT.listener.init();
+  const open = TT.listener.buildTargets('open');
+  if (open.midis.length !== 6) throw new Error('open strings: ' + open.midis.length);
+  if (open.midis[0] >= open.midis[5]) throw new Error('open strings are not low to high: ' + open.labels.join(' '));
+  const scale = TT.listener.buildTargets('scale');       /* default: minor pentatonic, two octaves */
+  if (scale.midis.length !== 10) throw new Error('pentatonic notes: ' + scale.midis.length);
+  window.document.getElementById('ls-scale-type').value = 'major';
+  const major = TT.listener.buildTargets('scale');
+  if (major.midis.length !== 14) throw new Error('major scale notes: ' + major.midis.length);
+  const chords = TT.listener.buildTargets('chords');
+  if (chords.midis.length !== 21) throw new Error('chord arpeggios: ' + chords.midis.length);
+  const song = TT.listener.buildTargets('song');
+  if (song.midis.length < 20) throw new Error('song arpeggios: ' + song.midis.length);
+  return 'open ' + open.labels.join(' ') + ' · scale ' + scale.midis.length + ' · chords ' + chords.midis.length + ' · song ' + song.midis.length;
+});
+
+check('listener: it says YES to the right note and NO to the wrong one — both ways', () => {
+  const TT = window.TT;
+  const doc = window.document;
+  TT.listener.init();
+  TT.listener.reset();
+  /* listen for an E4 */
+  TT.listener.state.target = [64];
+  TT.listener.state.labels = ['E4'];
+  TT.listener.state.index = 0;
+  TT.listener.state.free = false;
+
+  /* 1. right note, right pitch → confirmed */
+  const good = TT.listener.check({ midi: 64, cents: 6, label: 'E4' });
+  if (!good || good.verdict !== 'ok') throw new Error('the right note was not confirmed: ' + JSON.stringify(good));
+  if (!/E4/.test(doc.getElementById('ls-banner').textContent)) throw new Error('no confirmation message');
+  if (!doc.getElementById('ls-banner').classList.contains('ok')) throw new Error('banner is not green');
+
+  /* 2. wrong note → told exactly what was heard and what was wanted */
+  const wrong = TT.listener.check({ midi: 63, cents: 2, label: 'D♯4' });
+  if (!wrong || wrong.verdict !== 'bad') throw new Error('a wrong note was not flagged: ' + JSON.stringify(wrong));
+  const msg = doc.getElementById('ls-banner').textContent;
+  if (!/D♯4/.test(msg) || !/E4/.test(msg)) throw new Error('the message does not name both notes: ' + msg);
+  if (!/one fret below/.test(msg)) throw new Error('the interval was not described: ' + msg);
+  if (!doc.getElementById('ls-banner').classList.contains('bad')) throw new Error('banner is not red');
+  if (!/D♯4/.test(doc.getElementById('ls-misses').textContent)) throw new Error('the miss was not logged');
+  /* and the same distance the other way */
+  TT.listener.check({ midi: 65, cents: 1, label: 'F4' });
+  if (!/one fret above/.test(doc.getElementById('ls-banner').textContent)) throw new Error('sharp misses are not described');
+
+  /* 3. right note, out of tune → the other direction of feedback */
+  const close = TT.listener.check({ midi: 64, cents: -40, label: 'E4' });
+  if (!close || close.verdict !== 'close') throw new Error('an out-of-tune right note was not caught: ' + JSON.stringify(close));
+  const msg2 = doc.getElementById('ls-banner').textContent;
+  if (!/flat/.test(msg2) || !/tighten/i.test(msg2)) throw new Error('no tuning direction given: ' + msg2);
+
+  /* 4. and the same the other way: sharp */
+  TT.listener.check({ midi: 64, cents: 45, label: 'E4' });
+  if (!/sharp/.test(doc.getElementById('ls-banner').textContent)) throw new Error('sharp was not reported');
+
+  /* 5. free mode names whatever it hears */
+  TT.listener.state.free = true;
+  TT.listener.check({ midi: 55, cents: -8, label: 'G3' });
+  if (!/G3/.test(doc.getElementById('ls-banner').textContent)) throw new Error('free mode did not name the note');
+  TT.listener.state.free = false;
+
+  const score = doc.getElementById('ls-score').textContent;
+  if (!/1/.test(score)) throw new Error('score did not update');
+  return 'correct confirmed · wrong flagged (D4 vs E4) · flat and sharp both reported · streak and log updated';
+});
+
+check('listener: an octave error is described as an octave', () => {
+  const TT = window.TT;
+  TT.listener.reset();
+  TT.listener.state.target = [40];           /* E2 */
+  TT.listener.state.labels = ['E2'];
+  TT.listener.state.index = 0;
+  const res = TT.listener.check({ midi: 52, cents: 0, label: 'E3' });
+  if (res.verdict !== 'bad') throw new Error('octave error not flagged');
+  const msg = window.document.getElementById('ls-banner').textContent;
+  if (!/octave above/.test(msg)) throw new Error('octave not named: ' + msg);
+  return 'E3 where E2 was wanted → “a whole octave above”';
+});
+
+check('navigation: the new views all have working controls', () => {
+  const doc = window.document;
+  const ids = ['ss-q', 'ss-setlist', 'ss-level', 'mk-drop', 'mk-file', 'mk-btn-listen', 'mk-key', 'mk-bpm', 'mk-sheet',
+    'st-drop', 'st-file', 'st-btn-mic', 'st-btn-run', 'st-presets', 'st-mode', 'st-action', 'st-amount',
+    'ls-source', 'ls-btn-start', 'ls-btn-reset', 'ls-tol', 'ls-banner', 'ls-target', 'ls-score'];
+  const missing = ids.filter(id => !doc.getElementById(id));
+  if (missing.length) throw new Error('missing controls: ' + missing.join(', '));
+  /* every new view is reachable from the nav */
+  ['songs', 'maker', 'stems', 'listening'].forEach(v => {
+    if (!doc.querySelector('.nav-btn[data-view="' + v + '"]')) throw new Error('no nav button for ' + v);
+    window.TT.app.showView(v);
+    if (!doc.getElementById('view-' + v).classList.contains('active')) throw new Error(v + ' did not open');
+  });
+  /* and leaving the listener stops the live loop */
+  window.TT.listener.state.running = true;
+  window.TT.app.showView('tune');
+  if (window.TT.listener.state.running) throw new Error('the listener kept the microphone open');
+  return ids.length + ' controls across 4 new views';
+});
+
 Promise.all(pending).then(() => {
   console.log('\n' + (errors.length ? '❌ ' + errors.length + ' problem(s):' : '✅ all checks passed'));
   errors.forEach(e => console.log('   · ' + e));

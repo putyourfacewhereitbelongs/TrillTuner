@@ -21,11 +21,12 @@
       <path class="splash-wave" d="M6 78 q6 -12 12 0 t12 0 t12 0 t12 0 t12 0 t12 0" fill="none" stroke="#f0a43a" stroke-width="3"/>
     </svg>
     <h1 class="splash-title">Trill<span>Tuner</span></h1>
-    <p class="splash-tag">tune · play · learn · plug in</p>
+    <p class="splash-tag">tune · play along · take it apart · learn</p>
     <div class="splash-facts">
       <span><b id="splash-tunings">0</b> tunings</span>
       <span><b id="splash-pedals">0</b> pedals &amp; wahs</span>
       <span><b id="splash-amps">0</b> amps</span>
+      <span><b id="splash-songs">0</b> play-along songs</span>
     </div>
     <div class="splash-barwrap"><i id="splash-bar"></i></div>
     <div class="splash-pct" id="splash-pct">0%</div>
@@ -81,6 +82,22 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
       <span>Lyrics</span>
     </button>
+    <button class="nav-btn" data-view="songs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><circle cx="18" cy="15" r="2.5"/><path d="M20.5 15V6l-2 .5"/></svg>
+      <span>Songs</span>
+    </button>
+    <button class="nav-btn" data-view="maker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v10a3 3 0 0 0 3 3h13"/><path d="M4 7h13a3 3 0 0 1 3 3v11"/><path d="M8 11h6"/></svg>
+      <span>Tab maker</span>
+    </button>
+    <button class="nav-btn" data-view="stems">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 4v3"/><path d="M12 17v3"/><path d="M4 12h3"/><path d="M17 12h3"/></svg>
+      <span>Stems</span>
+    </button>
+    <button class="nav-btn" data-view="listening">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M4 12v5a2 2 0 0 0 2 2h1"/>><path d="M20 12v5a2 2 0 0 1-2 2h-1"/><path d="M17 12v3"/><path d="M7 12v3"/></svg>
+      <span>Listener</span>
+    </button>
     <button class="nav-btn" data-view="learn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 12v4.5c0 1.7 2.4 3 5 3s5-1.3 5-3V12"/></svg>
       <span>Learn</span>
@@ -103,7 +120,7 @@
     </button>
     <div class="nav-foot">
       <div>Trill Tuner</div>
-      <div class="dim">Pitch detection runs<br>100% on your device</div>
+      <div class="dim">Pitch detection, chord reading<br>and stem separation all run<br>100% on your device</div>
     </div>
   </nav>
 
@@ -329,11 +346,12 @@
         <div class="card lyr-card">
           <div class="card-h">Song lyric search</div>
           <form id="lyr-form" class="lyr-form">
-            <input id="lyr-artist" placeholder="Artist — e.g. Fleetwood Mac" autocomplete="off">
-            <input id="lyr-title" placeholder="Song — e.g. Dreams" autocomplete="off">
+            <input id="lyr-q" placeholder="Song OR artist — “Dreams”, “Fleetwood Mac”, or both" autocomplete="off">
             <button class="btn btn-primary" type="submit">Search</button>
           </form>
+          <div class="dim smallish">One box is all it needs: an artist name on its own, a song title on its own, or the two together.</div>
           <div class="chipwrap" id="lyr-suggest"></div>
+          <div class="lyr-offline" id="lyr-offline"></div>
           <div class="lyr-status" id="lyr-status"></div>
           <div class="lyr-result" id="lyr-result" hidden>
             <div class="lyr-head">
@@ -343,6 +361,7 @@
               </div>
               <div class="lyr-actions">
                 <button class="btn btn-ghost tiny" id="btn-lyr-copy">Copy</button>
+                <button class="btn btn-ghost tiny" id="btn-lyr-tab">🎸 Play-along chart</button>
                 <button class="btn btn-ghost tiny" id="btn-lyr-fav">☆ Favorite</button>
               </div>
             </div>
@@ -355,6 +374,226 @@
             <div class="card-h small">Recent searches</div>
             <div class="chipwrap" id="lyr-history"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ==================== SONGS ==================== -->
+    <section class="view" id="view-songs">
+      <div class="ss-layout">
+        <div class="card">
+          <div class="card-h">Find a song to play along with</div>
+          <form id="ss-form" class="ss-form">
+            <input id="ss-q" placeholder="Song, artist, genre or chords — “Wonderwall”, “Fleetwood Mac”, “fingerstyle”, “Am F C G”" autocomplete="off">
+            <button class="btn btn-primary" type="submit">Search</button>
+          </form>
+          <div class="chipwrap" id="ss-quick"></div>
+          <div class="ss-filter">
+            <span class="dim smallish">Difficulty</span>
+            <div class="seg seg-mini" id="ss-level"></div>
+          </div>
+          <div class="ss-status" id="ss-status"></div>
+          <div class="dim smallish" id="ss-blurb"></div>
+        </div>
+        <div class="card">
+          <div class="card-h">★ Your set list</div>
+          <div class="chipwrap" id="ss-setlist"></div>
+          <div class="row-btns">
+            <button class="btn btn-ghost tiny" id="ss-btn-copy-set">⧉ Copy the set list</button>
+            <button class="btn btn-ghost tiny" id="ss-btn-clear-set">Clear</button>
+          </div>
+          <div class="dim smallish">Stored on this device. Copy it and you have a paper set list with keys, tempos, capos and chords.</div>
+        </div>
+        <div class="card">
+          <div class="tabs" id="ss-tabs">
+            <button class="tab active" data-tab="songs">Songs (<b id="ss-n-songs">0</b>)</button>
+            <button class="tab" data-tab="artists">Artists (<b id="ss-n-artists">0</b>)</button>
+            <button class="tab" data-tab="lessons">Lessons (<b id="ss-n-lessons">0</b>)</button>
+            <button class="tab" data-tab="online">More online</button>
+          </div>
+          <div class="tabpane active" id="ss-pane-songs"><div id="ss-songs"></div></div>
+          <div class="tabpane" id="ss-pane-artists"><div id="ss-artists"></div></div>
+          <div class="tabpane" id="ss-pane-lessons"><div id="ss-lessons"></div></div>
+          <div class="tabpane" id="ss-pane-online"><div id="ss-online"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB MAKER ==================== -->
+    <section class="view" id="view-maker">
+      <div class="mk-layout">
+        <div class="card">
+          <div class="card-h">Tab maker — it listens to the song and tells you how to play it</div>
+          <div class="drop" id="mk-drop" tabindex="0" role="button">
+            <b>Drop a song file here</b>
+            <span>or click to choose one — mp3, wav, m4a, ogg, flac. Nothing is uploaded: the file is decoded and analysed inside this page.</span>
+            <input type="file" id="mk-file" accept="audio/*" hidden>
+          </div>
+          <div class="row-btns">
+            <button class="btn" id="mk-btn-listen">🎙️ Listen to the room for 12 seconds</button>
+            <button class="btn btn-ghost" id="mk-btn-metro">♩ Set the metronome to this tempo</button>
+          </div>
+          <div class="mk-opt">
+            <label class="field inline"><span>Song title (optional)</span><input id="mk-title" placeholder="what are we calling it?"></label>
+            <label class="field inline"><span>Force the key</span><select id="mk-key"><option value="">— detected from the audio —</option></select></label>
+            <label class="field inline"><span>Tempo override</span><input id="mk-bpm" type="number" min="30" max="280" placeholder="BPM"></label>
+          </div>
+          <div class="mk-status" id="mk-status">Nothing analysed yet — drop a song in above, or try one from the Songs tab.</div>
+          <div class="mk-spinner" id="mk-spinner" hidden><i></i><span>Listening to the recording…</span></div>
+          <div class="mk-summary" id="mk-summary" hidden></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">What it heard</div>
+          <div id="mk-chart"><div class="dim">The bar-by-bar chord chart appears here.</div></div>
+        </div>
+
+        <div class="card" id="mk-plan-host" hidden>
+          <div class="card-h">The chord library to play it with</div>
+          <div id="mk-plan"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Your tab sheet</div>
+          <div class="row-btns">
+            <button class="btn btn-primary tiny" id="mk-btn-download">⬇ Download .txt</button>
+            <button class="btn btn-ghost tiny" id="mk-btn-print">🖨 Print</button>
+            <button class="btn btn-ghost tiny" id="mk-btn-copy">⧉ Copy</button>
+          </div>
+          <pre class="tab-pre" id="mk-sheet"></pre>
+          <div class="card-h small">Recently analysed</div>
+          <div class="chipwrap" id="mk-history"></div>
+        </div>
+      </div>
+      <div class="mk-print" id="mk-print"></div>
+    </section>
+
+    <!-- ==================== STEMS ==================== -->
+    <section class="view" id="view-stems">
+      <div class="st-layout">
+        <div class="card">
+          <div class="card-h">Stem lab — take the song apart</div>
+          <div class="drop" id="st-drop" tabindex="0" role="button">
+            <b>Drop a song file here</b>
+            <span>mp3, wav, m4a, ogg, flac — decoded and separated inside this page, never uploaded.</span>
+            <input type="file" id="st-file" accept="audio/*" hidden>
+          </div>
+          <div class="row-btns">
+            <button class="btn" id="st-btn-mic">🎙️ Record 20 seconds from the room</button>
+            <button class="btn btn-primary" id="st-btn-run" disabled>⚙️ Separate it</button>
+          </div>
+          <div class="st-source" id="st-source" hidden></div>
+          <div class="st-barwrap"><i id="st-bar"></i><span id="st-pct">0%</span></div>
+          <div class="st-status" id="st-status">Load a song, then pick a recipe.</div>
+          <div class="card-h small">Recipes</div>
+          <div class="st-presets" id="st-presets"></div>
+          <div class="card-h small">Or build your own</div>
+          <div class="mk-opt">
+            <label class="field inline"><span>Instrument</span><select id="st-mode"></select></label>
+            <label class="field inline"><span>Action</span><div class="seg seg-mini" id="st-action">
+              <button class="seg-btn active" data-action="remove" type="button">Remove it</button>
+              <button class="seg-btn" data-action="isolate" type="button">Keep only it</button>
+            </div></label>
+            <label class="field inline"><span>Amount <b id="st-amount-show">92%</b></span><input id="st-amount" type="range" min="0" max="100" value="92"></label>
+          </div>
+        </div>
+
+        <div class="card" id="st-result" hidden>
+          <div class="card-h">Result</div>
+          <div class="st-effect" id="st-effect"></div>
+          <div class="row-btns">
+            <button class="btn btn-primary tiny" id="st-btn-play">▶ Play</button>
+            <button class="btn tiny" id="st-btn-wav">⬇ Save as WAV</button>
+            <button class="btn btn-ghost tiny" id="st-btn-tab">🎸 Read its chords in the Tab maker</button>
+          </div>
+          <div class="st-ctls">
+            <label class="field inline"><span>Volume</span><input id="st-vol" type="range" min="0" max="1" step="0.02" value="0.9"></label>
+            <label class="check"><input type="checkbox" id="st-loop"><span>Loop</span></label>
+          </div>
+          <div class="card-h small">Recently separated</div>
+          <div class="chipwrap" id="st-history"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">How it works (and what it cannot do)</div>
+          <ul class="st-notes" id="st-notes"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== LISTENER ==================== -->
+    <section class="view" id="view-listening">
+      <div class="ls-layout">
+        <div class="card">
+          <div class="card-h">Listener — is that the note you meant to play?</div>
+          <div class="mk-opt">
+            <label class="field inline"><span>What should I listen for?</span>
+              <select id="ls-source">
+                <option value="open">My open strings, low to high</option>
+                <option value="open12">All six strings, twice through</option>
+                <option value="scale">A scale, ascending two octaves</option>
+                <option value="chords">Every chord of a key, as arpeggios</option>
+                <option value="song">A song's chords, as arpeggios</option>
+                <option value="custom">My own list of notes</option>
+                <option value="free">Free mode — name whatever I play</option>
+              </select>
+            </label>
+            <div class="ls-extra" id="ls-extra-scale" hidden>
+              <label class="field inline"><span>Root</span><select id="ls-scale-root"></select></label>
+              <label class="field inline"><span>Scale</span><select id="ls-scale-type"></select></label>
+            </div>
+            <div class="ls-extra" id="ls-extra-chords" hidden>
+              <label class="field inline"><span>Key</span><select id="ls-chord-key"></select></label>
+              <label class="field inline"><span>Mode</span><select id="ls-chord-mode"></select></label>
+            </div>
+            <div class="ls-extra" id="ls-extra-song" hidden>
+              <label class="field inline"><span>Song</span><select id="ls-song"></select></label>
+            </div>
+            <div class="ls-extra" id="ls-extra-custom" hidden>
+              <label class="field inline"><span>Notes, in order</span><input id="ls-custom" placeholder="e.g. E2 A2 D3 G3 B3 E4" value="E2 A2 D3 G3 B3 E4"></label>
+            </div>
+          </div>
+          <div class="ls-opt">
+            <label class="field inline"><span>In-tune tolerance: <b id="ls-tol-val">35¢</b></span><input id="ls-tol" type="range" min="5" max="60" value="35"></label>
+            <label class="check"><input type="checkbox" id="ls-require-tune" checked><span>Right note must also be in tune</span></label>
+          </div>
+          <div class="row-btns">
+            <button class="btn btn-primary" id="ls-btn-start">▶ Start listening</button>
+            <button class="btn btn-ghost" id="ls-btn-reset">Reset score</button>
+          </div>
+          <div class="ls-banner idle" id="ls-banner">Pick a target and press start. Every note you play is checked — and I will say what I heard if it is not the one I expected.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Live</div>
+          <div class="ls-live">
+            <div class="ls-heard idle" id="ls-heard">–</div>
+            <div class="ls-cents" id="ls-cents"></div>
+          </div>
+          <div class="ls-meter" id="ls-meter"><i></i></div>
+          <div class="card-h small">What I am listening for (<span id="ls-progress">–</span>)</div>
+          <div class="ls-target" id="ls-target"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Score</div>
+          <div class="ls-score" id="ls-score"></div>
+          <div class="card-h small">Wrong notes</div>
+          <div class="ls-misses" id="ls-misses"><span class="dim">No wrong notes yet.</span></div>
+          <div class="card-h small">Everything heard</div>
+          <div class="ls-history" id="ls-history"><span class="dim">Nothing heard yet.</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Both ways round</div>
+          <ul class="st-notes">
+            <li><b>Right note, right pitch</b> — green, counted, and your streak goes up.</li>
+            <li><b>Right note, wrong pitch</b> — it will not pretend: it says how many cents sharp or flat you are and which way to turn the peg or bend.</li>
+            <li><b>Wrong note</b> — it names what it heard, names what it wanted, and tells you how far apart they are (“one fret below”, “a whole octave above”).</li>
+            <li><b>Free mode</b> works the other way: play anything and it names the note and the tuning error.</li>
+            <li>Pitch detection is the same from-scratch YIN engine as the tuner — a note has to hold still for about 120 ms before it counts, so a knocked stand or a chair scrape cannot score.</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -836,6 +1075,9 @@
 <script src="js/lib/notes.js"></script>
 <script src="js/lib/store.js"></script>
 <script src="js/lib/fft.js"></script>
+<script src="js/lib/dsp.js"></script>
+<script src="js/lib/chords.js"></script>
+<script src="js/lib/catalog.js"></script>
 <script src="js/lib/poly.js"></script>
 <script src="js/lib/sweeteners.js"></script>
 <script src="js/audio.js"></script>
@@ -852,6 +1094,10 @@
 <script src="js/jam.js"></script>
 <script src="js/recorder.js"></script>
 <script src="js/lyrics.js"></script>
+<script src="js/tabmaker.js"></script>
+<script src="js/stemlab.js"></script>
+<script src="js/songsearch.js"></script>
+<script src="js/listener.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/care.js"></script>
 <script src="js/tools.js"></script>

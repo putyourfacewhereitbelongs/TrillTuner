@@ -87,8 +87,8 @@
     hats: { name: 'Hi-hats & cymbals', band: [5000, 16000], tonal: 0.0, perc: 1.0, centre: 0.0, note: 'Pure top-end transients.' },
     'electric-guitar': { name: 'Electric guitar', band: [80, 6500], tonal: 0.72, perc: 0.03, centre: 0.1,
       note: 'Distorted guitars are sustained and usually doubled wide — centre-panned clean parts are harder.' },
-    'acoustic-guitar': { name: 'Acoustic guitar', band: [150, 5600], tonal: 0.85, perc: 0.12, centre: 0.2, spread: true,
-      note: 'Acoustic is harmonic with strong string/pick noise, wide in the mix, and never as sustained as a distorted electric. Aimed at strummed/plucked acoustic parts over a full backing.' },
+    'acoustic-guitar': { name: 'Acoustic guitar', band: [150, 5600], tonal: 0.5, perc: 0.08, centre: 0, pluck: 0.8, spread: true,
+      note: 'Acoustic is harmonic, wide and — because it is plucked — its harmonics rise and decay fast; a distorted electric is just as harmonic but holds its note, so it survives the chop. Best on strummed acoustic over a full band.' },
     keys: { name: 'Piano & keyboards', band: [90, 4200], tonal: 0.8, perc: 0.08, centre: 0.25, note: 'Pitched, wide and fairly smooth.' },
     strings: { name: 'Strings & pads', band: [150, 3500], tonal: 0.95, perc: 0.0, centre: -0.15, note: 'Very sustained and often wide.' },
     synth: { name: 'Synths & leads', band: [120, 8000], tonal: 0.7, perc: 0.1, centre: 0.0, note: 'Pitched with a steady timbre.' },
@@ -194,11 +194,28 @@
     function gainFor(an, ringAt) {
       const raw = new Float32Array(bins);          /* this frame's magnitude */
       const Hs = new Float32Array(bins);           /* time median → harmonic  */
+      /* how much this bin moves over the ring (a plucked string rises and then
+       * decays; a held note does not), and how peaky it is against its own
+       * neighbours (a harmonic of a string is a peak; a snare is a plateau) */
+      const mod = new Float32Array(bins);
       const tbuf = new Float64Array(ringAt.length);
       for (let b = 0; b < bins; b++) {
         raw[b] = an.mag[b];
-        for (let i = 0; i < ringAt.length; i++) tbuf[i] = ringAt[i].mag[b];
+        let mx = 0, mn = Infinity;
+        for (let i = 0; i < ringAt.length; i++) {
+          const v = ringAt[i].mag[b];
+          tbuf[i] = v;
+          if (v > mx) mx = v;
+          if (v < mn) mn = v;
+        }
         Hs[b] = median(tbuf);
+        mod[b] = (mx - mn) / (Hs[b] + EPS);
+      }
+      const localFloor = new Float32Array(bins);   /* mean of the four neighbours */
+      for (let b = 0; b < bins; b++) {
+        const a1 = Hs[Math.max(0, b - 2)], a2 = Hs[Math.max(0, b - 1)];
+        const a3 = Hs[Math.min(bins - 1, b + 1)], a4 = Hs[Math.min(bins - 1, b + 2)];
+        localFloor[b] = (a1 + a2 + a3 + a4) / 4;
       }
       const fbuf = new Float64Array(WIN);
       /* A robust spectral floor: the 25th percentile of the *time-median*
@@ -228,19 +245,43 @@
         /* a transient is much louder than its own time median */
         const transient = smoothstep(raw[b] / (Hs[b] + EPS), 1.35, 3.2);
         const percScore = smoothstep(pr2 / (pr2 + h2 + EPS), 0.5, 0.8) * transient;
+        /* the plucked-string signature: a narrow harmonic peak that rises and
+         * decays — which is how a strummed acoustic differs from a held,
+         * distorted electric (peaky but steady) and from a snare (moving but
+         * broadband). Only profiles that ask for it pay for it. */
+        const pluckScore = prof.pluck
+          ? smoothstep(Hs[b] / (localFloor[b] + EPS), 1.5, 3.0) * smoothstep(mod[b], 0.25, 0.8)
+          : 0;
         let score = band[b];
         if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * tonalScore;
         if (prof.perc) score *= (1 - prof.perc) + prof.perc * percScore;
-        if (prof.centre && an.R) {
+        if (prof.pluck) {
+          /* removing: the pluck signature is what qualifies a bin for the chop.
+           * isolating: it is a bonus, because a strummed chord also has plenty
+           * of steady harmonic energy we do not want to throw away. */
+          score = remove ? score * ((1 - prof.pluck) + prof.pluck * pluckScore)
+                         : clamp01(score + (1 - score) * prof.pluck * pluckScore * 0.6);
+        }
+        if ((prof.centre || prof.spread) && an.R) {
           /* stereo coherence: 1 = identical in both ears (centre), 0.5 = unrelated,
            * 0 = polarity-inverted (pure side / out-of-phase) */
           const lr = an.L.re[b] * an.R.re[b] + an.L.im[b] * an.R.im[b];
           const ll = an.L.re[b] * an.L.re[b] + an.L.im[b] * an.L.im[b];
           const rr = an.R.re[b] * an.R.re[b] + an.R.im[b] * an.R.im[b];
           const c = (2 * lr / (ll + rr + EPS) + 1) / 2;
-          const w = Math.min(1, Math.abs(prof.centre));
-          const want = prof.centre > 0 ? smoothstep(c, 0.52, 0.90) : smoothstep(1 - c, 0.52, 0.90);
-          score *= (1 - w) + w * want;
+          if (prof.centre) {
+            const w = Math.min(1, Math.abs(prof.centre));
+            const want = prof.centre > 0 ? smoothstep(c, 0.52, 0.90) : smoothstep(1 - c, 0.52, 0.90);
+            score *= (1 - w) + w * want;
+          }
+          /* `spread` asks for the opposite: a part that is not in the middle.
+           * A doubled acoustic sits wide (often polarity-inverted, which no
+           * amount of EQ can hide); a centred electric does not. The floor
+           * keeps a mono acoustic usable. */
+          if (prof.spread) {
+            const side = smoothstep(1 - 2 * Math.abs(c - 0.5), 0.10, 0.45);
+            score *= 0.72 + 0.28 * side;
+          }
         }
         /* Only touch bins that actually carry energy — without this every silent
          * bin is "50 % tonal" and the whole file just gets quieter. The current
@@ -581,6 +622,44 @@
     return out;
   }
 
+  /* Separate a whole song without freezing the browser: the audio is processed
+   * in slices with a margin at each end (the per-bin masks look at a few frames
+   * either side, so the margin gives them their context) and the margin is
+   * thrown away. `onProgress(fraction)` is called between slices. */
+  async function separateChunked(channels, sr, mode, opts) {
+    opts = opts || {};
+    const onProgress = opts.onProgress;
+    const margin = Math.max(0.2, opts.marginSeconds || 0.4);
+    const sliceSeconds = Math.max(4, opts.sliceSeconds || 24);
+    const n = channels[0].length;
+    const per = Math.round(sliceSeconds * sr);
+    const slices = Math.max(1, Math.ceil(n / per));
+    if (slices === 1) {
+      const only = separate(channels, sr, mode, opts);
+      if (onProgress) onProgress(1);
+      return only;
+    }
+    let out = null, meta = null;
+    for (let s = 0; s < slices; s++) {
+      const from = s * per;
+      const to = Math.min(n, from + per);
+      const pad = Math.round(margin * sr);
+      const a = Math.max(0, from - pad), b = Math.min(n, to + pad);
+      const sub = channels.map(c => c.subarray(a, b));
+      const r = separate(sub, sr, mode, Object.assign({}, opts, { onProgress: null }));
+      if (!out) {
+        out = r.channels.map(() => new Float32Array(n));
+        meta = { sr: r.sr, mode: r.mode, profile: r.profile, remove: r.remove, amount: r.amount };
+      }
+      const srcOff = from - a;
+      for (let c = 0; c < out.length; c++) out[c].set(r.channels[c].subarray(srcOff, srcOff + (to - from)), from);
+      if (onProgress) onProgress((s + 1) / slices);
+      /* hand the frame back to the browser so the UI keeps painting */
+      await new Promise(res => setTimeout(res, 0));
+    }
+    return Object.assign(meta, { channels: out, sr: sr, slices: slices });
+  }
+
   /* =================================================================== */
   /* WAV export                                                           */
   /* =================================================================== */
@@ -608,7 +687,7 @@
 
   const api = {
     hann, median, mixdown, frameFFT, bandMask, smoothstep,
-    separate, PROFILES,
+    separate, separateChunked, PROFILES,
     chromaFrames, analyseChords, bestKey, matchChord, estimateTempo, toBars,
     encodeWav, PITCH_NAMES, CHORD_TEMPLATES
   };

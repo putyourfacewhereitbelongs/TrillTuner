@@ -16,6 +16,8 @@
     ['Tuning library', () => !!(TT.tunings && TT.tunings.PRESETS.length)],
     ['Pedal & amp reference', () => !!(TT.pedals && TT.amps && TT.wiring)],
     ['Practice tools', () => !!(TT.practiceTools && TT.tools)],
+    ['Play-along songbook', () => !!(TT.catalog && TT.catalog.counts.songs > 100)],
+    ['Audio lab (chords, stems, listener)', () => !!(TT.dsp && TT.chords && TT.dsp.separateChunked)],
     ['Ready', () => true]
   ];
 
@@ -40,12 +42,14 @@
       tunings: document.getElementById('splash-tunings'),
       pedals: document.getElementById('splash-pedals'),
       amps: document.getElementById('splash-amps'),
+      songs: document.getElementById('splash-songs'),
       forever: document.getElementById('splash-forever')
     };
-    if (el.version) el.version.textContent = 'v' + (TT.share ? TT.share.VERSION : '2.0.0');
+    if (el.version) el.version.textContent = 'v' + (TT.app ? TT.app.VERSION : '2.1.0');
     if (el.tunings) el.tunings.textContent = TT.tunings ? TT.tunings.PRESETS.length : 0;
     if (el.pedals) el.pedals.textContent = TT.pedals ? TT.pedals.LIST.length : 0;
     if (el.amps) el.amps.textContent = TT.amps ? TT.amps.AMPS.length : 0;
+    if (el.songs) el.songs.textContent = TT.catalog ? TT.catalog.counts.songs : 0;
     if (TT.store && TT.store.get('splashOff', false)) { overlay.hidden = true; S.done = true; return; }
 
     overlay.hidden = false;

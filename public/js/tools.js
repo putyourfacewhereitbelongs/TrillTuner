@@ -747,6 +747,9 @@
 
   T.SCALES = SCALES;
   T.CHORD_TYPES = CHORD_TYPES;
+  T.STRING_SETS = STRING_SETS;
+  T.voicingsFor = voicingsFor;          /* used by the tab maker + song library */
+  T.chordDiagram = chordDiagram;
   T.renderScales = renderScales;
   window.TT = window.TT || {};
   window.TT.tools = T;

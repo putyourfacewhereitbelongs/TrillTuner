@@ -56,6 +56,9 @@
         drums: !!(els.drums && els.drums.checked),
         bass: !!(els.bass && els.bass.checked),
         chords: !!(els.chords && els.chords.checked),
+        piano: !!(els.piano && els.piano.checked),
+        strings: !!(els.strings && els.strings.checked),
+        organ: !!(els.organ && els.organ.checked),
         arp: !!(els.arp && els.arp.checked)
       }
     };
@@ -137,7 +140,7 @@
         fact('Tempo', res.bpm + ' BPM' + (res.swing ? ' · swing ' + Math.round(res.swing * 100) + '%' : '')) +
         fact('Feel', res.styleName + (res.beatsPerBar === 3 ? ' · 3/4' : '')) +
         fact('Length', res.bars + ' bars · ' + res.seconds.toFixed(1) + 's') +
-        fact('Parts', [res.parts.drums ? 'drums' : '', res.parts.bass ? 'bass' : '', res.parts.chords ? 'chords' : '', res.parts.arp ? 'arpeggio' : ''].filter(Boolean).join(' + ')) +
+        fact('Parts', [res.parts.drums ? 'drums' : '', res.parts.bass ? 'bass' : '', res.parts.chords ? 'chords' : '', res.parts.piano ? 'piano' : '', res.parts.strings ? 'strings' : '', res.parts.organ ? 'organ' : '', res.parts.arp ? 'arpeggio' : ''].filter(Boolean).join(' + ')) +
         fact('Render', ms + ' ms') +
       '</div>' +
       '<div class="card-h small">The progression</div>' +
@@ -258,6 +261,7 @@
     els.lenOut = el('bk-len');
     els.seed = el('bk-seed');
     els.drums = el('bk-drums'); els.bass = el('bk-bass'); els.chords = el('bk-chords'); els.arp = el('bk-arp');
+    els.piano = el('bk-piano'); els.strings = el('bk-strings'); els.organ = el('bk-organ');
     els.status = el('bk-status'); els.summary = el('bk-summary');
     els.presets = el('bk-presets');
 
@@ -313,6 +317,9 @@
       if (els.bass) els.bass.checked = start.parts.bass !== false;
       if (els.chords) els.chords.checked = start.parts.chords !== false;
       if (els.arp) els.arp.checked = !!start.parts.arp;
+      if (els.piano) els.piano.checked = !!start.parts.piano;
+      if (els.strings) els.strings.checked = !!start.parts.strings;
+      if (els.organ) els.organ.checked = !!start.parts.organ;
     }
     updateReadouts();
     generate();

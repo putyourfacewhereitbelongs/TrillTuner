@@ -339,7 +339,8 @@ function kept(out, src) {
   const smaliDir = path.join(root, 'apk-src', 'smali', 'com', 'trilltuner', 'app');
   const smali = ['MainActivity.smali', 'TClient.smali', 'TChrome.smali', 'TBridge.smali']
     .every(f => fs.existsSync(path.join(smaliDir, f)));
-  const perms = ['INTERNET', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE', 'VIBRATE']
+  const perms = ['INTERNET', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE', 'VIBRATE',
+    'ACCESS_WIFI_STATE', 'WAKE_LOCK', 'POST_NOTIFICATIONS', 'READ_MEDIA_AUDIO', 'BLUETOOTH_CONNECT']
     .every(p => man.indexOf('android.permission.' + p) > 0);
   item(12, 'An Android app version of the whole thing — named Trill Tuner, correct permissions, built and working',
     'public/downloads/TrillTuner.apk is a real signed APK (zip entries + v1/v2/v3 signatures verified by test/apk-test.js and test/apk-verify.py); the shell source lives in apk-src/ (manifest + smali) and tools/build-apk.py rebuilds it without an SDK',
@@ -347,7 +348,7 @@ function kept(out, src) {
       && zipHas('assets/index.html') && zipHas('META-INF/') && man.indexOf('package="com.trilltuner.app"') > 0
       && man.indexOf('android:label="Trill Tuner"') > 0 && perms && smali
       && fs.existsSync(path.join(root, 'tools', 'build-apk.py')),
-    'APK ' + (size / 1024).toFixed(0) + ' KB · package com.trilltuner.app · label “Trill Tuner” · minSdk 24 / targetSdk 34 · 5 permissions · 4 smali shell classes · signed v1+v2+v3 (apksigner verify) · deep-checked by test/apk-test.js + test/apk-verify.py');
+    'APK ' + (size / 1024).toFixed(0) + ' KB · package com.trilltuner.app · label “Trill Tuner” · minSdk 24 / targetSdk 34 · mic + wifi + storage + bluetooth + notifications · 4 smali shell classes · signed v1+v2+v3 (apksigner verify) · deep-checked by test/apk-test.js + test/apk-verify.py');
 })();
 
 /* ---------------------------------------------------------------- */

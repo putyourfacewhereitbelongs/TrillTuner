@@ -278,6 +278,13 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------- remote-tuner sessions ---------- */
   const sessMatch = u.pathname.match(/^\/api\/sessions\/([a-z0-9]{6,16})\/(events|msg)$/);
+  const sessInfo = u.pathname.match(/^\/api\/sessions\/([a-z0-9]{6,16})$/);
+  if (sessInfo && req.method === 'GET') {
+    const info = sessions.get(sessInfo[1]);
+    if (!info) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    send(res, 200, { ok: true, hosts: info.hosts.length, joiners: info.joiners.length });
+    return;
+  }
   if (u.pathname === '/api/sessions' && req.method === 'POST') {
     if (sessions.size > 200) { send(res, 503, { ok: false, error: 'too many sessions' }); return; }
     const id = crypto.randomBytes(5).toString('hex');
@@ -291,10 +298,13 @@ const server = http.createServer(async (req, res) => {
     const role = u.searchParams.get('as') === 'join' ? 'join' : 'host';
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
     });
-    res.write('retry: 3000\n\n');
+    /* a 2 kB comment defeats proxies that buffer the first tiny SSE frame,
+     * which is why the host never saw "connected" after the other device loaded */
+    res.write('retry: 3000\n:' + ' '.repeat(2048) + '\n\n');
     const entry = { res: res, role: role };
     (role === 'host' ? s.hosts : s.joiners).push(entry);
     const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) {} }, 15000);

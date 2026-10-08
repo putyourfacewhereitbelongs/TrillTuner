@@ -77,9 +77,11 @@
       <button class="mic-pill" id="mic-pill" title="Toggle microphone">
         <span class="dot"></span><span id="mic-pill-text">Mic off</span>
       </button>
+      <button class="menu-btn" id="btn-menu" type="button" aria-label="Open menu" aria-controls="nav" aria-expanded="false">☰ Menu</button>
     </div>
   </header>
 
+  <div class="nav-backdrop" id="nav-backdrop" hidden></div>
   <nav class="sidenav" id="nav">
     <button class="nav-btn active" data-view="tune">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v5a6 6 0 0 0 12 0V3"/><path d="M12 14v7"/></svg>
@@ -299,8 +301,8 @@
               <p class="hint" id="remote-hint"></p>
             </div>
             <div class="remote-join" id="remote-join" hidden>
-              <div class="card-h small">You joined a remote session</div>
-              <p class="hint">This device is mirrored to the host. Play a string — the host sees your note, cents and in-tune state live, and you see theirs below.</p>
+              <div class="card-h small" id="remote-join-h">Connecting to the host…</div>
+              <p class="hint" id="remote-join-status">This device is mirrored to the host. Play a string — they see your note, and you see theirs below.</p>
               <div class="remote-readout">
                 <div class="note-big" id="remote-peer-note">–</div>
                 <div class="remote-meta">
@@ -757,6 +759,9 @@
             <label class="check"><input type="checkbox" id="bk-drums" checked> Drums</label>
             <label class="check"><input type="checkbox" id="bk-bass" checked> Bass</label>
             <label class="check"><input type="checkbox" id="bk-chords" checked> Chords</label>
+            <label class="check"><input type="checkbox" id="bk-piano"> Piano</label>
+            <label class="check"><input type="checkbox" id="bk-strings"> Strings</label>
+            <label class="check"><input type="checkbox" id="bk-organ"> Organ</label>
             <label class="check"><input type="checkbox" id="bk-arp"> Arpeggio instead of chords</label>
           </div>
           <div class="row-btns">

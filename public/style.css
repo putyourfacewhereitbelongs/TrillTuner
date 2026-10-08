@@ -54,6 +54,12 @@ kbd {
 .brand h1 { margin: 0; font-size: 21px; letter-spacing: .3px; }
 .tagline { font-size: 11.5px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
+.menu-btn {
+  display: none; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card2); color: var(--text); font: 600 14px/1 inherit; cursor: pointer;
+}
+.nav-backdrop { display: none; }
 
 .sidenav {
   grid-area: nav; display: flex; flex-direction: column; gap: 4px;
@@ -598,20 +604,30 @@ body.gig-on { overflow: hidden; }
   .assistant { max-height: 160px; }
 }
 @media (max-width: 900px) {
-  .app { grid-template: "top" auto "main" 1fr "nav" auto / 1fr; }
+  html, body { overflow-x: hidden; }
+  .app { grid-template: "top" auto "main" 1fr / 1fr; }
+  .menu-btn { display: inline-flex; }
   .sidenav {
-    flex-direction: row; position: sticky; bottom: 0; z-index: 20;
-    border-right: 0; border-top: 1px solid var(--line);
-    background: rgba(13, 16, 24, .92); backdrop-filter: blur(8px); padding: 8px 10px;
-    /* 16 nav buttons never fit one row on a phone: let the bar swipe-scroll
-     * instead of forcing the whole page grid wide (a scroll container's
-     * automatic minimum size is 0, so the 1fr track can shrink again) */
-    overflow-x: auto; scrollbar-width: none;
+    grid-area: unset;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 80;
+    width: min(300px, 86vw); flex-direction: column;
+    transform: translateX(-105%); transition: transform .2s ease;
+    border-right: 1px solid var(--line); border-top: 0;
+    background: #10131b; padding: 18px 12px 28px;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
-  .sidenav::-webkit-scrollbar { display: none; }
-  .nav-btn { flex-direction: column; gap: 4px; font-size: 11px; padding: 8px 6px; flex: 0 0 auto; }
+  .sidenav.open { transform: translateX(0); box-shadow: 16px 0 40px rgba(0,0,0,.45); }
+  .nav-btn { flex-direction: row; gap: 12px; font-size: 15px; padding: 12px 14px; flex: 0 0 auto; width: 100%; }
   .nav-btn svg { width: 22px; height: 22px; }
-  .nav-foot { display: none; }
+  .nav-foot { display: block; }
+  .nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 70;
+    grid-area: unset;
+    background: rgba(0,0,0,.5);
+  }
+  .nav-backdrop[hidden] { display: none !important; }
+  body.nav-open { overflow: hidden; }
   .content { padding: 14px; }
   .tune-grid { grid-template-columns: 1fr; }
   .guitar-box { max-height: 400px; }

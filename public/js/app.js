@@ -39,9 +39,31 @@
     if (opts && opts.toast) toast(msg);
   }
 
+  function closeMenu() {
+    const nav = document.getElementById('nav');
+    const backdrop = document.getElementById('nav-backdrop');
+    const btn = document.getElementById('btn-menu');
+    if (nav) nav.classList.remove('open');
+    if (backdrop) backdrop.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('nav-open');
+  }
+  function openMenu() {
+    const nav = document.getElementById('nav');
+    const backdrop = document.getElementById('nav-backdrop');
+    const btn = document.getElementById('btn-menu');
+    if (nav) nav.classList.add('open');
+    if (backdrop) backdrop.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('nav-open');
+  }
+  app.closeMenu = closeMenu;
+  app.openMenu = openMenu;
+
   app.showView = function (id) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
+    closeMenu();
     if (id === 'tune') TT.tuner.resume(); else TT.tuner.pause();
     if (id === 'learn') TT.learn.renderPractice();
     if (id !== 'listening' && TT.listener && TT.listener.state && TT.listener.state.running) TT.listener.stop();
@@ -58,6 +80,14 @@
   function bindNav() {
     document.querySelectorAll('.nav-btn').forEach(b =>
       b.addEventListener('click', () => app.showView(b.dataset.view)));
+    const btn = document.getElementById('btn-menu');
+    const backdrop = document.getElementById('nav-backdrop');
+    if (btn) btn.addEventListener('click', () => {
+      const nav = document.getElementById('nav');
+      if (nav && nav.classList.contains('open')) closeMenu(); else openMenu();
+    });
+    if (backdrop) backdrop.addEventListener('click', closeMenu);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
   }
 
   function bindMode() {

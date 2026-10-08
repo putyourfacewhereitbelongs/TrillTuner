@@ -601,6 +601,13 @@ console.log('\nTrill Tuner — audio lab tests\n');
         'a held vowel keeps its level — the mask does not fade it down',
         'mean ' + mean.toFixed(1) + ' dB off the real voice, ripple ±' + (2 * sd).toFixed(1) + ' dB');
     }
+
+    /* removing a *non-vocal* instrument (the guitar) must not fade the singer */
+    const chopped = D.separate(m2, FS, 'electric-guitar', { remove: true, amount: 0.9 });
+    const g1 = measure(chopped.channels);
+    ok(g1.onset >= -4 && Math.abs(g1.onset - g1.steady) <= 4,
+      'removing an instrument does not fade the voice',
+      'after chopping the guitar, the voice onset sits ' + g1.onset.toFixed(1) + ' dB off the real voice, the steady part ' + g1.steady.toFixed(1) + ' dB');
   }
 
   console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);

@@ -85,6 +85,29 @@
     }).catch(() => {});
   }
 
+  function post(data) {
+    if (!R.sessionId || !R.role) return;
+    fetch('/api/sessions/' + R.sessionId + '/msg', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: R.role, data: data })
+    }).catch(() => {});
+  }
+
+  function sayHello() { post({ type: 'hello' }); }
+
+  function markConnected() {
+    R.peerPresent = true;
+    if (R.role === 'host') {
+      setStatus('Connected — the other device is live.');
+      if (els.live) els.live.hidden = false;
+      if (els.liveTitle) els.liveTitle.textContent = 'Connected device — live';
+    } else {
+      if (els.joinH) els.joinH.textContent = 'Connected to the host ✓';
+      if (els.joinStatus) els.joinStatus.textContent = 'You are connected. Play a string — the host sees your note, and you see theirs below.';
+    }
+  }
+
   function startPublishing() {
     stopPublishing();
     R.poll = setInterval(() => publish(false), 120);
@@ -103,23 +126,50 @@
       let msg;
       try { msg = JSON.parse(e.data); } catch (err) { return; }
       if (msg.type === 'msg' && msg.data && msg.data.type === 'tuner') {
+        markConnected();
         onPeerState(msg.data.snap, msg.from);
+      } else if (msg.type === 'msg' && msg.data && msg.data.type === 'hello') {
+        markConnected();
       } else if (msg.type === 'joined') {
-        if (role === 'host') setStatus('A device just connected — its tuner is live below.');
+        markConnected();
+        sayHello();
       } else if (msg.type === 'left') {
+        R.peerPresent = false;
         if (role === 'host') { setStatus('The other device left the session.'); renderPeer(null); }
-        if (role === 'join') renderPeer(null, 'The host stopped the session.');
+        if (role === 'join') {
+          renderPeer(null, 'The host stopped the session.');
+          if (els.joinH) els.joinH.textContent = 'Disconnected';
+        }
       }
     };
     R.es.onerror = () => { /* EventSource retries on its own */ };
     startPublishing();
+    sayHello();
+    startStatusPoll();
   }
+  function startStatusPoll() {
+    stopStatusPoll();
+    R.statusPoll = setInterval(async () => {
+      if (!R.sessionId || R.role !== 'host') return;
+      try {
+        const r = await fetch('/api/sessions/' + R.sessionId);
+        const j = await r.json();
+        if (j && j.ok && j.joiners > 0) markConnected();
+      } catch (err) {}
+    }, 1500);
+  }
+  function stopStatusPoll() {
+    if (R.statusPoll) { clearInterval(R.statusPoll); R.statusPoll = null; }
+  }
+
   function disconnectSSE() {
     if (R.es) { try { R.es.close(); } catch (e) {} R.es = null; }
     stopPublishing();
+    stopStatusPoll();
     R.sessionId = null;
     R.role = null;
     R.lastPayload = '';
+    R.peerPresent = false;
   }
 
   /* ---- rendering ---- */
@@ -253,6 +303,8 @@
       chips: document.getElementById('remote-chips'),
       hint: document.getElementById('remote-hint'),
       join: document.getElementById('remote-join'),
+      joinH: document.getElementById('remote-join-h'),
+      joinStatus: document.getElementById('remote-join-status'),
       peerNote: document.getElementById('remote-peer-note'),
       peerCents: document.getElementById('remote-peer-cents'),
       peerLine: document.getElementById('remote-peer-line'),

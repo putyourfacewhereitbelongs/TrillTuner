@@ -9,15 +9,27 @@
 
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34"/>
 
-  <!-- mic for the tuner, network for lyrics/API, vibrate for remote-tune haptics -->
+  <!-- mic for the tuner, network for lyrics/API, vibrate for remote-tune haptics,
+       wifi/wake-lock for LAN remote hosting, storage for song files, bluetooth
+       for headphones, notifications on Android 13+ -->
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+  <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
 
-  <!-- works on devices without a mic (everything else still runs) -->
+  <!-- works on devices without a mic, wifi or bluetooth (everything else still runs) -->
   <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+  <uses-feature android:name="android.hardware.wifi" android:required="false"/>
+  <uses-feature android:name="android.hardware.bluetooth" android:required="false"/>
 
   <application
       android:label="Trill Tuner"

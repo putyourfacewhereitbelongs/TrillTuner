@@ -191,15 +191,24 @@ const ok = (c, l, e) => { console.log(`${c?'PASS':'FAIL'} ${l}${e!==undefined?' 
   // mobile layout check
   await page.setViewport({ width: 420, height: 900 });
   await new Promise(r => setTimeout(r, 400));
+  const menuShown = await page.evaluate(() => {
+    const btn = document.getElementById('btn-menu');
+    return !!(btn && getComputedStyle(btn).display !== 'none');
+  });
+  await page.evaluate(() => { if (TT.app && TT.app.openMenu) TT.app.openMenu(); });
+  await new Promise(r => setTimeout(r, 280));
   const mob = await page.evaluate(() => {
     const nav = document.querySelector('.sidenav').getBoundingClientRect();
     return {
       noHoriz: document.documentElement.scrollWidth <= window.innerWidth + 1,
-      navVisible: nav.width > 100 && nav.top < 900
+      navOpen: document.getElementById('nav').classList.contains('open'),
+      navVisible: nav.width > 100 && nav.left >= -2 && nav.left < 80
     };
   });
+  mob.menuShown = menuShown;
   ok(mob.noHoriz, 'mobile: no horizontal overflow');
-  ok(mob.navVisible, 'mobile: nav bar visible');
+  ok(mob.menuShown, 'mobile: Menu button is in the top bar');
+  ok(mob.navOpen && mob.navVisible, 'mobile: Menu opens the navigation drawer');
   await page.setViewport({ width: 420, height: 900 });
   // mobile care + gig checks
   const mob2 = await page.evaluate(() => {

@@ -200,6 +200,55 @@
     }
   }
 
+  /* a hammered piano: bright attack, partials that die faster the higher they are */
+  function pianoVoice(l, r, sr, at, freq, dur, gain, pan) {
+    if (!(freq > 20) || gain <= 0) return;
+    const len = Math.min(Math.floor(sr * dur), l.length - at);
+    if (len <= 0) return;
+    const gl = gain * (1 - Math.max(0, pan || 0)), gr = gain * (1 + Math.min(0, pan || 0));
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = Math.min(1, t / 0.003) * Math.exp(-t * 2.6);
+      let v = 0;
+      for (let h = 1; h <= 8; h++) v += Math.sin(2 * Math.PI * freq * h * t) / (h * h) * Math.exp(-t * h * 1.6);
+      v += Math.sin(2 * Math.PI * freq * 11 * t) * Math.exp(-t * 50) * 0.05;
+      l[at + i] += v * env * gl;
+      r[at + i] += v * env * gr;
+    }
+  }
+
+  /* slow-attack strings / pad */
+  function stringsVoice(l, r, sr, at, freq, dur, gain, pan) {
+    if (!(freq > 20) || gain <= 0) return;
+    const len = Math.min(Math.floor(sr * dur), l.length - at);
+    if (len <= 0) return;
+    const gl = gain * (1 - Math.max(0, pan || 0)), gr = gain * (1 + Math.min(0, pan || 0));
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = Math.min(1, t / 0.08) * Math.min(1, (dur - t) / 0.08);
+      const v = (Math.sin(2 * Math.PI * freq * t) + 0.35 * Math.sin(2 * Math.PI * freq * 2 * t)
+        + 0.12 * Math.sin(2 * Math.PI * freq * 3 * t)) * env;
+      l[at + i] += v * gl;
+      r[at + i] += v * gr;
+    }
+  }
+
+  /* organ: a few drawbar-ish sines, no decay until the cut-off */
+  function organVoice(l, r, sr, at, freq, dur, gain, pan) {
+    if (!(freq > 20) || gain <= 0) return;
+    const len = Math.min(Math.floor(sr * dur), l.length - at);
+    if (len <= 0) return;
+    const gl = gain * (1 - Math.max(0, pan || 0)), gr = gain * (1 + Math.min(0, pan || 0));
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = Math.min(1, t / 0.01) * Math.min(1, (dur - t) / 0.03);
+      const v = (Math.sin(2 * Math.PI * freq * t) + 0.7 * Math.sin(2 * Math.PI * freq * 2 * t)
+        + 0.4 * Math.sin(2 * Math.PI * freq * 3 * t) + 0.18 * Math.sin(2 * Math.PI * freq * 4 * t)) * env * 0.45;
+      l[at + i] += v * gl;
+      r[at + i] += v * gr;
+    }
+  }
+
   function tone(l, r, sr, at, freq, dur, gain, pan) {
     const len = Math.min(Math.floor(sr * dur), l.length - at);
     for (let i = 0; i < len; i++) {
@@ -222,7 +271,7 @@
     const style = STYLES.filter(s => s.id === opts.style)[0] || STYLES[0];
     const key = opts.key || 'C';
     const mode = MODES[opts.mode] ? opts.mode : 'major';
-    const parts = Object.assign({ drums: true, bass: true, chords: true, arp: false }, opts.parts || {});
+    const parts = Object.assign({ drums: true, bass: true, chords: true, arp: false, piano: false, strings: false, organ: false }, opts.parts || {});
     const level = opts.level == null ? 0.8 : Math.max(0, Math.min(1.5, opts.level));
     const swing = Math.max(0, Math.min(0.45, opts.swing || 0));
     const beatsPerBar = opts.meter === 3 ? 3 : 4;
@@ -267,6 +316,15 @@
       }
 
       /* chords / arpeggios on top of the bass */
+      if (parts.piano) {
+        ch.midis.forEach((n, i) => pianoVoice(L, R, sr, at(bar, 0) + i * 12, midiToFreq(n), beatsPerBar * beatSec * 0.95, 0.22 * level, (i - 1) * 0.2));
+      }
+      if (parts.strings) {
+        ch.midis.forEach((n, i) => stringsVoice(L, R, sr, at(bar, 0), midiToFreq(n), beatsPerBar * beatSec, 0.12 * level, (i - 1) * 0.28));
+      }
+      if (parts.organ) {
+        ch.midis.forEach((n, i) => organVoice(L, R, sr, at(bar, 0), midiToFreq(n + (i === 0 ? -12 : 0)), beatsPerBar * beatSec * 0.92, 0.14 * level, (i - 1) * 0.16));
+      }
       if (parts.chords) {
         const top = ch.midis.slice(1).concat(ch.midis[0] + 12);
         const mode2 = style.patterns.chord;

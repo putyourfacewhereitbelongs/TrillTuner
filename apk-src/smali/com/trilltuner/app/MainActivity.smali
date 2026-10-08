@@ -69,23 +69,32 @@
     # setContentView(wv);
     invoke-virtual {p0, v0}, Landroid/app/Activity;->setContentView(Landroid/view/View;)V
 
-    # The WebView may capture audio (the tuner, the listener, the stem lab's
-    # room take) only once Android itself has granted RECORD_AUDIO at runtime —
-    # the manifest entry alone is not enough on API 23+.
-    const-string v0, "android.permission.RECORD_AUDIO"
-    invoke-virtual {p0, v0}, Landroid/content/Context;->checkSelfPermission(Ljava/lang/String;)I
-    move-result v1
-    if-eqz v1, :cond_mic_ok
-
-    const/4 v1, 0x1
+    # Runtime grants. The manifest lists them; Android 6+ still has to ask.
+    # RECORD_AUDIO is the tuner. POST_NOTIFICATIONS is Android 13+.
+    # READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE is the song-file picker.
+    # BLUETOOTH_CONNECT is headphones on Android 12+. Already-granted entries
+    # are ignored, so it is safe to ask for the whole set every launch.
+    const/4 v1, 0x5
     new-array v1, v1, [Ljava/lang/String;
     const/4 v2, 0x0
-    aput-object v0, v1, v2
+    const-string v3, "android.permission.RECORD_AUDIO"
+    aput-object v3, v1, v2
+    const/4 v2, 0x1
+    const-string v3, "android.permission.POST_NOTIFICATIONS"
+    aput-object v3, v1, v2
+    const/4 v2, 0x2
+    const-string v3, "android.permission.READ_MEDIA_AUDIO"
+    aput-object v3, v1, v2
+    const/4 v2, 0x3
+    const-string v3, "android.permission.READ_EXTERNAL_STORAGE"
+    aput-object v3, v1, v2
+    const/4 v2, 0x4
+    const-string v3, "android.permission.BLUETOOTH_CONNECT"
+    aput-object v3, v1, v2
 
     const/16 v2, 0x67
     invoke-virtual {p0, v1, v2}, Landroid/app/Activity;->requestPermissions([Ljava/lang/String;I)V
 
-    :cond_mic_ok
     return-void
 .end method
 

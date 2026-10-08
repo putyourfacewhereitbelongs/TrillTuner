@@ -417,6 +417,8 @@ const TOUR = [
     ok(hostSees, 'host mirrors the joiner: note + cents + status live');
     const hostStatus = await host.evaluate(() => document.getElementById('remote-status').textContent);
     ok(/connected/i.test(hostStatus), 'host UI reports the connected device', hostStatus);
+    const joinerStatus = await joiner.evaluate(() => (document.getElementById('remote-join-h') || {}).textContent || '');
+    ok(/connected/i.test(joinerStatus), 'joiner UI says it is connected to the host', joinerStatus);
 
     /* joiner sees the host's live state */
     const joinerSees = await waitFor(joiner, () => {
@@ -522,13 +524,26 @@ const TOUR = [
       if (w.sw > w.iw + 1) overflow.push(tag + ' (' + w.sw + '>' + w.iw + ')');
     };
     for (const v of allViews) {
-      await page.click(`[data-view="${v}"]`);
-      await new Promise(r => setTimeout(r, 450));
+      await page.evaluate(id => TT.app.showView(id), v);
+      await new Promise(r => setTimeout(r, 350));
       await checkOverflow(v);
     }
+    const menu = await page.evaluate(() => {
+      const btn = document.getElementById('btn-menu');
+      return { shown: !!(btn && getComputedStyle(btn).display !== 'none') };
+    });
+    ok(menu.shown, 'mobile: a Menu button sits in the top bar so you are not stuck on Tune');
+    await page.click('#btn-menu');
+    await new Promise(r => setTimeout(r, 280));
+    const opened = await page.evaluate(() => document.getElementById('nav').classList.contains('open'));
+    ok(opened, 'mobile: Menu opens the navigation drawer');
+    await page.click('.sidenav .nav-btn[data-view="stems"]');
+    const jumped = await page.evaluate(() => document.getElementById('view-stems').classList.contains('active')
+      && !document.getElementById('nav').classList.contains('open'));
+    ok(jumped, 'mobile: picking Stems from the menu leaves Tune and closes the drawer');
     /* the tabbed views must also fit on every tab, not just the default one */
     for (const v of ['learn', 'tools', 'songs']) {
-      await page.click(`[data-view="${v}"]`);
+      await page.evaluate(id => TT.app.showView(id), v);
       await new Promise(r => setTimeout(r, 300));
       const tabs = await page.evaluate(sel => {
         const view = document.querySelector(sel);
@@ -546,7 +561,7 @@ const TOUR = [
     }
     ok(overflow.length === 0, 'mobile: no horizontal overflow on all 16 views + every tab', overflow.join(', ') || 'all fit');
     /* back to the progress view for the card/QR layout checks */
-    await page.click('[data-view="progress"]');
+    await page.evaluate(() => TT.app.showView('progress'));
     await new Promise(r => setTimeout(r, 700));
     const layout = await page.evaluate(() => {
       const card = document.querySelector('.remote-card');

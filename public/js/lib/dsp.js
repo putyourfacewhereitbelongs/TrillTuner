@@ -261,6 +261,7 @@
       sample.sort((x, y) => x - y);
       const floorMag = sample[Math.floor(sample.length * 0.25)] || 1e-9;
       const g = new Float32Array(bins);
+      const targetingVoice = mode === 'vocals' || mode === 'classic-karaoke' || mode === 'classic-keep-bass';
       for (let b = 0; b < bins; b++) {
         const lo = Math.max(0, b - HALO), hi = Math.min(bins - 1, b + HALO);
         let fn = 0;
@@ -341,6 +342,19 @@
         score *= smoothstep(Math.max(raw[b], Hs[b]) / (floorMag * 2.5 + 1e-12), 0.5, 1.5);
         if (remove) {
           g[b] = clamp01(1 - amount * score);
+          /* Removing a *non-vocal* instrument must not fade the singer. Shared
+           * mid-band bins (guitar vs voice, piano vs voice) would otherwise
+           * duck the vocal every time the other part plays. A centred, tonal
+           * bin is kept open; the thing being removed still goes, because it
+           * is wide or percussive and fails this test. */
+          if (!targetingVoice && an.R) {
+            const lr = an.L.re[b] * an.R.re[b] + an.L.im[b] * an.R.im[b];
+            const ll = an.L.re[b] * an.L.re[b] + an.L.im[b] * an.L.im[b];
+            const rr = an.R.re[b] * an.R.re[b] + an.R.im[b] * an.R.im[b];
+            const c = (2 * lr / (ll + rr + EPS) + 1) / 2;
+            const voice = tonalAny * smoothstep(c, 0.52, 0.90);
+            if (voice > 0.35) g[b] = Math.max(g[b], voice);
+          }
         } else if (prof.pluck) {
           g[b] = clamp01(score + (1 - amount) * 0.12);
         } else {

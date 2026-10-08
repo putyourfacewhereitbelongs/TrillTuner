@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 'use strict';
-/* Trill Guitar — tiny zero-dependency server: static files + lyrics search proxy */
+/* Trill Tuner — tiny zero-dependency server: static files + lyrics search proxy */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = 'localhost';
+const HOST = process.env.HOST || '0.0.0.0';   /* 0.0.0.0 so sandbox/preview proxies can reach it */
 const PUBLIC = path.join(__dirname, 'public');
 
 const MIME = {
@@ -32,7 +32,7 @@ async function fetchJSON(url, timeoutMs, headers) {
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: Object.assign({ 'User-Agent': 'TrillGuitar/1.0 (guitar tuner web app)' }, headers || {})
+      headers: Object.assign({ 'User-Agent': 'TrillTuner/1.0 (guitar tuner web app)' }, headers || {})
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.json();
@@ -93,7 +93,7 @@ async function searchLyrics(artist, title) {
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
 
-  if (u.pathname === '/api/health') { send(res, 200, { ok: true, app: 'My Guitar' }); return; }
+  if (u.pathname === '/api/health') { send(res, 200, { ok: true, app: 'Trill Tuner' }); return; }
 
   if (u.pathname === '/api/lyrics') {
     const artist = (u.searchParams.get('artist') || '').trim();
@@ -124,5 +124,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`🎸 Trill Guitar is running → http://${HOST}:${PORT}`);
+  const shown = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  console.log(`🎸 Trill Tuner is running → http://${shown}:${PORT}`);
 });

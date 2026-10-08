@@ -1,6 +1,15 @@
-# My Guitar 🎸
+# Trill Tuner 🎸
 
-A complete guitar companion web app — **tuner, metronome, recorder, lyric search, learning tools and guitar-care toolkit** — with pitch detection written from scratch (no audio libraries).
+A complete guitar companion web app — **tuner, metronome, recorder, lyric search, a deep learning
+academy, an advanced guitar toolkit, a virtual amplifier + pedalboard, progress sharing and a
+guitar-care kit** — with pitch detection written from scratch (no audio libraries).
+
+Built as **Trill Tuner** (the app was renamed from its earlier working title; any settings, lessons,
+practice time or presets saved under the old name are migrated automatically, so nothing is lost).
+
+**At a glance** — 52 amps · 122 amp tones · 125 pedals · 22 genre recipes · 26 famous rigs · 90 tunings ·
+26 scales · 31 chord types · 15 lessons · 12 practice riffs · 9 drills · 24 badges — all local, no
+accounts, no uploads.
 
 ## Run it
 
@@ -10,6 +19,8 @@ node server.js        # → http://localhost:3000  (zero npm dependencies)
 
 `npm test` runs the pitch-detection unit tests. `npm run test:e2e` runs the full
 browser end-to-end suite (requires `npm i puppeteer` and a running server).
+`node test/dom-smoke.js` runs the dependency-light DOM smoke suite (jsdom) that boots the whole app,
+walks every view/pane/control and checks the libraries, rig, practice, sharing and persistence.
 
 ## The tuner
 
@@ -69,6 +80,97 @@ browser end-to-end suite (requires `npm i puppeteer` and a running server).
 - **Auto assistant log** — narrates every decision it makes.
 - Settings, lesson progress, practice streaks and lyric favorites persist locally.
 
+## Amplifier & pedalboard (the "rig" view)
+
+Everything a real rig does, modelled in software — **no cables or hardware needed**; it runs on the
+Web Audio engine that is already in the page.
+
+- **52 classic and modern amps** across 29 brands — Fender Twin/Deluxe/Pro Junior, Vox AC30/AC10,
+  Marshall Plexi/JCM800/Silver Jubilee/Bluesbreaker, Mesa Mark V & Dual Rectifier, Peavey 6505,
+  EVH, Diezel VH4, Roland JC-120, Boss Katana, Fender Tone Master, Yamaha THR10II, Positive Grid
+  Spark, Kemper, PRS Archon, Blackstar HT, Morgan AC20, Two-Rock Burnside, Dumble-style, Supro
+  Thunderbolt, Ampeg B-15, Fender Rumble 500, Laney Lionheart, Cornford Harlequin and more — each
+  with its **real control layout** (knob names, taper ranges, switch positions), speaker/cab,
+  wattage, era, genre notes and **122 voiced tones** taken from how players actually set them.
+- **Turn the knobs** — the amp face is interactive; every knob is drag-to-adjust, and the values are
+  the published/typical settings for that circuit, not random numbers.
+- **125 pedals in 19 categories** — overdrive, distortion, fuzz, boost, EQ, compressor, wah, filter,
+  chorus, flanger, phaser, vibe, tremolo, delay, reverb, pitch, amp-in-a-box, looper and utility.
+  Every pedal carries its real control set, a description, **iconic song settings** and usage tips
+  (TS808 — drive 9 / tone 6 / level 7 for that mid-hump solo boost; Big Muff — sustain 3 o'clock for
+  Gilmour; V847 Wah — sweep the sweet spot; Boss HM-2 — every knob to the right for the Swedish
+  chainsaw; Op-Amp Muff — the Siamese Dream wall). The deep cuts are covered too: DOD 250, Guv’nor,
+  FZ-2 Hyper Fuzz, Green Russian and Op-Amp Big Muff, Fuzzrite, WH10, Colorsound and Jimi Hendrix
+  wah, AW-3, DOD 440 Envelope Filter, Micro Synth, CE-1, BF-2, DC-2, VB-2, Deja’Vibe, TR-2, Lex
+  Rotary, Mobius, DM-2, Timeline, Flint, Hall of Fame, RV-6, The Drop, POG2, OC-3, King of Tone,
+  Tumnus, AC Booster, SHO, Keeley Compressor Plus, Empress Compressor MkII, M108 10-band EQ, Heil
+  Talk Box and more.
+- **Signal-chain view** — guitar → dirt/comp → EQ → modulation → time → utility → amp, colour-coded
+  with the live chain and active-pedal count.
+- **22 genre recipes** — doom, Swedish death metal (chainsaw), groove metal, dream pop, rockabilly,
+  garage/psych, funk rock and the classic rock/blues/metal/country/jazz/surf/stoner/shoegaze/indie
+  recipes, each with the amp, the cab, the pedal order and the settings it is actually built from.
+  One click loads the whole rig.
+- **26 famous rigs, one click** — Hendrix (Plexi + Fuzz Face + V847 + Uni-Vibe), SRV, Gilmour
+  (Hiwatt DR103 + Big Muff + Electric Mistress + Phase 95), The Edge, Slash, Hetfield, EVH, Cobain,
+  Brian May, Jack White, Frusciante (WH10 + DS-2 + CE-1 + Memory Man), Knopfler, Petty, Santana,
+  McCready, Hammett, Trower, Electric Wizard, Entombed, Dimebag Darrell, The Smashing Pumpkins,
+  The Black Keys, Brian Setzer and Angus Young (guitar → cable → Plexi, nothing else).
+- **Audition it** — test riffs and strums are *played through the actual chain* (Karplus–Strong
+  strings → pedal DSP → amp voicing → cab filter → master), so changing a knob changes what you hear.
+- **Wiring guides** — per-rig guidance on the amp's front panel, pedal order, power/grounding,
+  4-cable-method and in-amp effects-loop advice.
+- **Play through it** — turn the monitor on and your microphone is routed through the rig into the
+  amp model (headphones strongly recommended) — that is the "wires" part: an interface or a mic.
+- Your rig auto-saves: amp, every pedal, its knobs, on/off states and master level survive a reload.
+
+## Tools for advanced players
+
+- **Scale explorer** — 26 scales/modes with notes, degrees and colour-coded fretboard (root, 3rd, 5th).
+- **Circle of fifths** — click any of the 12 keys for its signature, relative minor, diatonic chords
+  and a one-click scale launch.
+- **Chord builder** — 31 chord types, automatic voicings across string sets, six playable diagrams.
+- **Fretboard trainer** — find-the-note and name-the-note games with live scoring.
+- **String tension calculator** — real D'Addario-style math, per-string and per-set totals, plus a
+  safe-set warning; matches published charts within a pound.
+- **Setup specs** — relief, action and pickup height for six guitar types, with fret maths (spacing,
+  scale length, fret positions).
+- **Capo & transpose** — capo position, transposition, and the shapes you need to play a song in any key.
+- **Pickups & mods** — 10 wiring/mod cards (coil split, treble bleed, 50s wiring, series/parallel…)
+  with what it does and why.
+
+## Practice studio
+
+- **9 drills** (alternate picking, spider walk, legato, string skipping, sweep, bend accuracy,
+  vibrato, chord changes, ear focus) with goals, difficulty and how-to text.
+- **Routines** — timed 15/30/45-minute sessions built from the drills, step by step.
+- **12 riff trainer** entries with on-screen tab that highlights the note you're on, tempo control
+  and a metronome you can launch straight into.
+- **Rhythm trainer** — tap along to phases, graded in milliseconds (under ~30 ms is tight).
+- **Interval trainer** — 13 intervals with mnemonics, played through the same Karplus–Strong engine.
+
+## Progress, sharing & persistence
+
+- **Progress dashboard** — 12 stats (practice minutes, streak, tunings used, amps loaded, pedals
+  added, lessons done…), 24 unlockable badges and a snapshot history.
+- **Share your progress** — generates a share card image, a compact share link/code you can copy
+  (no server, no account — it is encoded in the link itself) and an import box for a code someone
+  sent you, safe-merged into your own data.
+- **Backup & restore** — export/import the whole save as JSON, plus a text snapshot/restore with
+  rollback, and a storage panel that shows what is stored and whether it is persisted
+  (`navigator.storage.persist()` is requested so the browser is less likely to evict it).
+- **Everything persists**: settings, tuner state, lessons, practice minutes, streaks, badges,
+  recordings metadata, lyrics favorites, rig presets, tool prefs and progress snapshots — all in
+  `localStorage` under the `tt.` prefix, written straight away (no save button). Data saved by the
+  app's earlier version is imported on first load.
+
+## Splash screen
+
+Every launch shows a branded splash — logo, version, live library counters ("90 tunings · 125
+pedals · 52 amps"), a boot log that reports what actually loaded and what was skipped (mic, storage,
+polyphony), a progress bar, and then it lets you in. Press **Enter** (or *Enter without waiting*)
+at any time to skip straight to the app.
+
 ## Metronome · Recorder · Lyrics · Learn · Care
 
 - **Metronome** — 30–280 BPM, tap tempo, 2/4–9/8 (compound accents), subdivisions,
@@ -81,8 +183,9 @@ browser end-to-end suite (requires `npm i puppeteer` and a running server).
   one-bar count-in, take management with playback and download.
 - **Lyrics** — artist + title search (server proxies lrclib.net → lyrics.ovh), with
   favorites and recent history.
-- **Learn** — 15 lessons from first chord to modes & improvisation, a 23-chord
-  library with playable diagrams, and an ear-training game with easy→hard modes.
+- **Learn** — 15 lessons from first chord to modes & improvisation across 9 tabs (beginner →
+  intermediate → advanced, chords, scales, technique, theory, songs, ear training, practice),
+  a 23-chord library with playable diagrams, and an ear-training game with easy→hard modes.
 - **Care** —
   - **String health**: log string changes; a wear meter blends play-time and age,
     warns when strings are dull and at breakage risk.

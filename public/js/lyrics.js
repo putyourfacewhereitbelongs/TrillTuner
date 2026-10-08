@@ -1,4 +1,4 @@
-/* My Guitar — Lyrics search (via our server proxy → lrclib.net / lyrics.ovh),
+/* Trill Tuner — Lyrics search (via our server proxy → lrclib.net / lyrics.ovh),
  * with favorites + recent history saved locally. */
 (function () {
   'use strict';
@@ -51,7 +51,7 @@
     updateFavBtn();
   }
 
-  function favs() { return MG.store.get('lyricsFavs', []); }
+  function favs() { return TT.store.get('lyricsFavs', []); }
   function isFav() {
     return !!current && favs().some(f => f.title === current.title && f.artist === current.artist);
   }
@@ -67,15 +67,15 @@
       f.unshift({ artist: current.artist, title: current.title, lyrics: current.lyrics, source: current.source, at: Date.now() });
       f = f.slice(0, 30);
     }
-    MG.store.set('lyricsFavs', f);
+    TT.store.set('lyricsFavs', f);
     renderFavs();
     updateFavBtn();
   }
 
   function addHistory(artist, title) {
-    let h = MG.store.get('lyricsHistory', []).filter(x => !(x.artist === artist && x.title === title));
+    let h = TT.store.get('lyricsHistory', []).filter(x => !(x.artist === artist && x.title === title));
     h.unshift({ artist: artist, title: title, at: Date.now() });
-    MG.store.set('lyricsHistory', h.slice(0, 10));
+    TT.store.set('lyricsHistory', h.slice(0, 10));
     renderHistory();
   }
 
@@ -99,7 +99,7 @@
   function renderHistory() {
     const wrap = els.history;
     wrap.innerHTML = '';
-    const h = MG.store.get('lyricsHistory', []);
+    const h = TT.store.get('lyricsHistory', []);
     if (!h.length) { wrap.innerHTML = '<span class="dim">No searches yet.</span>'; return; }
     h.forEach(x => wrap.appendChild(chip(x.title + ' — ' + x.artist, () => {
       els.artist.value = x.artist;
@@ -154,6 +154,6 @@
     renderHistory();
   };
 
-  window.MG = window.MG || {};
-  window.MG.lyrics = L;
+  window.TT = window.TT || {};
+  window.TT.lyrics = L;
 })();

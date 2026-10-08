@@ -1,16 +1,16 @@
-/* My Guitar — Care tools: string age & breakage tracker, step-by-step
+/* Trill Tuner — Care tools: string age & breakage tracker, step-by-step
  * intonation helper (open vs 12th fret), room environment watch. */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
   const C = {};
   let els = {};
 
   /* ===================== string health ===================== */
-  function strData() { return MG.store.get('strings', {}); }
+  function strData() { return TT.store.get('strings', {}); }
 
   function playMinutesSince(ts) {
-    const days = MG.store.get('practice', {});
+    const days = TT.store.get('practice', {});
     let mins = 0;
     Object.keys(days).forEach(k => {
       const d = new Date(k + 'T12:00:00');
@@ -59,8 +59,8 @@
       const today = new Date().toDateString();
       if (d.notifiedOn !== today) {
         d.notifiedOn = today;
-        MG.store.set('strings', d);
-        MG.app.assist('Your strings are past their prime — swap them before they start fighting you (and snapping).', { toast: true });
+        TT.store.set('strings', d);
+        TT.app.assist('Your strings are past their prime — swap them before they start fighting you (and snapping).', { toast: true });
       }
     }
   }
@@ -72,7 +72,7 @@
   function targets() {
     // adjusted targets (capo/sweetener aware) — but intonation compares open
     // vs octave on the SAME string, so offsets cancel out anyway.
-    return MG.tuner.state.presetId ? MG.tunings.byId(MG.tuner.state.presetId).strings : [];
+    return TT.tuner.state.presetId ? TT.tunings.byId(TT.tuner.state.presetId).strings : [];
   }
 
   function renderInt() {
@@ -119,11 +119,11 @@
    * auto-fill open / 12th-fret slots for whichever string is stable. */
   async function listenLoop() {
     const stable = [];
-    while (intListening && MG.audio.micState === 'on') {
+    while (intListening && TT.audio.micState === 'on') {
       try {
-        const buf = await MG.audio.captureBuffer(0.35);
+        const buf = await TT.audio.captureBuffer(0.35);
         const work = buf.subarray(buf.length - 4096);
-        const det = MG.yin.yin(work, MG.audio.ctx.sampleRate, 0.12);
+        const det = TT.yin.yin(work, TT.audio.ctx.sampleRate, 0.12);
         if (det && det.freq > 40) {
           stable.push(det.freq);
           if (stable.length > 6) stable.shift();
@@ -145,7 +145,7 @@
 
   function fillSlot(f) {
     const strs = targets();
-    const a4 = MG.tuner.state.a4;
+    const a4 = TT.tuner.state.a4;
     let best = null;
     strs.forEach((s, i) => {
       const openF = N.midiToFreq(s.midi, a4);
@@ -171,7 +171,7 @@
     }
     row[best.slot] = best.c;
     const p = N.prettyName(strs[best.i].name);
-    MG.app.assist(`Intonation: captured ${best.slot === 'openC' ? 'open' : '12th-fret'} ${p.label} at ${best.c > 0 ? '+' : ''}${best.c.toFixed(0)}¢.`);
+    TT.app.assist(`Intonation: captured ${best.slot === 'openC' ? 'open' : '12th-fret'} ${p.label} at ${best.c > 0 ? '+' : ''}${best.c.toFixed(0)}¢.`);
     return true;
   }
 
@@ -182,14 +182,14 @@
       els.btnInt.classList.remove('stop');
       return;
     }
-    if (MG.audio.micState !== 'on') {
-      MG.app.assist('The intonation helper needs the mic — start it from the tuner view first.', { toast: true });
+    if (TT.audio.micState !== 'on') {
+      TT.app.assist('The intonation helper needs the mic — start it from the tuner view first.', { toast: true });
       return;
     }
     intListening = true;
     els.btnInt.textContent = '⏸ Listening…';
     els.btnInt.classList.add('stop');
-    MG.app.assist('Intonation auto-listen on. Play each string open, then at the 12th fret — I\'ll fill the table as I hear them.');
+    TT.app.assist('Intonation auto-listen on. Play each string open, then at the 12th fret — I\'ll fill the table as I hear them.');
     listenLoop().then(() => {
       intListening = false;
       els.btnInt.textContent = '▶ Auto-listen';
@@ -198,7 +198,7 @@
   }
 
   /* ===================== environment watch ===================== */
-  function envData() { return MG.store.get('env', {}); }
+  function envData() { return TT.store.get('env', {}); }
 
   function renderEnv() {
     if (!els.envBadge) return;
@@ -261,7 +261,7 @@
     els.strBrand.addEventListener('change', () => {
       const dd = strData();
       dd.brand = els.strBrand.value.trim();
-      MG.store.set('strings', dd);
+      TT.store.set('strings', dd);
       renderStrings();
     });
     els.strChangedBtn.addEventListener('click', () => {
@@ -269,16 +269,16 @@
       dd.changedAt = Date.now();
       dd.brand = els.strBrand.value.trim();
       delete dd.notifiedOn;
-      MG.store.set('strings', dd);
+      TT.store.set('strings', dd);
       renderStrings();
-      MG.app.assist('String change logged — the wear meter starts fresh. 🎸', { toast: true });
+      TT.app.assist('String change logged — the wear meter starts fresh. 🎸', { toast: true });
     });
 
     els.btnInt.addEventListener('click', toggleListen);
     els.btnIntReset.addEventListener('click', () => {
       intRows = [];
       renderInt();
-      MG.app.assist('Intonation table cleared.');
+      TT.app.assist('Intonation table cleared.');
     });
 
     const env = envData();
@@ -287,13 +287,13 @@
     els.envTemp.addEventListener('input', () => {
       const dd = envData();
       dd.temp = els.envTemp.value === '' ? null : +els.envTemp.value;
-      MG.store.set('env', dd);
+      TT.store.set('env', dd);
       renderEnv();
     });
     els.envHum.addEventListener('input', () => {
       const dd = envData();
       dd.hum = els.envHum.value === '' ? null : +els.envHum.value;
-      MG.store.set('env', dd);
+      TT.store.set('env', dd);
       renderEnv();
     });
 
@@ -302,6 +302,6 @@
     renderEnv();
   };
 
-  window.MG = window.MG || {};
-  window.MG.care = C;
+  window.TT = window.TT || {};
+  window.TT.care = C;
 })();

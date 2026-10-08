@@ -1,4 +1,4 @@
-/* My Guitar — Recorder: MediaRecorder on a bus that carries your mic plus the
+/* Trill Tuner — Recorder: MediaRecorder on a bus that carries your mic plus the
  * metronome click. Optional 1-bar count-in, take management, playback, download. */
 (function () {
   'use strict';
@@ -33,20 +33,20 @@
     return new Promise(resolve => {
       pendingCountIn = true;
       countInResolve = resolve;
-      const ctx = MG.audio.ctx;
+      const ctx = TT.audio.ctx;
       let armed = false;
       let rem = 0;
 
-      const rem1 = MG.metronome.onBeat((t, idx) => {
+      const rem1 = TT.metronome.onBeat((t, idx) => {
         if (!pendingCountIn) return;
         if (idx === 0 && !armed) {
           armed = true;
-          const bpb = MG.metronome.state.bpb;
+          const bpb = TT.metronome.state.bpb;
           rem = bpb;
           status(`Count-in: ${rem}`, 'countin');
-          const startInMs = Math.max(0, (t + bpb * (60 / MG.metronome.state.bpm) - ctx.currentTime) * 1000);
+          const startInMs = Math.max(0, (t + bpb * (60 / TT.metronome.state.bpm) - ctx.currentTime) * 1000);
           countInTimer = setTimeout(() => done(true), startInMs);
-          const rem2 = MG.metronome.onBeat(() => {
+          const rem2 = TT.metronome.onBeat(() => {
             if (!pendingCountIn) { rem2(); return; }
             rem--;
             if (rem > 0) status(`Count-in: ${rem}`, 'countin');
@@ -59,7 +59,7 @@
 
       // watchdog: metronome stopped or tab closed while counting in
       countInWatch = setInterval(() => {
-        if (pendingCountIn && !MG.metronome.isPlaying()) done(false);
+        if (pendingCountIn && !TT.metronome.isPlaying()) done(false);
       }, 400);
 
       function done(ok) {
@@ -81,13 +81,13 @@
 
   /* ---------- record ---------- */
   async function beginRecord() {
-    MG.audio.ensure();
+    TT.audio.ensure();
     try {
-      await MG.audio.startMic(); // auto-enable mic for the take (user gesture present)
+      await TT.audio.startMic(); // auto-enable mic for the take (user gesture present)
     } catch (e) {
       status('Recording metronome only (mic unavailable)', 'warn');
     }
-    const stream = MG.audio.recorderDestLazy().stream;
+    const stream = TT.audio.recorderDestLazy().stream;
     const type = pickType();
     const opts = type ? { mimeType: type } : undefined;
     try {
@@ -110,8 +110,8 @@
   function meter() {
     if (!rec || rec.state !== 'recording') return;
     meterRaf = requestAnimationFrame(meter);
-    MG.audio.sample();
-    const pct = Math.max(0, Math.min(100, ((MG.audio.rmsDb + 70) / 60) * 100));
+    TT.audio.sample();
+    const pct = Math.max(0, Math.min(100, ((TT.audio.rmsDb + 70) / 60) * 100));
     els.recLevel.style.width = pct.toFixed(0) + '%';
   }
 
@@ -133,22 +133,22 @@
     R.takes.unshift(take);
     renderTakes();
     status(`Saved ${fmt(dur)} — nice!`, 'ok');
-    MG.app.assist(`Take ${takeSeq - 1} recorded (${fmt(dur)}).`);
-    if (MG.practice && dur >= 5) MG.practice.addSeconds(dur);
+    TT.app.assist(`Take ${takeSeq - 1} recorded (${fmt(dur)}).`);
+    if (TT.practice && dur >= 5) TT.practice.addSeconds(dur);
   }
 
   R.toggle = async function () {
     if (rec && rec.state === 'recording') { R.stop(); return; }
     if (pendingCountIn) { cancelCountIn(); return; }
-    MG.audio.ensure();
-    if (els.optMetro.checked && !MG.metronome.isPlaying()) {
-      MG.metronome.start();
+    TT.audio.ensure();
+    if (els.optMetro.checked && !TT.metronome.isPlaying()) {
+      TT.metronome.start();
       autoStartedMetro = true;
-      MG.app.assist('Metronome started automatically so your take stays in time.');
+      TT.app.assist('Metronome started automatically so your take stays in time.');
     }
     if (els.optCountIn.checked) {
-      if (!MG.metronome.isPlaying()) {
-        MG.metronome.start();
+      if (!TT.metronome.isPlaying()) {
+        TT.metronome.start();
         autoStartedMetro = true;
       }
       status('Waiting for the next bar…', 'countin');
@@ -163,9 +163,9 @@
     if (pendingCountIn) { cancelCountIn(); return; }
     if (rec && rec.state === 'recording') rec.stop();
     if (autoStartedMetro) {
-      MG.metronome.stop();
+      TT.metronome.stop();
       autoStartedMetro = false;
-      MG.app.assist('Metronome stopped — it was only on for your take.');
+      TT.app.assist('Metronome stopped — it was only on for your take.');
     }
     els.recTimer.textContent = '00:00';
     els.recLevel.style.width = '0%';
@@ -196,7 +196,7 @@
       li.querySelector('.take-dl').addEventListener('click', () => {
         const a = document.createElement('a');
         a.href = t.url;
-        a.download = 'my-guitar-' + t.name.toLowerCase().replace(/\s+/g, '-') +
+        a.download = 'trill-tuner-' + t.name.toLowerCase().replace(/\s+/g, '-') +
           (String(t.blob.type).includes('mp4') ? '.m4a' : '.webm');
         document.body.appendChild(a); a.click(); a.remove();
       });
@@ -243,6 +243,6 @@
     els.btnRecord.addEventListener('click', () => R.toggle());
   };
 
-  window.MG = window.MG || {};
-  window.MG.recorder = R;
+  window.TT = window.TT || {};
+  window.TT.recorder = R;
 })();

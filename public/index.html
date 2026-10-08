@@ -4,11 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>Trill Guitar — Tuner, Metronome, Recorder, Lyrics & Lessons</title>
+<title>Trill Tuner — Guitar Tuner, Amp & Pedals, Practice Studio</title>
+<meta name="description" content="Trill Tuner — a from-scratch guitar tuner, 78 tunings, amplifier and pedal reference with real settings, practice tools, share your progress. Works offline, no account.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B8%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-acoustic">
+<div class="splash" id="splash" hidden>
+  <div class="splash-inner">
+    <svg class="splash-logo" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="slg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f6b04b"/><stop offset="1" stop-color="#d97706"/>
+      </linearGradient></defs>
+      <path class="splash-pick" fill="url(#slg)" d="M50 6C36 6 26 12 26 22c0 12 5 26 12 38 5 8 9 16 12 34 3-18 7-26 12-34 7-12 12-26 12-38C74 12 64 6 50 6z"/>
+      <circle cx="50" cy="24" r="9" fill="#1a1408" opacity=".85"/>
+      <path class="splash-wave" d="M6 78 q6 -12 12 0 t12 0 t12 0 t12 0 t12 0 t12 0" fill="none" stroke="#f0a43a" stroke-width="3"/>
+    </svg>
+    <h1 class="splash-title">Trill<span>Tuner</span></h1>
+    <p class="splash-tag">tune · play · learn · plug in</p>
+    <div class="splash-facts">
+      <span><b id="splash-tunings">0</b> tunings</span>
+      <span><b id="splash-pedals">0</b> pedals &amp; wahs</span>
+      <span><b id="splash-amps">0</b> amps</span>
+    </div>
+    <div class="splash-barwrap"><i id="splash-bar"></i></div>
+    <div class="splash-pct" id="splash-pct">0%</div>
+    <div class="splash-log" id="splash-log"></div>
+    <button class="btn btn-primary splash-enter" id="splash-enter" disabled>Enter the studio 🎸</button>
+    <label class="check splash-forever"><input type="checkbox" id="splash-forever"><span>Skip this next time</span></label>
+    <div class="splash-foot">Everything runs on your device — audio, settings and progress never leave your browser. <span id="splash-version">v2.0.0</span></div>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="topbar">
@@ -21,7 +48,7 @@
         <circle cx="50" cy="22" r="9" fill="#1a1408" opacity=".85"/>
       </svg>
       <div>
-        <h1>Trill Guitar</h1>
+        <h1>Trill Tuner</h1>
         <span class="tagline">tune · play · record · learn</span>
       </div>
     </div>
@@ -58,12 +85,24 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 12v4.5c0 1.7 2.4 3 5 3s5-1.3 5-3V12"/></svg>
       <span>Learn</span>
     </button>
+    <button class="nav-btn" data-view="tools">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.8 2.8 0 0 1-4-4z"/><circle cx="18" cy="6" r="3"/></svg>
+      <span>Tools</span>
+    </button>
+    <button class="nav-btn" data-view="rig">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 20h10"/><circle cx="8" cy="11" r="2"/><circle cx="15" cy="9" r="1.4"/><circle cx="15" cy="14" r="1.4"/></svg>
+      <span>Rig</span>
+    </button>
+    <button class="nav-btn" data-view="progress">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20v-6"/><path d="M11 20V8"/><path d="M16 20v-9"/><path d="M21 20V5"/></svg>
+      <span>Progress</span>
+    </button>
     <button class="nav-btn" data-view="care">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
       <span>Care</span>
     </button>
     <div class="nav-foot">
-      <div>Trill Guitar</div>
+      <div>Trill Tuner</div>
       <div class="dim">Pitch detection runs<br>100% on your device</div>
     </div>
   </nav>
@@ -130,6 +169,7 @@
         <div class="card settings-card">
           <div class="card-h">Tuning setup</div>
           <label class="field"><span>Tuning preset</span>
+            <input type="search" id="tuning-find" class="search-input" placeholder="Find a tuning — 90 sets: drop, DADGAD, open, bass, banjo, artist…" autocomplete="off">
             <select id="select-tuning"></select>
           </label>
           <div class="field"><span>Reference pitch A4 = <b id="a4-val">440</b> Hz</span>
@@ -336,6 +376,10 @@
             <button class="tab" data-tab="advanced">Advanced</button>
             <button class="tab" data-tab="chords">Chord library</button>
             <button class="tab" data-tab="ear">Ear training</button>
+            <button class="tab" data-tab="drills">Drills</button>
+            <button class="tab" data-tab="tab">Riff player</button>
+            <button class="tab" data-tab="rhythm">Rhythm trainer</button>
+            <button class="tab" data-tab="interval">Intervals</button>
           </div>
 
           <div id="tab-beginner" class="tabpane active"><div class="lesson-list"></div></div>
@@ -365,6 +409,71 @@
             </div>
             <div class="ear-answers" id="ear-answers"></div>
             <div class="ear-feedback" id="ear-feedback"></div>
+          </div>
+
+
+          <div id="tab-drills" class="tabpane">
+            <div class="card-h small">Technique drills — click a drill to start the metronome and the timer</div>
+            <div class="drill-list" id="drill-list"></div>
+            <div class="card-h small">Session builder — pick how long you have</div>
+            <div class="row-btns" id="routine-pick">
+              <button class="btn tiny btn-primary" data-mins="15">15 minutes</button>
+              <button class="btn tiny" data-mins="30">30 minutes</button>
+              <button class="btn tiny" data-mins="45">45 minutes</button>
+            </div>
+            <div id="routine-out"></div>
+            <div class="practice-timer" id="practice-timer">No timer running — pick a drill or a session.</div>
+          </div>
+
+          <div id="tab-tab" class="tabpane">
+            <div class="ear-setup">
+              <label class="field"><span>Riff / exercise</span>
+                <select id="riff-select"></select>
+              </label>
+              <label class="field"><span>Tempo: <b id="riff-bpm-out">80</b> BPM</span>
+                <input type="range" id="riff-bpm" min="40" max="240" step="1" value="80">
+              </label>
+              <label class="field"><span>Speed: <b id="riff-speed-out">100%</b></span>
+                <input type="range" id="riff-speed" min="40" max="150" step="5" value="100">
+              </label>
+              <label class="check"><input type="checkbox" id="riff-loop" checked><span>Loop</span></label>
+            </div>
+            <div class="ear-play">
+              <button class="btn btn-primary" id="riff-play">▶ Play</button>
+              <button class="btn btn-ghost" id="riff-metronome">⏱ Metronome at this tempo</button>
+            </div>
+            <div class="riff-meta" id="riff-meta"></div>
+            <div class="dim tiny-hint">Tuning needed: <b id="riff-tuning">Standard</b> — the tuner above can switch presets for you.</div>
+            <div class="riff-tab" id="riff-tab"></div>
+          </div>
+
+          <div id="tab-rhythm" class="tabpane">
+            <div class="ear-setup">
+              <label class="field"><span>Pattern</span>
+                <select id="rhythm-pattern"></select>
+              </label>
+              <label class="field"><span>Tempo: <b id="rhythm-bpm-out">90</b> BPM</span>
+                <input type="range" id="rhythm-bpm" min="40" max="200" step="1" value="90">
+              </label>
+            </div>
+            <div class="ear-play">
+              <button class="btn btn-primary" id="rhythm-start">▶ Start</button>
+              <button class="btn btn-ghost" id="rhythm-tap">👋 Tap (or press T)</button>
+            </div>
+            <div class="rhythm-pads" id="rhythm-pads"></div>
+            <div class="ear-feedback" id="rhythm-feedback">Pick a pattern, hit start, then tap along in time. You’ll get an accuracy score in milliseconds.</div>
+          </div>
+
+          <div id="tab-interval" class="tabpane">
+            <div class="ear-setup">
+              <div class="ear-stats" id="interval-stats">Score <b>0</b> · Streak <b>0</b> · Best <b>0</b></div>
+              <label class="check"><input type="checkbox" id="interval-harmonic"><span>Play both notes together (harmonic)</span></label>
+            </div>
+            <div class="ear-play">
+              <button class="btn btn-primary" id="interval-play">▶ Play two notes</button>
+            </div>
+            <div class="ear-answers" id="interval-answers"></div>
+            <div class="ear-feedback" id="interval-feedback"></div>
           </div>
 
           <div class="practice-strip" id="practice-strip"></div>
@@ -417,6 +526,277 @@
       </div>
     </section>
 
+
+    <!-- ==================== TOOLS ==================== -->
+    <section class="view" id="view-tools">
+      <div class="tabs" id="tools-tabs">
+        <button class="tab active" data-tab="scales">Scales &amp; modes</button>
+        <button class="tab" data-tab="circle">Circle of fifths</button>
+        <button class="tab" data-tab="builder">Chord builder</button>
+        <button class="tab" data-tab="game">Fretboard trainer</button>
+        <button class="tab" data-tab="tension">String tension</button>
+        <button class="tab" data-tab="setup">Setup &amp; specs</button>
+        <button class="tab" data-tab="capo">Capo &amp; transpose</button>
+        <button class="tab" data-tab="mods">Pickups &amp; mods</button>
+      </div>
+
+      <div id="tools-scales" class="tabpane active">
+        <div class="card">
+          <div class="card-h">Scale &amp; mode explorer</div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="scale-root"></select></label>
+            <label class="field inline"><span>Scale / mode</span><select id="scale-type"></select></label>
+            <label class="check"><input type="checkbox" id="scale-flats"><span>Use ♭ note names</span></label>
+            <button class="btn btn-primary" id="btn-play-scale">🔊 Hear it</button>
+          </div>
+          <div class="fb-wrap" id="scale-fretboard"></div>
+          <div class="scale-info" id="scale-info"></div>
+          <div id="scale-chords"></div>
+          <p class="hint">The fretboard shows every note of the scale to fret 15; <b>1</b> marks the root. The harmonised chords below are the chords that naturally live inside the scale — click any of them to hear it.</p>
+        </div>
+      </div>
+
+      <div id="tools-circle" class="tabpane">
+        <div class="card cof-card">
+          <div class="card-h">Circle of fifths — click any key</div>
+          <div class="cof-grid">
+            <div id="cof-svg"></div>
+            <div id="cof-info"></div>
+          </div>
+          <p class="hint">Move clockwise for sharp keys, counter-clockwise for flat keys. The neighbours of a key are its IV and V chords — the most common chord changes in music (they’re one step either side).</p>
+        </div>
+      </div>
+
+      <div id="tools-builder" class="tabpane">
+        <div class="card">
+          <div class="card-h">Chord builder — <span id="chord-title">E</span></div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="chord-root"></select></label>
+            <label class="field inline"><span>Chord type</span><select id="chord-type"></select></label>
+          </div>
+          <div class="chord-diagrams" id="chord-diagrams"></div>
+          <div class="hint" id="chord-info"></div>
+          <p class="hint">Voicings are calculated live across the lowest string sets — <b>R</b> marks the root note. Click “Hear it” to hear the shape before you play it.</p>
+        </div>
+      </div>
+
+      <div id="tools-game" class="tabpane">
+        <div class="card">
+          <div class="card-h">Fretboard trainer</div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Game</span>
+              <select id="game-mode">
+                <option value="find">Find every root note (find the note)</option>
+                <option value="name">Name the highlighted note</option>
+              </select>
+            </label>
+            <button class="btn tiny" id="game-reset">Reset score</button>
+            <div class="ear-stats" id="game-stats"></div>
+          </div>
+          <div id="game-prompt" class="game-prompt"></div>
+          <div class="fb-wrap" id="game-board"></div>
+          <p class="hint">Knowing where the notes are is what lets you talk to other musicians. Two minutes a day and you will know the whole neck in a month.</p>
+        </div>
+      </div>
+
+      <div id="tools-tension" class="tabpane">
+        <div class="card">
+          <div class="card-h">String tension calculator</div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Scale length (inches)</span>
+              <input type="number" id="tension-scale" value="25.5" min="20" max="30" step="0.25">
+            </label>
+            <label class="field inline"><span>String set</span><select id="tension-preset"></select></label>
+            <label class="field inline"><span>Tuning</span><select id="tension-tuning"></select></label>
+          </div>
+          <div class="gauge-wrap" id="tension-gauges"></div>
+          <div id="tension-out"></div>
+          <div class="hint" id="tension-info"></div>
+          <p class="hint">Tension is what your fingers feel and what your neck resists. Switching tuning or scale length changes it, which is why a string set that feels perfect in E can feel like spaghetti in Drop C.</p>
+        </div>
+      </div>
+
+      <div id="tools-setup" class="tabpane">
+        <div class="card">
+          <div class="card-h">Setup specs — relief, action, pickup height</div>
+          <div id="setup-info"></div>
+          <div class="card-h small">The order professionals set a guitar up in</div>
+          <ol class="guide-ul" id="setup-steps"></ol>
+          <p class="hint">Measurements are starting points, not laws. Adjust in small steps and play between each one — your hands decide, not the numbers.</p>
+        </div>
+        <div class="card">
+          <div class="card-h">Fret spacing calculator</div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Scale length (inches)</span>
+              <input type="number" id="fret-scale" value="25.5" min="20" max="30" step="0.25">
+            </label>
+          </div>
+          <div id="fret-table"></div>
+          <p class="hint">Fret positions follow the rule of 18 (each fret is the previous distance ÷ 17.817). Handy when you are checking a nut or saddle position, or wondering why a 24.75" Gibson plays slinkier than a 25.5" Fender.</p>
+        </div>
+      </div>
+
+      <div id="tools-capo" class="tabpane">
+        <div class="card">
+          <div class="card-h">Capo &amp; transpose helper</div>
+          <div class="tools-controls">
+            <label class="field inline"><span>Song key</span><select id="capo-key"></select></label>
+            <label class="field inline"><span>Capo position</span><select id="capo-pos"></select></label>
+          </div>
+          <div class="capo-out" id="capo-out"></div>
+          <div class="card-h small">Transpose a progression</div>
+          <div class="tools-controls">
+            <input type="text" id="transpose-in" placeholder="Type chords, e.g. C G Am F" autocomplete="off">
+            <select id="transpose-by"></select>
+          </div>
+          <div id="transpose-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-mods" class="tabpane">
+        <div class="card">
+          <div class="card-h">Pickups, electronics and modifications</div>
+          <div id="mods-out"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== RIG ==================== -->
+    <section class="view" id="view-rig">
+      <div class="rig-grid">
+        <div class="card amp-card">
+          <div class="card-h">Amplifier <span class="dim" id="rig-active-count">0 active</span></div>
+          <label class="field"><span>Pick an amp — every model ships with its real panel and dialed-in settings</span>
+            <select id="rig-amp-select"></select>
+          </label>
+          <div class="amp-face" id="rig-amp-face"></div>
+          <div class="amp-info" id="rig-amp-info"></div>
+        </div>
+
+        <div class="card board-card">
+          <div class="card-h">Pedalboard <span class="badge" id="rig-board-count">0 pedals</span></div>
+          <p class="hint">Signal flows top to bottom. Use <b>▲ ▼</b> to reorder — the virtual audio chain re-wires itself around your order.</p>
+          <div class="board-chain" id="rig-board-chain"></div>
+          <div class="board-add">
+            <div class="tools-controls">
+              <input type="search" id="rig-pedal-search" placeholder="Add a pedal — fuzz, wah, drive, delay, reverb, looper…" autocomplete="off">
+              <select id="rig-pedal-cat">
+                <option value="all">All types</option>
+                <option value="overdrive">Overdrive</option>
+                <option value="distortion">Distortion</option>
+                <option value="fuzz">Fuzz</option>
+                <option value="wah">Wah</option>
+                <option value="filter">Envelope / filter</option>
+                <option value="compressor">Compressor</option>
+                <option value="eq">EQ</option>
+                <option value="boost">Boost</option>
+                <option value="chorus">Chorus</option>
+                <option value="flanger">Flanger</option>
+                <option value="phaser">Phaser / vibe</option>
+                <option value="tremolo">Tremolo</option>
+                <option value="delay">Delay</option>
+                <option value="reverb">Reverb</option>
+                <option value="pitch">Pitch / octave</option>
+                <option value="amp-in-a-box">Amp in a box</option>
+                <option value="looper">Looper</option>
+                <option value="utility">Utility / power</option>
+              </select>
+            </div>
+            <div class="pedal-results" id="rig-pedal-results"></div>
+          </div>
+          <div class="rig-presets" id="rig-presets"></div>
+        </div>
+
+        <div class="card detail-card">
+          <div class="card-h">Pedal detail</div>
+          <div class="pedal-detail" id="rig-pedal-detail"></div>
+        </div>
+
+        <div class="card signal-card">
+          <div class="card-h">Signal chain <span class="dim">live</span></div>
+          <div class="signal-chain" id="rig-signal-chain"></div>
+          <div class="row-btns">
+            <button class="btn" data-test-riff="chord">🎸 Test chord</button>
+            <button class="btn btn-ghost" data-test-riff="chug">🤘 Test chug</button>
+            <button class="btn btn-ghost" data-test-riff="lead">🎼 Test lead</button>
+          </div>
+          <label class="check"><input type="checkbox" id="rig-monitor"><span>Listen through the amp (mic → pedals → amp → speakers)</span></label>
+          <label class="field"><span>Monitor volume</span>
+            <input type="range" id="rig-monitor-vol" min="0" max="1" step="0.01" value="0.25">
+          </label>
+          <label class="field"><span>Output level</span>
+            <input type="range" id="rig-master" min="0" max="1" step="0.01" value="0.55">
+          </label>
+          <p class="hint">⚠️ Use <b>headphones</b> when monitoring: a microphone plus open speakers in the same room is a feedback loop. If it howls, drop the monitor volume or switch to headphones.</p>
+        </div>
+
+        <div class="card guide-card-rig">
+          <div class="card-h">Wiring &amp; setup guide</div>
+          <div class="tabs tabs-mini" id="rig-guide">
+            <button class="tab active" data-tab="recipes">Genre recipes</button>
+            <button class="tab" data-tab="order">Order</button>
+            <button class="tab" data-tab="loop">FX loop</button>
+            <button class="tab" data-tab="power">Power</button>
+            <button class="tab" data-tab="cables">Cables</button>
+            <button class="tab" data-tab="impedance">Impedance</button>
+            <button class="tab" data-tab="trouble">Troubleshooting</button>
+            <button class="tab" data-tab="recording">Recording</button>
+            <button class="tab" data-tab="cabs">Cabinets</button>
+            <button class="tab" data-tab="miking">Mic technique</button>
+            <button class="tab" data-tab="rigs">Famous rigs</button>
+            <button class="tab" data-tab="amps">All amps</button>
+            <button class="tab" data-tab="board">Board tips</button>
+          </div>
+          <div class="guide-body" id="rig-guide-body"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PROGRESS ==================== -->
+    <section class="view" id="view-progress">
+      <div class="prog-grid">
+        <div class="card">
+          <div class="card-h">Your progress <span class="badge" id="progress-badge-count"></span></div>
+          <div class="stat-grid" id="progress-stats"></div>
+          <div class="card-h small">Tunings you have explored</div>
+          <div class="chipwrap" id="progress-tunings"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Achievements</div>
+          <div class="badge-grid" id="progress-badges"></div>
+        </div>
+
+        <div class="card share-card">
+          <div class="card-h">Share your progress</div>
+          <canvas id="share-canvas" class="share-canvas" width="1200" height="630"></canvas>
+          <div class="row-btns">
+            <button class="btn btn-primary" id="share-native">📤 Share</button>
+            <button class="btn" id="share-download">⤓ Download card (PNG)</button>
+            <button class="btn btn-ghost" id="share-copy-text">📋 Copy summary</button>
+            <button class="btn btn-ghost" id="share-link">🔗 Copy a progress link</button>
+          </div>
+          <input type="text" id="share-link-out" class="link-out" readonly placeholder="Your progress link appears here if the clipboard is blocked">
+          <div id="shared-box" class="shared-box" hidden></div>
+          <p class="hint">The card, the summary and the link all contain only the numbers you see — no audio, no account, no server. A shared link carries a snapshot inside the URL itself.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-h">Backup &amp; restore <span class="dim">never lose your progress</span></div>
+          <div class="row-btns">
+            <button class="btn btn-primary" id="backup-export">⤓ Export backup (JSON)</button>
+            <button class="btn" id="backup-import">⤒ Import a backup</button>
+            <button class="btn btn-ghost" id="backup-snapshot">📸 Take a snapshot now</button>
+            <button class="btn btn-ghost" id="backup-wipe">🗑 Erase all data</button>
+          </div>
+          <input type="file" id="backup-file" accept="application/json,.json" hidden>
+          <div class="storage-info" id="storage-info"></div>
+          <div class="card-h small">Restore points (automatic, last 3)</div>
+          <div class="snapshot-list" id="snapshot-list"></div>
+          <p class="hint">Your progress is saved in this browser automatically after every change. A backup file is the belt-and-braces option: keep one in cloud storage or email it to yourself, and import it on any other device.</p>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -431,6 +811,7 @@
       <button class="strum-x" id="guide-close" title="Close">✕</button>
     </div>
     <p class="guide-desc" id="guide-desc"></p>
+    <div id="guide-extra"></div>
     <div class="card-h small">Famously heard in</div>
     <ul class="guide-songs" id="guide-songs"></ul>
     <div class="row-btns">
@@ -459,6 +840,12 @@
 <script src="js/lib/sweeteners.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/tunings.js"></script>
+<script src="js/lib/pedals.js"></script>
+<script src="js/lib/pedals2.js"></script>
+  <script src="js/lib/pedals3.js"></script>
+<script src="js/lib/amps.js"></script>
+<script src="js/lib/amps2.js"></script>
+<script src="js/lib/wiring.js"></script>
 <script src="js/guitar.js"></script>
 <script src="js/tuner.js"></script>
 <script src="js/metronome.js"></script>
@@ -467,6 +854,11 @@
 <script src="js/lyrics.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/care.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/rig.js"></script>
+<script src="js/share.js"></script>
 <script src="js/app.js"></script>
+<script src="js/splash.js"></script>
 </body>
 </html>

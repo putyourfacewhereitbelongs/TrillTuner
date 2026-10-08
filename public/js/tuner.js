@@ -1,9 +1,9 @@
-/* Trill Guitar — Tuner controller: detection loop, string auto-detect, in-tune locking,
+/* Trill Tuner — Tuner controller: detection loop, string auto-detect, in-tune locking,
  * auto-advance, octave correction, preset hints, waveform + strobe displays,
  * polyphonic strum check, sweetened tunings, capo mode, gig mode, overtone panel. */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
 
   const T = {
     state: {
@@ -42,14 +42,14 @@
   function labelOf(i) { return N.prettyName(view[i].name).label; }
 
   function saveSettings() {
-    MG.store.set('settings', Object.assign(MG.store.get('settings', {}), {
+    TT.store.set('settings', Object.assign(TT.store.get('settings', {}), {
       presetId: T.state.presetId, mode: T.state.mode, a4: T.state.a4,
       autoDetect: T.state.autoDetect, autoAdvance: T.state.autoAdvance, tolerance: T.state.tolerance,
       display: T.state.display, sweetener: T.state.sweetener, customOffsets: T.state.customOffsets.slice(),
       capo: T.state.capo, smartFilter: T.state.smartFilter, settle: T.state.settle
     }));
   }
-  function assist(msg, opts) { if (MG.app) MG.app.assist(msg, opts); }
+  function assist(msg, opts) { if (TT.app) TT.app.assist(msg, opts); }
 
   function nameForMidi(m, preferFlat) {
     const pc = ((m % 12) + 12) % 12;
@@ -63,7 +63,7 @@
     view = base().map((s, i) => {
       const preferFlat = /b|♭/.test(s.name);
       const midi = s.midi + capo;
-      const off = MG.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, i);
+      const off = TT.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, i);
       const freq = N.midiToFreq(midi, T.state.a4) * Math.pow(2, off / 1200);
       return {
         name: capo ? nameForMidi(midi, preferFlat) : s.name,
@@ -149,7 +149,7 @@
     const interesting = strong.length ? strong : solo;
     const cur = new Set(view.map(s => s.baseMidi));
     if (interesting.some(m => cur.has(m))) return; // pitch also fits current tuning — nothing to suggest
-    for (const p of MG.tunings.PRESETS) {
+    for (const p of TT.tunings.PRESETS) {
       if (p.id === T.state.presetId || suggested[p.id]) continue;
       const pset = new Set(p.strings.map(s => s.midi));
       const hits = interesting.filter(m => pset.has(m)).length;
@@ -182,20 +182,37 @@
   }
 
   /* ---------- UI building ---------- */
-  function buildPresetSelect() {
+  /* The library is big now (90 sets), so the select is grouped by category and
+   * has a live filter that searches the name, the notes, the category, the
+   * famous songs and the players who used it. */
+  function buildPresetSelect(filter) {
     const sel = els.selectTuning;
+    const q = String(filter == null ? (els.tuningFind && els.tuningFind.value) || '' : filter).toLowerCase().trim();
+    const match = p => !q || [p.id, p.name, p.cat, p.desc, p.artist, p.tip, p.gauges, (p.songs || []).join(' '),
+      p.strings.map(s => s.name).join(' ')].join(' ').toLowerCase().indexOf(q) !== -1;
+    const cats = TT.tunings.categories().filter(cat => TT.tunings.PRESETS.some(p => p.cat === cat && match(p)));
+    const keep = sel.value;
     sel.innerHTML = '';
-    MG.tunings.categories().forEach(cat => {
+    cats.forEach(cat => {
       const og = document.createElement('optgroup');
       og.label = cat;
-      MG.tunings.PRESETS.filter(p => p.cat === cat).forEach(p => {
+      TT.tunings.PRESETS.filter(p => p.cat === cat && match(p)).forEach(p => {
         const o = document.createElement('option');
         o.value = p.id;
-        o.textContent = MG.tunings.label(p);
+        o.textContent = TT.tunings.label(p);
         og.appendChild(o);
       });
       sel.appendChild(og);
     });
+    if (!cats.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = 'Nothing matches “' + q + '”';
+      sel.appendChild(o);
+      return;
+    }
+    if (T.state.presetId && sel.querySelector('option[value="' + T.state.presetId + '"]')) sel.value = T.state.presetId;
+    else if (keep && sel.querySelector('option[value="' + keep + '"]')) sel.value = keep;
   }
 
   function buildChips() {
@@ -219,7 +236,7 @@
   }
 
   function buildGuitar() {
-    guitarApi = MG.guitar.build(els.guitarBox, {
+    guitarApi = TT.guitar.build(els.guitarBox, {
       kind: T.state.mode,
       capo: T.state.capo,
       strings: view.map(s => s.name)
@@ -295,7 +312,7 @@
   }
 
   T.strumCheck = async function () {
-    if (MG.audio.micState !== 'on') {
+    if (TT.audio.micState !== 'on') {
       assist('Strum check needs the mic — hit “Start listening” first.', { toast: true });
       return;
     }
@@ -309,8 +326,8 @@
       return `<div class="strum-row wait"><span class="strum-note">${p.label}</span><span class="strum-num">···</span><span class="strum-verdict">listening</span></div>`;
     }).join('');
     try {
-      const buf = await MG.audio.captureBuffer(1.4);
-      const res = MG.poly.analyzeStrum(buf, MG.audio.ctx.sampleRate, view.map(s => ({ freq: s.freq })));
+      const buf = await TT.audio.captureBuffer(1.4);
+      const res = TT.poly.analyzeStrum(buf, TT.audio.ctx.sampleRate, view.map(s => ({ freq: s.freq })));
       renderStrum(res);
     } catch (e) {
       hideStrum();
@@ -321,12 +338,20 @@
 
   /* ---------- tuning guide ---------- */
   T.showGuide = function () {
-    const p = MG.tunings.byId(T.state.presetId);
-    const g = MG.tunings.guideFor(p.id);
+    const p = TT.tunings.byId(T.state.presetId);
+    const g = TT.tunings.guideFor(p.id);
     els.guideTitle.textContent = p.name;
     els.guideNotes.textContent = view.map(s => N.prettyName(s.name).label).join('   ·   ');
     els.guideDesc.textContent = g.desc || '';
     els.guideSongs.innerHTML = (g.songs || []).map(s => `<li>🎵 ${s}</li>`).join('');
+    const extra = document.getElementById('guide-extra');
+    if (extra) {
+      extra.innerHTML =
+        (g.gauges ? `<p class="hint"><b>Recommended strings:</b> ${g.gauges}</p>` : '') +
+        (g.artist ? `<p class="hint"><b>Signature sound of:</b> ${g.artist}</p>` : '') +
+        (g.tip ? `<p class="hint"><b>Practical tip:</b> ${g.tip}</p>` : '') +
+        `<p class="hint dim">Category: ${p.cat} · ${p.strings.length} strings</p>`;
+    }
     els.guideOverlay.hidden = false;
   };
 
@@ -369,12 +394,12 @@
     const dt = lastFrameTs ? Math.min(0.1, (now - lastFrameTs) / 1000) : 0.016;
     lastFrameTs = now;
     frameCount++;
-    const buf = MG.audio.sample();
+    const buf = TT.audio.sample();
     drawDisplay(buf, dt);
     if (document.body.classList.contains('gig-on')) drawGig(dt);
     if (!buf) return;
 
-    const rms = MG.audio.level;
+    const rms = TT.audio.level;
     updateSignalMeter(rms);
 
     // noise-floor calibration window
@@ -409,9 +434,9 @@
     let det = null;
     if (rms >= gate) {
       let work, sr;
-      if (bassMode) { work = MG.yin.downsample2(buf); sr = MG.audio.ctx.sampleRate / 2; }
-      else { work = buf.subarray(buf.length - 2048); sr = MG.audio.ctx.sampleRate; }
-      det = MG.yin.yin(work, sr, T.state.mode === 'acoustic' ? 0.15 : 0.10);
+      if (bassMode) { work = TT.yin.downsample2(buf); sr = TT.audio.ctx.sampleRate / 2; }
+      else { work = buf.subarray(buf.length - 2048); sr = TT.audio.ctx.sampleRate; }
+      det = TT.yin.yin(work, sr, T.state.mode === 'acoustic' ? 0.15 : 0.10);
     }
 
     let freq = 0;
@@ -486,7 +511,7 @@
   function lockString(i) {
     T.state.tuned[i] = true;
     goodSince = 0;
-    MG.audio.chime('ok');
+    TT.audio.chime('ok');
     assist(`String ${numOf(i)} (${labelOf(i)}) locked in tune ✓`);
     if (T.state.autoAdvance && T.state.autoDetect) {
       const next = nextUntuned(i);
@@ -710,14 +735,14 @@
     const g = cv.getContext('2d');
     const W = cv.width, H = cv.height;
     g.clearRect(0, 0, W, H);
-    const db = MG.audio.freqData();
+    const db = TT.audio.freqData();
     const bars = 8;
     if (!db || !freq) {
       els.toneBright.textContent = '';
       return;
     }
-    const sr = MG.audio.ctx.sampleRate;
-    const bins = MG.audio.analyser.frequencyBinCount;
+    const sr = TT.audio.ctx.sampleRate;
+    const bins = TT.audio.analyser.frequencyBinCount;
     const lin = [];
     for (let h = 1; h <= bars; h++) {
       const bin = Math.min(bins - 1, Math.round(freq * h / (sr / 2) * bins));
@@ -754,15 +779,15 @@
     els.btnMicStart.disabled = true;
     els.btnMicStart.textContent = 'Requesting microphone…';
     try {
-      await MG.audio.startMic();
+      await TT.audio.startMic();
     } catch (e) {
       els.btnMicStart.disabled = false;
       els.btnMicStart.textContent = '🎤 Start listening';
       els.micError.hidden = false;
-      els.micError.textContent = MG.audio.micError + '. If you\'re in a restricted preview frame, try "Open in a new tab". You can still tune by ear with the ▶ reference tones.';
+      els.micError.textContent = TT.audio.micError + '. If you\'re in a restricted preview frame, try "Open in a new tab". You can still tune by ear with the ▶ reference tones.';
       return;
     }
-    MG.store.set('micGranted', true);
+    TT.store.set('micGranted', true);
     els.micOverlay.hidden = true;
     history = []; unmatched = [];
     calibUntil = performance.now() + 1200;
@@ -788,7 +813,7 @@
     }
     if (state === 'error') {
       els.micError.hidden = false;
-      els.micError.textContent = MG.audio.micError + '. Tip: use "Open in a new tab", or tune by ear with the ▶ reference tones.';
+      els.micError.textContent = TT.audio.micError + '. Tip: use "Open in a new tab", or tune by ear with the ▶ reference tones.';
     }
   }
 
@@ -812,6 +837,7 @@
       tuneStatus: document.getElementById('tune-status'),
       stringChips: document.getElementById('string-chips'),
       selectTuning: document.getElementById('select-tuning'),
+      tuningFind: document.getElementById('tuning-find'),
       rangeA4: document.getElementById('range-a4'),
       a4Val: document.getElementById('a4-val'),
       chkAutodetect: document.getElementById('chk-autodetect'),
@@ -851,8 +877,8 @@
       gigExit: document.getElementById('gig-exit')
     };
 
-    const s = MG.store.get('settings', {});
-    if (s.presetId && MG.tunings.byId(s.presetId).id === s.presetId) T.state.presetId = s.presetId;
+    const s = TT.store.get('settings', {});
+    if (s.presetId && TT.tunings.byId(s.presetId).id === s.presetId) T.state.presetId = s.presetId;
     T.state.mode = s.mode === 'electric' ? 'electric' : 'acoustic';
     T.state.a4 = (s.a4 >= 415 && s.a4 <= 466) ? +s.a4 : 440;
     T.state.autoDetect = s.autoDetect !== false;
@@ -862,21 +888,27 @@
     T.state.capo = (s.capo >= 0 && s.capo <= 7) ? +s.capo : 0;
     T.state.smartFilter = !!s.smartFilter;
     T.state.settle = s.settle !== false;
-    if (MG.sweeteners.byId(s.sweetener).id === (s.sweetener || 'equal')) T.state.sweetener = s.sweetener || 'equal';
+    if (TT.sweeteners.byId(s.sweetener).id === (s.sweetener || 'equal')) T.state.sweetener = s.sweetener || 'equal';
     if (Array.isArray(s.customOffsets) && s.customOffsets.length === 6) T.state.customOffsets = s.customOffsets.map(Number);
 
     buildPresetSelect();
     T.setPreset(T.state.presetId, { silent: true });
 
     els.selectTuning.value = T.state.presetId;
-    els.selectTuning.addEventListener('change', () => T.setPreset(els.selectTuning.value));
+    els.selectTuning.addEventListener('change', () => { if (els.selectTuning.value) T.setPreset(els.selectTuning.value); });
+    if (els.tuningFind) {
+      els.tuningFind.addEventListener('input', () => buildPresetSelect());
+      els.tuningFind.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && els.selectTuning.value) { T.setPreset(els.selectTuning.value); els.selectTuning.focus(); }
+      });
+    }
     els.rangeA4.value = T.state.a4;
     els.a4Val.textContent = T.state.a4;
     els.rangeA4.addEventListener('input', () => {
       T.state.a4 = +els.rangeA4.value;
       els.a4Val.textContent = T.state.a4;
       computeFreqs();
-      MG.audio.clearPlucks();
+      TT.audio.clearPlucks();
       saveSettings();
     });
     els.chkAutodetect.checked = T.state.autoDetect;
@@ -925,7 +957,7 @@
     /* ---- sweetened tunings ---- */
     if (els.selectSweet) {
       els.selectSweet.innerHTML = '';
-      MG.sweeteners.SWEETENERS.forEach(sw => {
+      TT.sweeteners.SWEETENERS.forEach(sw => {
         const o = document.createElement('option');
         o.value = sw.id;
         o.textContent = sw.name;
@@ -936,7 +968,7 @@
       els.selectSweet.addEventListener('change', () => {
         T.state.sweetener = els.selectSweet.value;
         onTargetsChanged();
-        const sw = MG.sweeteners.byId(T.state.sweetener);
+        const sw = TT.sweeteners.byId(T.state.sweetener);
         assist(`Sweetener: ${sw.name}. ${sw.hint}`);
         saveSettings();
       });
@@ -954,7 +986,7 @@
         inp.step = '1';
         inp.min = '-50';
         inp.max = '50';
-        inp.value = MG.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, i);
+        inp.value = TT.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, i);
         inp.dataset.i = i;
         inp.title = `String ${numOf(i)} (${p.label}) offset in cents`;
         wrap.innerHTML = `<span>${p.letter}</span>`;
@@ -966,7 +998,7 @@
           const i = +inp.dataset.i;
           let v = Math.max(-50, Math.min(50, Math.round(+inp.value || 0)));
           inp.value = v;
-          T.state.customOffsets = view.map((s, j) => MG.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, j));
+          T.state.customOffsets = view.map((s, j) => TT.sweeteners.offsetFor(T.state.sweetener, T.state.customOffsets, j));
           T.state.customOffsets[i] = v;
           if (T.state.sweetener !== 'custom') {
             T.state.sweetener = 'custom';
@@ -1004,13 +1036,13 @@
       els.chkFilter.checked = T.state.smartFilter;
       els.chkFilter.addEventListener('change', () => {
         T.state.smartFilter = els.chkFilter.checked;
-        MG.audio.setSmartFilter(T.state.smartFilter);
+        TT.audio.setSmartFilter(T.state.smartFilter);
         assist(T.state.smartFilter
           ? 'Smart filter on: analysis is band-limited to 65–1600 Hz — chatter and hiss stay out of the detector.'
           : 'Smart filter off: full-band analysis.');
         saveSettings();
       });
-      MG.audio.smartFilter = T.state.smartFilter;
+      TT.audio.smartFilter = T.state.smartFilter;
     }
     if (els.chkSettle) {
       els.chkSettle.checked = T.state.settle;
@@ -1040,9 +1072,9 @@
       }
     });
 
-    MG.audio.onMic = handleMicState;
+    TT.audio.onMic = handleMicState;
 
-    if (MG.store.get('micGranted', false)) {
+    if (TT.store.get('micGranted', false)) {
       // returning user — permissions usually persist; autonomous start (fails silently into overlay)
       startMicFlow();
     }
@@ -1052,7 +1084,7 @@
   function onTargetsChanged(reset) {
     rebuildTargets();
     if (reset) resetProgress();
-    MG.audio.clearPlucks();
+    TT.audio.clearPlucks();
     buildGuitar();
     buildChips();
     if (T._buildOffInputs) T._buildOffInputs();
@@ -1066,7 +1098,7 @@
 
   T.setPreset = function (id, opts) {
     const prev = current;
-    current = MG.tunings.byId(id);
+    current = TT.tunings.byId(id);
     const changedPreset = prev && prev.id !== current.id;
     T.state.presetId = current.id;
     suggested = {};
@@ -1074,6 +1106,14 @@
     resetProgress();
     buildGuitarForPreset();
     if (T._buildOffInputs) T._buildOffInputs();
+    try {
+      const used = TT.store.get('tuningsUsed', []);
+      if (used.indexOf(current.id) === -1) {
+        used.push(current.id);
+        TT.store.set('tuningsUsed', used);
+        if (TT.share) TT.share.checkBadges();
+      }
+    } catch (e) { /* storage unavailable */ }
     if (!opts || !opts.silent) {
       assist(`Tuning set to ${current.name} (${view.map(s => s.name).join(' ')}).`);
       if (changedPreset) {
@@ -1110,17 +1150,17 @@
   };
 
   T.playReference = function (i) {
-    MG.audio.ensure();
-    MG.audio.pluck(view[i].freq, 0, 0.85);
+    TT.audio.ensure();
+    TT.audio.pluck(view[i].freq, 0, 0.85);
   };
   T.hearAll = function () {
-    MG.audio.ensure();
-    MG.audio.strum(view.map(s => s.freq), 110, 0.7);
+    TT.audio.ensure();
+    TT.audio.strum(view.map(s => s.freq), 110, 0.7);
   };
 
   T.pause = function () { stopLoop(); };
-  T.resume = function () { if (MG.audio.micState === 'on') startLoop(); };
+  T.resume = function () { if (TT.audio.micState === 'on') startLoop(); };
 
-  window.MG = window.MG || {};
-  window.MG.tuner = T;
+  window.TT = window.TT || {};
+  window.TT.tuner = T;
 })();

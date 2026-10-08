@@ -1,112 +1,527 @@
-/* My Guitar — tuning presets. String order is thickest/lowest first (string N … string 1). */
+/* Trill Tuner — tuning library.
+ *
+ * String order is thickest/lowest first (string 6 … string 1), which is how a
+ * guitarist reads a tuning name left→right (D A D G A D = DADGAD).
+ *
+ * Every preset carries a full guide: what it sounds like, why it exists, the
+ * gauge you want, practical tips, and famous records that use it — so you know
+ * the target before you turn a peg.
+ */
 (function () {
   'use strict';
-  const N = window.MG.notes;
+  const N = window.TT.notes;
 
   function mk(names) {
     return names.map(n => ({ name: n, midi: N.nameToMidi(n) }));
   }
 
-  const PRESETS = [
-    // Common
-    { id: 'standard', name: 'Standard', cat: 'Common', strings: mk(['E2', 'A2', 'D3', 'G3', 'B3', 'E4']) },
-    { id: 'dropd', name: 'Drop D', cat: 'Common', strings: mk(['D2', 'A2', 'D3', 'G3', 'B3', 'E4']) },
-    { id: 'halfstep', name: 'Half Step Down (E♭ Standard)', cat: 'Common', strings: mk(['Eb2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4']) },
-    { id: 'fullstep', name: 'Full Step Down (D Standard)', cat: 'Common', strings: mk(['D2', 'G2', 'C3', 'F3', 'A3', 'D4']) },
-    // Rock & Metal
-    { id: 'dropdb', name: 'Drop D♭ (Drop D + ½ step)', cat: 'Rock & Metal', strings: mk(['Db2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4']) },
-    { id: 'dropc', name: 'Drop C', cat: 'Rock & Metal', strings: mk(['C2', 'G2', 'C3', 'F3', 'A3', 'D4']) },
-    { id: 'dropb', name: 'Drop B', cat: 'Rock & Metal', strings: mk(['B1', 'Gb2', 'B2', 'E3', 'Ab3', 'Db4']) },
-    { id: 'dropa', name: 'Drop A', cat: 'Rock & Metal', strings: mk(['A1', 'E2', 'A2', 'D3', 'Gb3', 'B3']) },
-    { id: 'seven', name: '7-String Standard', cat: 'Rock & Metal', strings: mk(['B1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4']) },
-    // Open tunings
-    { id: 'openg', name: 'Open G', cat: 'Open Tunings', strings: mk(['D2', 'G2', 'D3', 'G3', 'B3', 'D4']) },
-    { id: 'opend', name: 'Open D', cat: 'Open Tunings', strings: mk(['D2', 'A2', 'D3', 'Gb3', 'A3', 'D4']) },
-    { id: 'opene', name: 'Open E', cat: 'Open Tunings', strings: mk(['E2', 'B2', 'E3', 'Ab3', 'B3', 'E4']) },
-    { id: 'openc', name: 'Open C', cat: 'Open Tunings', strings: mk(['C2', 'G2', 'C3', 'G3', 'C4', 'E4']) },
-    { id: 'dadgad', name: 'DADGAD', cat: 'Open Tunings', strings: mk(['D2', 'A2', 'D3', 'G3', 'A3', 'D4']) },
-    { id: 'dbldropd', name: 'Double Drop D', cat: 'Open Tunings', strings: mk(['D2', 'A2', 'D3', 'G3', 'B3', 'D4']) },
-    // Other instruments
-    { id: 'bass', name: 'Bass — Standard (4-string)', cat: 'Other Instruments', strings: mk(['E1', 'A1', 'D2', 'G2']) },
-    { id: 'bassdropd', name: 'Bass — Drop D', cat: 'Other Instruments', strings: mk(['D1', 'A1', 'D2', 'G2']) },
-    { id: 'uke', name: 'Ukulele — Standard', cat: 'Other Instruments', strings: mk(['G4', 'C4', 'E4', 'A4']) },
-    { id: 'mando', name: 'Mandolin — Standard', cat: 'Other Instruments', strings: mk(['G3', 'D4', 'A4', 'E5']) }
-  ];
+  function P(id, cat, name, names, desc, songs, tip, gauges, artist) {
+    return { id: id, cat: cat, name: name, strings: mk(names), desc: desc, songs: songs || [], tip: tip || '', gauges: gauges || '', artist: artist || '' };
+  }
 
-  /* Alternate-tuning guide: what each tuning sounds like + famous examples,
-   * so you know the target before you tune to it. */
-  const GUIDE = {
-    standard: {
-      desc: 'The tuning virtually all songs, tabs and lessons assume. Learn everything here first.',
-      songs: ['Stairway to Heaven — Led Zeppelin', 'Wonderwall — Oasis', '…and most of recorded music']
-    },
-    dropd: {
-      desc: 'Only the low E drops a whole step to D. Power chords become one finger on the bottom three strings, and D chords ring huge.',
-      songs: ['Dear Prudence — The Beatles', 'Killing in the Name — Rage Against the Machine', 'Everlong — Foo Fighters']
-    },
-    halfstep: {
-      desc: 'Everything down one semitone (E♭ standard). Easier on the voice, grittier tone — the blues and hard-rock classic.',
-      songs: ['Sweet Child O\u2019 Mine — Guns N\u2019 Roses', 'Little Wing — Jimi Hendrix', 'Pride and Joy — Stevie Ray Vaughan']
-    },
-    fullstep: {
-      desc: 'A whole step down (D standard). Heavy but still familiar shapes; lighter string tension for big bends.',
-      songs: ['Walk — Pantera', 'Du Hast — Rammstein (live sets)']
-    },
-    dropdb: {
-      desc: 'Drop D, then everything down another half step. Drop-D shapes with a darker, sludgier voice.',
-      songs: ['Sludge & alt-metal staples — Alice in Chains territory']
-    },
-    dropc: {
-      desc: 'Drop D a whole step further down. The workhorse of modern metal — chuggy lows, easy one-finger power chords.',
-      songs: ['Chop Suey! — System of a Down', 'Modern metalcore staples']
-    },
-    dropb: {
-      desc: 'Very low Drop B. Thick strings recommended; riffs sit in bass-baritone territory.',
-      songs: ['Duality — Slipknot', 'Bring Me the Horizon-style downtuned riffs']
-    },
-    dropa: {
-      desc: 'Drop A is 7-string/baritone land on a 6-string. Extra-thick strings are a must.',
-      songs: ['Djent & progressive metal — Periphery-style rhythms']
-    },
-    seven: {
-      desc: 'Standard tuning plus a low B string: shred highs AND sub-low rhythms on one neck.',
-      songs: ['Korn', 'Dream Theater', 'Steve Vai (Universe)']
-    },
-    openg: {
-      desc: 'Strum all open strings and you get a G major chord. Keith Richards\u2019 weapon of choice (he often removes the 6th string entirely).',
-      songs: ['Honky Tonk Women — The Rolling Stones', 'Start Me Up — The Rolling Stones']
-    },
-    opend: {
-      desc: 'Open strings ring a D major chord. Beloved by slide players and singer-songwriters for its ringing, open voice.',
-      songs: ['Big Yellow Taxi — Joni Mitchell', 'Classic Delta & bottleneck slide repertoire']
-    },
-    opene: {
-      desc: 'Open strings ring an E major chord — slide guitar heaven with standard-tension top strings.',
-      songs: ['Little Martha — The Allman Brothers', 'Derek Trucks slide catalog']
-    },
-    openc: {
-      desc: 'Open strings ring a C major chord. Deep, warm and cinematic — a fingerstyle composer\u2019s tuning.',
-      songs: ['Cello Song — Nick Drake', 'Modern fingerstyle arrangements']
-    },
-    dadgad: {
-      desc: 'The “DADGAD” drone tuning: neither major nor minor, ideal for Celtic, folk and modal riffing. One shape covers endless songs.',
-      songs: ['Kashmir — Led Zeppelin', 'Black Mountain Side — Led Zeppelin', 'Pierre Bensusan\u2019s catalog']
-    },
-    dbldropd: {
-      desc: 'Both E strings drop to D. Open strings shimmer G-ish and droney — folk and acoustic mysticism.',
-      songs: ['Going to California — Led Zeppelin', 'Folk fingerstyle tradition']
-    },
-    bass: { desc: 'Four strings, one octave below guitar strings 6–3. Lock in with the kick drum.', songs: ['Every great bassline you know'] },
-    bassdropd: { desc: 'Drop the low E to D for nu-metal and grunge bass riffs.', songs: ['Nu-metal bass anchors'] },
-    uke: { desc: 'G C E A — re-entrant “my dog has fleas” tuning.', songs: ['Somewhere Over the Rainbow — Israel Kamakawiwo\u2019ole'] },
-    mando: { desc: 'G D A E in fifths, like a tiny violin. Chop chords and tremolo.', songs: ['Bluegrass — Bill Monroe tradition'] }
+  const C = {
+    common: 'Common',
+    metal: 'Rock & Metal',
+    drop: 'Drop & Extended Range',
+    open: 'Open Tunings',
+    modal: 'Modal & Drone',
+    slide: 'Slide & Blues',
+    folk: 'Folk & Fingerstyle',
+    world: 'World & Traditional',
+    inst: 'Other Instruments'
   };
 
-  function byId(id) {
-    return PRESETS.find(p => p.id === id) || PRESETS[0];
-  }
+  const PRESETS = [
+    /* ------------------------------------------------------------------ */
+    /* Common                                                              */
+    /* ------------------------------------------------------------------ */
+    P('standard', C.common, 'Standard (E A D G B E)', ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'The tuning virtually all songs, tabs and lessons assume. Learn everything here first.',
+      ['Stairway to Heaven — Led Zeppelin', 'Wonderwall — Oasis', '…and roughly all of recorded music'],
+      'Learn the string order with a phrase: “Eddie Ate Dynamite, Good Bye Eddie”.',
+      '10–46 light / 11–49 medium', 'Everything'),
+    P('dropd', C.common, 'Drop D', ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'Only the low E drops a whole step to D. Power chords become one finger on the bottom three strings, and D chords ring huge.',
+      ['Dear Prudence — The Beatles', 'Killing in the Name — Rage Against the Machine', 'Everlong — Foo Fighters', 'Harvest Moon — Neil Young'],
+      'From standard, retune the low E down 2 semitones only. To go back, tune the 6th string to the 4th string (both D) — no tuner needed.',
+      '10–46 or heavier low E', 'Neil Young · Foo Fighters · RATM'),
+    P('halfstep', C.common, 'Half Step Down (E♭ Standard)', ['Eb2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4'],
+      'Everything down one semitone. Easier on the voice, grittier tone — the blues and hard-rock classic.',
+      ['Sweet Child O’ Mine — Guns N’ Roses', 'Little Wing — Jimi Hendrix', 'Pride and Joy — Stevie Ray Vaughan', 'All Along the Watchtower — Hendrix'],
+      'Slackens tension ~6% — bends get easier, so the low strings may need a heavier gauge.',
+      '10–46 or 11–48', 'Hendrix · SRV · Slash'),
+    P('fullstep', C.common, 'Full Step Down (D Standard / “Whole Step”)', ['D2', 'G2', 'C3', 'F3', 'A3', 'D4'],
+      'A whole step down. Heavy but still familiar shapes; lighter string tension for big bends.',
+      ['Walk — Pantera', 'Du Hast — Rammstein (live)', 'Sad but True — Metallica (E♭/D territory)'],
+      'Every shape you know still works — just sounds a whole step lower. Great vocal key for singers.',
+      '11–49 or 12–54', 'Pantera · Ghost'),
+    P('halfup', C.common, 'Half Step UP (F Standard)', ['F2', 'Bb2', 'Eb3', 'Ab3', 'C4', 'F4'],
+      'Sharpest common tuning — bright, tense and punchy. Bring spare strings.',
+      ['Some Soundgarden & Melvins B-sides', 'Songwriting in “awkward” keys'],
+      'Tension rises ~6%: fine on an electric, risky on an unbraced acoustic. Don’t take it more than a semitone up.',
+      '9–42 or 10–46', ''),
+
+    /* ------------------------------------------------------------------ */
+    /* Rock & Metal                                                        */
+    /* ------------------------------------------------------------------ */
+    P('dropdb', C.metal, 'Drop D♭ (Drop D + ½ step)', ['Db2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4'],
+      'Drop D then everything down another half step. Drop-D shapes with a darker, sludgier voice.',
+      ['Sludge & alt-metal staples', 'Alice in Chains territory', 'Deftones-adjacent riffing'],
+      'Stage trick: from Drop D, retune all six strings down 1 semitone without touching shapes.',
+      '11–52', 'Alice in Chains'),
+    P('dropc', C.metal, 'Drop C', ['C2', 'G2', 'C3', 'F3', 'A3', 'D4'],
+      'Drop D a whole step further down. The workhorse of modern metal — chuggy lows, one-finger power chords.',
+      ['Chop Suey! — System of a Down', 'Modern metalcore staples', 'Killswitch Engage-style rhythms'],
+      'The low string needs serious mass — 56–62 gauge for a 25.5" scale, or use a baritone/longer scale.',
+      '11–56 / 12–60', 'System of a Down · Killswitch Engage'),
+    P('dropb', C.metal, 'Drop B', ['B1', 'Gb2', 'B2', 'E3', 'Ab3', 'Db4'],
+      'Very low Drop B. Thick strings required; riffs sit in bass-baritone territory.',
+      ['Duality — Slipknot', 'Bring Me the Horizon-style downtuned riffs', 'Nu-metal revival'],
+      'Below B1 the fundamental is ~61 Hz — a standard 25.5" scale gets flubby. Consider 26.5"+ or a 60–70 gauge low string.',
+      '12–62 / 13–68', 'Slipknot'),
+    P('dropa', C.metal, 'Drop A (6-string)', ['A1', 'E2', 'A2', 'D3', 'Gb3', 'B3'],
+      'Drop A is 7-string/baritone land on a 6-string. Extra-thick strings are a must.',
+      ['Djent & progressive metal rhythms', 'Periphery / TesseracT-style grooves', 'Drop A chug riffs'],
+      'An A1 on a 25.5" scale needs a 68–74 gauge and a well-cut nut. A baritone or 7-string is genuinely easier.',
+      '13–70 (baritone ideal)', 'Periphery · TesseracT'),
+    P('opena_low', C.metal, 'Drop A♭ (Drop A + ½ step)', ['Ab1', 'Eb2', 'Ab2', 'Db3', 'F3', 'Bb3'],
+      'Everything a semitone under Drop A — the sound of extreme modern metal.',
+      ['Deathcore & downtempo riffing', 'Low-tuned breakdowns'],
+      'Nut slots and saddle intonation must be cut for 70+ gauge strings or you will break strings and never hold tune.',
+      '14–74', ''),
+    P('seven', C.drop, '7-String Standard (B E A D G B E)', ['B1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'Standard tuning plus a low B: shred highs AND sub-low rhythms on one neck.',
+      ['Korn', 'Dream Theater', 'Steve Vai (Universe)', 'Between the Buried and Me'],
+      'Ignore the extra string while you learn the rest — the top six are a normal guitar.',
+      '9–54 7-string set', 'Korn · Dream Theater · Vai'),
+    P('seven_dropa', C.drop, '7-String Drop A (A E A D G B E)', ['A1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'The 7-string metal default: only the low B drops to A — one-finger power chords on the bottom three.',
+      ['TesseracT', 'Periphery', 'Modern prog-metal rhythm work'],
+      'Keeps the top six strings identical to 7-string standard, so all your shapes transfer.',
+      '9–54 / 10–59', 'Periphery · TesseracT'),
+    P('seven_dropg', C.drop, '7-String Drop G', ['Gb1', 'Db2', 'Gb2', 'B2', 'E3', 'Ab3', 'Db4'],
+      'Drop G for 7-strings. Brutal lows, needs a long scale to stay tight.',
+      ['Deathcore & modern metalcore', 'Low-chug breakdown riffing'],
+      'Use a 27"+ scale or a 74–80 gauge low string; expect to adjust intonation at the saddle.',
+      '11–64 / 12–68', ''),
+    P('eight_fsharp', C.drop, '8-String Standard (F♯ B E A D G B E)', ['Gb1', 'B1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'The extended-range standard made famous by Meshuggah-style rhythm guitar.',
+      ['Meshuggah', 'Animals as Leaders', 'Modern prog-metal'],
+      'Strings 8–3 form a normal 6-string without the top E — that’s the “djent” register.',
+      '9–80 8-string set', 'Meshuggah · AAL'),
+    P('eight_drope', C.drop, '8-String Drop E (E B E A D G B E)', ['E1', 'B1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'Drop E on an 8-string: the fattest power chord you can play with one finger.',
+      ['Modern djent & deathcore', 'Extended-range riffing'],
+      'Low E1 is 41 Hz — this is bass territory. Fret it lightly; too much squeeze kills the pitch.',
+      '10–84', ''),
+    P('bass_baritone', C.drop, 'Baritone — B Standard, 6-string (same pitches as B Standard, long scale)', ['B1', 'E2', 'A2', 'D3', 'Gb3', 'B3'],
+      'A dedicated long-scale baritone: B standard with a tight, piano-like low end.',
+      ['Country “tic-tac” doubling', 'Doom & post-metal', 'Modern worship guitar'],
+      'Runs 27"–30" scale with 13–62+ strings. Capo at fret 5 = a normal E-standard guitar.',
+      '13–62 baritone set', ''),
+    P('c_standard', C.metal, 'C Standard', ['C2', 'F2', 'Bb2', 'Eb3', 'G3', 'C4'],
+      'C standard: thick, sludgy, Black-Sabbath-meets-Slipknot territory.',
+      ['Slipknot (early)', 'Black Sabbath (later work)', 'Doom & stoner rock'],
+      'Not a Drop tuning — power chords still need three strings, but every chord sounds enormous.',
+      '12–56 / 13–56', 'Black Sabbath · Slipknot'),
+    P('b_standard', C.metal, 'B Standard (6-string)', ['B1', 'E2', 'A2', 'D3', 'Gb3', 'B3'],
+      'B standard on a 6-string — the riff sound of late-90s nu-metal.',
+      ['Nu-metal classics', 'Cannibal Corpse-style death metal (early)'],
+      'Same as a 7-string’s low seven; you give up the top E instead of gaining a bass string.',
+      '13–59 / 13–62', ''),
+    P('csharp_standard', C.metal, 'C♯ Standard', ['Db2', 'Gb2', 'B2', 'E3', 'Ab3', 'Db4'],
+      'A semitone above C standard — the sweet spot for heavy rock vocals.',
+      ['Alice in Chains', 'Type O Negative', 'Alt-metal'],
+      'Great compromise down-tuning: heavy but strings still respond.',
+      '12–54', 'Alice in Chains · Type O Negative'),
+    P('drop_csharp', C.metal, 'Drop C♯ (Drop C + ½ step)', ['Db2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4'],
+      'Also called Drop D♭ / “Drop C#” — one semitone above Drop C, one below Drop D.',
+      ['Seether', 'Staind-style alt-metal', 'Nu-metal'],
+      'Drop-D shapes, slightly lower voice. Very comfortable tuning to sing over.',
+      '11–54', 'Seether'),
+
+    /* ------------------------------------------------------------------ */
+    /* Open tunings                                                        */
+    /* ------------------------------------------------------------------ */
+    P('openg', C.open, 'Open G (D G D G B D)', ['D2', 'G2', 'D3', 'G3', 'B3', 'D4'],
+      'Strum all open strings and you get a G major chord. Keith Richards’ weapon of choice (he often removes the 6th string entirely).',
+      ['Honky Tonk Women — The Rolling Stones', 'Start Me Up — The Rolling Stones', 'Fearless — Pink Floyd (studio trickery)'],
+      'Play only the top five strings and you have the classic Keef setup: D G D G B D → x G D G B D.',
+      '11–49 or hybrid 10–52', 'The Rolling Stones · Robert Johnson'),
+    P('opend', C.open, 'Open D (D A D F♯ A D)', ['D2', 'A2', 'D3', 'Gb3', 'A3', 'D4'],
+      'Open strings ring a D major chord. Beloved by slide players and singer-songwriters for its ringing voice.',
+      ['Big Yellow Taxi — Joni Mitchell', 'She Talks to Angels — The Black Crowes', 'Delta & bottleneck slide repertoire'],
+      'Drop the 6th, 3rd and 1st strings from standard to get there fast (E→D, G→F♯, E→D).',
+      '12–54 (slide) / 11–49 (chords)', 'Joni Mitchell · Black Crowes'),
+    P('opene', C.open, 'Open E (E B E G♯ B E)', ['E2', 'B2', 'E3', 'Ab3', 'B3', 'E4'],
+      'Open strings ring an E major chord — slide heaven with standard-tension top strings.',
+      ['Little Martha — The Allman Brothers', 'Derek Trucks slide catalog', 'Duane Allman slide work'],
+      'Same shapes as Open D but a whole step up — higher tension, so use lighter gauges.',
+      '10–46 / 11–48', 'The Allman Brothers · Duane Allman'),
+    P('openc', C.open, 'Open C (C G C G C E)', ['C2', 'G2', 'C3', 'G3', 'C4', 'E4'],
+      'Open strings ring a C major chord. Deep, warm and cinematic — a fingerstyle composer’s tuning.',
+      ['Cello Song — Nick Drake', 'Modern fingerstyle arrangements', 'Devin Townsend ambience'],
+      'Two whole-step-down strings; a light gauge set will feel floppy. Go 12–56 or higher.',
+      '12–56', 'Nick Drake'),
+    P('opena', C.open, 'Open A (E A E A C♯ E)', ['E2', 'A2', 'E3', 'A3', 'Db4', 'E4'],
+      'A major, wide open: the big ringing slide sound of the Delta and country blues.',
+      ['Statesboro Blues — Blind Willie McTell', 'Gospel slide tradition', 'Allman Brothers slide'],
+      'Related to Open E (capo 5 = Open E shapes). Watch the 3rd string — it goes up a whole step.',
+      '11–48 / 12–52', 'Blind Willie McTell'),
+    P('openf', C.open, 'Open F (F A C F A C)', ['F2', 'A2', 'C3', 'F3', 'A3', 'C4'],
+      'Open F, a half step above Open E — bright, tense and rarely used.',
+      ['Exotic slide repertoire', 'Acoustic “tuned-up” arrangements'],
+      'Only a semitone of headroom on standard gauges — use a light set (9–42) to be safe.',
+      '9–42', ''),
+    P('openb', C.open, 'Open B (B F♯ B F♯ B D♯)', ['B1', 'Gb2', 'B2', 'Gb3', 'B3', 'Eb4'],
+      'Open B is drop-tuned Open E territory — enormous slide chords, super low.',
+      ['Ben Harper', 'Low-tuned slide & lap-style work'],
+      'Typically played on a baritone or with 13–62+ strings, and it loves a slide — use light touch.',
+      '13–62', 'Ben Harper'),
+    P('opengm', C.open, 'Open G Minor (D G D G B♭ D)', ['D2', 'G2', 'D3', 'G3', 'Bb3', 'D4'],
+      'Like Open G but with a flatted third: dark, mournful and very rare.',
+      ['Nick Drake-style minor ballads', 'Dark Delta slide'],
+      'From Open G, drop only the B string a semitone. Great for writing sad songs instantly.',
+      '12–54', ''),
+    P('openem', C.open, 'Open E Minor (E B E G B E)', ['E2', 'B2', 'E3', 'G3', 'B3', 'E4'],
+      'Open E minor — open strings give you a minor chord with no fingers.',
+      ['Slide & doom riffs', 'Ambient acoustic'],
+      'Only the 3rd string changes from standard (G♯ → G natural = plain standard G).',
+      '11–49', ''),
+    P('opendm', C.open, 'Open D Minor (D A D F A D)', ['D2', 'A2', 'D3', 'F3', 'A3', 'D4'],
+      'Open D with a minor third — the “Dm swing” tuning of the Delta.',
+      ['Skip James-style blues', 'Dark folk slide'],
+      'From Open D, lower the 3rd string F♯ → F. Instantly cinematic.',
+      '12–54', 'Skip James'),
+    P('opene7', C.slide, 'Open E7 / Spanish (E B E G♯ B D)', ['E2', 'B2', 'E3', 'Ab3', 'B3', 'D4'],
+      'The “Spanish” tuning of the blues: E7 with the high string dropped to D.',
+      ['Travelling Riverside Blues — Robert Johnson', 'Bo Carter & Delta slide repertoire'],
+      'Bo Diddley, Muddy Waters and Robert Johnson all used variants. Great for bottleneck vamping.',
+      '12–54', 'Robert Johnson · Muddy Waters'),
+    P('openg6', C.slide, 'Open G6 (D G D G B E)', ['D2', 'G2', 'D3', 'G3', 'B3', 'E4'],
+      'Open G with the top E left alone — G6, the country/western-swing slide sound.',
+      ['Western swing lap steel', 'Hawaiian-inspired slide'],
+      'One string different from standard, so it’s the friendliest slide tuning to start on.',
+      '11–49', ''),
+    P('openc6', C.slide, 'Open C6 (C G C E A C)', ['C2', 'G2', 'C3', 'E3', 'A3', 'C4'],
+      'C6 “bass” tuning from Hawaiian lap steel: rich 6th chords, ideal for steel guitar.',
+      ['Hawaiian lap steel classics', 'Country non-pedal steel'],
+      'Non-pedal steel players call this C6/A7 family. Beautiful with a bar and a volume pedal.',
+      '12–56 (steel set)', ''),
+    P('c6_low', C.slide, 'Lap Steel C6 (C E G A C E)', ['C2', 'E2', 'G2', 'A2', 'C3', 'E3'],
+      'The canonical 6-string C6 lap steel tuning — the sound of mid-century country and Hawaiian records.',
+      ['Sleepwalk — Santo & Johnny', 'Hawaiian & western swing steel'],
+      'Played with a bullet bar, not fingers. Harmonics and slants are the vocabulary.',
+      'Lap steel 6-string set', 'Santo & Johnny'),
+    P('a6_low', C.slide, 'Lap Steel A6 (C♯ E F♯ A C♯ E)', ['Db2', 'E2', 'Gb2', 'A2', 'Db3', 'E3'],
+      'A6 — the bright, tangy steel tuning of western swing.',
+      ['Western swing steel breaks', 'Bob Wills-era steel'],
+      'Try it up a semitone (B♭6) or down a tone; steel players retune constantly.',
+      'Lap steel set', ''),
+    P('e7_low', C.slide, 'Lap Steel E7 (E G♯ B D E G♯)', ['E2', 'Ab2', 'B2', 'D3', 'E3', 'Ab3'],
+      'E7 low-bass steel tuning — the bottleneck rock & roll sound.',
+      ['Dust My Broom — Elmore James', 'Bluegrass dobro riffs'],
+      'Also called the “Hawaiian E7”. Root-fifth-root-seven stacked in the bass.',
+      'Lap/dobro set', 'Elmore James'),
+
+    /* ------------------------------------------------------------------ */
+    /* Modal & drone                                                       */
+    /* ------------------------------------------------------------------ */
+    P('dadgad', C.modal, 'DADGAD', ['D2', 'A2', 'D3', 'G3', 'A3', 'D4'],
+      'The famous “DADGAD” drone tuning: neither major nor minor, ideal for Celtic, folk and modal riffing. One shape covers endless songs.',
+      ['Kashmir — Led Zeppelin', 'Black Mountain Side — Led Zeppelin', 'Pierre Bensusan’s catalog', 'Norwegian Wood (variant) — The Beatles'],
+      'From Drop D, lower the 2nd string B → A and the 1st string E → D. That’s the whole move.',
+      '12–54 (acoustic)', 'Led Zeppelin · Pierre Bensusan'),
+    P('daddad', C.modal, 'DADDAD (Papa-Papa)', ['D2', 'A2', 'D3', 'D4', 'A3', 'D4'],
+      'All-D-and-A drone tuning used for soundscapes and one-finger modal chords.',
+      ['Soundgarden experiments', 'Ambient/atmospheric guitar'],
+      'Both the 3rd string (G→D) and 1st string (E→D) go down. Instantly hypnotic.',
+      '12–54', ''),
+    P('dadfad', C.modal, 'DADFAD (Open Dm modal)', ['D2', 'A2', 'D3', 'F3', 'A3', 'D4'],
+      'Open D minor with a modal, droning quality — the “Graveyard” tuning.',
+      ['Skip James', 'Dark Appalachian folk'],
+      'Same as Open D minor: one string (G→F) from Drop D + 3rd/1st changes.',
+      '12–54', ''),
+    P('cgdgbd', C.modal, 'CGDGBD (Open G, low C)', ['C2', 'G2', 'D3', 'G3', 'B3', 'D4'],
+      'Open G with a bass C: fuller low end for slide and folk accompaniment.',
+      ['Rolling Stones deep cuts', 'Fingerstyle folk'],
+      'Keef’s Open G often loses the low string — keeping it at C gives you a low root for the IV chord.',
+      '12–56', ''),
+    P('cadd9_alt', C.modal, 'Cadd9 Modal (C G C G C D)', ['C2', 'G2', 'C3', 'G3', 'C4', 'D4'],
+      'Wide, suspended, piano-like: the go-to tuning for modern acoustic tapping and open-voice arrangements.',
+      ['Andy McKee-style fingerstyle', 'Modern percussive acoustic'],
+      'Only the top string changes from Open C (E → D). Great for sus/add9 colours.',
+      '13–59', 'Andy McKee-style players'),
+    P('cgcgcd', C.modal, 'CGDGCD (Drop D + open C flavour)', ['C2', 'G2', 'D3', 'G3', 'C4', 'D4'],
+      'A low-C modal tuning with a suspended, ringing character.',
+      ['Acoustic post-rock', 'Ambient fingerstyle'],
+      'Lots of fifths — everything you strum sounds intentional.',
+      '13–59', ''),
+    P('efcgae', C.modal, 'E modal drone (E B E F♯ B E)', ['E2', 'B2', 'E3', 'Gb3', 'B3', 'E4'],
+      'Powerful modal E tuning with a raised 4th: instantly cinematic.',
+      ['Cello Song-era experimenters', 'Drone & post-rock'],
+      'From Open E, lower the 4th string G♯ → F♯ for the “E-sus” shimmer.',
+      '11–52', ''),
+    P('b_modal', C.modal, 'B Modal (B F♯ B F♯ B D♯)', ['B1', 'Gb2', 'B2', 'Gb3', 'B3', 'Eb4'],
+      'Very low modal tuning with a huge fundamental — drone metal territory.',
+      ['Sunn O)))-style drone', 'Doom metal'],
+      'Needs 13–62+ strings and a light touch. Consider a baritone or down-tuned 7-string.',
+      '13–62', ''),
+    P('openam7', C.modal, 'Open Am7 (E A E G C E)', ['E2', 'A2', 'E3', 'G3', 'C4', 'E4'],
+      'An Am7 chord with open strings — lush and jazz-adjacent.',
+      ['Joni Mitchell-style voicings', 'Ambient singer-songwriter'],
+      'From standard: 6th E→E (stay), 5th A→A (stay), 4th D→E, 3rd G→G (stay), 2nd B→C, 1st E→E. Use the reference tones to check each one.',
+      '11–52', ''),
+
+    /* ------------------------------------------------------------------ */
+    /* Folk & fingerstyle                                                  */
+    /* ------------------------------------------------------------------ */
+    P('nashville', C.folk, 'Nashville / High-Strung', ['E3', 'A3', 'D4', 'G4', 'B3', 'E4'],
+      'The 12-string effect on a 6-string: the bottom four strings are replaced with octave-light strings and tuned an octave up.',
+      ['Wild Horses — The Rolling Stones', 'Ripple — Grateful Dead', 'Every Nashville studio hit of the 60s–70s'],
+      'Buy a “Nashville tuning” pack, or use the octave strings out of a 12-string set. Standard shapes, glittery sound.',
+      'Nashville set (octave top 4)', 'Rolling Stones · Nashville session players'),
+    P('dadgad_low', C.folk, 'DADGAD, Low (C G C F G C)', ['C2', 'G2', 'C3', 'F3', 'G3', 'C4'],
+      'DADGAD dropped a whole step — richer for male baritone singing.',
+      ['Modern Celtic & folk arrangements'],
+      'Everything you know in DADGAD works with the same shapes, a step lower.',
+      '13–59', ''),
+    P('cgdgad', C.folk, 'CGDGAD (Drop C + DADGAD flavour)', ['C2', 'G2', 'D3', 'G3', 'A3', 'D4'],
+      'A gorgeous low drone tuning for fingerstyle — minor/major ambiguity built in.',
+      ['Modern fingerstyle players', 'Post-rock acoustic'],
+      'Start from DADGAD and drop both low strings a whole step.',
+      '13–59', ''),
+    P('dropd_capo', C.folk, 'Drop D + Capo 2 sound (E A D G B E @2)', ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+      'Plain standard — but the Folk & Fingerstyle trick is knowing a capo at fret 2 makes any key sound folk-authentic.',
+      ['American folk & bluegrass', 'Singer-songwriter arrangements'],
+      'Use the Capo control in the tuner: capo 2 + standard = E♭-ish voice with bright open strings.',
+      '12–53', ''),
+    P('opend6', C.folk, 'Open D6 Folk (D A D F♯ B D)', ['D2', 'A2', 'D3', 'Gb3', 'B3', 'D4'],
+      'Open D with a 6th on the fifth string: a D6 chord that leaves a major 6th free for melodies — the old-time folk and Delta slide colour.',
+      ['Delta blues slide (D6 flavour)', 'Big Yellow Taxi style folk strumming — Joni Mitchell territory'],
+      'Hammer between the 4th and 5th string to move from D6 to D major — instant country/folk colour.',
+      '12–54', 'Delta & old-time tradition'),
+
+    /* ------------------------------------------------------------------ */
+    /* Slide & blues                                                       */
+    /* ------------------------------------------------------------------ */
+    P('vestapol', C.slide, 'Vestapol / Open D Slide (D A D F♯ A D)', ['D2', 'A2', 'D3', 'Gb3', 'A3', 'D4'],
+      'The classic Mississippi slide tuning — same pitches as Open D, with the bottleneck vocabulary attached.',
+      ['Mississippi John Hurt', 'Blind Willie Johnson', 'Ry Cooder'],
+      'Slide lives in the top three strings. Keep the bar parallel or your chords will sour.',
+      '13–56 (slide set)', 'Delta blues'),
+    P('spanish_g', C.slide, 'Spanish / Open G Slide (D G D G B D)', ['D2', 'G2', 'D3', 'G3', 'B3', 'D4'],
+      'Open G, the other great bottleneck tuning: blues in G, D and A.',
+      ['Robert Johnson', 'Muddy Waters', 'Bonnie Raitt'],
+      'With the low string removed you get the classic five-string slide sound; with strings 4–6 you can play bass lines.',
+      '13–56', 'Robert Johnson · Muddy Waters'),
+    P('sdgbbd', C.slide, 'Drop D Spanish (D A D G B D)', ['D2', 'A2', 'D3', 'G3', 'B3', 'D4'],
+      'Drop D with the top string also down — a hybrid slide/picking tuning used by slide-and-sing players.',
+      ['Duane Allman-era slide', 'Modern electric slide'],
+      'Drop the 1st string E → D and every open strum becomes a D5 sus flavour.',
+      '11–52', ''),
+    P('blues_a', C.slide, 'Blues in A (E A E A C♯ E)', ['E2', 'A2', 'E3', 'A3', 'Db4', 'E4'],
+      'Open A slide tuning — the sound of Chicago blues in A.',
+      ['Muddy Waters electric slide', 'Hound Dog Taylor'],
+      'Use a slightly heavier top string or the slide will rattle on the high E.',
+      '12–52', 'Muddy Waters'),
+    P('g_sixth', C.slide, 'G6 Dorian Slide (D G D G B E)', ['D2', 'G2', 'D3', 'G3', 'B3', 'E4'],
+      'Open G with the major 6th on top — the swampy swamp-twang slide tuning. (Same pitches as Open G6; this is the name slide players use.)',
+      ['Tampa Red', 'Country blues slide'],
+      'Blue notes appear when you slide a fret or two. Pure blues vocabulary.',
+      '12–54', 'Tampa Red'),
+
+    /* ------------------------------------------------------------------ */
+    /* World & traditional                                                 */
+    /* ------------------------------------------------------------------ */
+    P('banjo_open_g', C.world, 'Banjo — Open G (gDGBD)', ['G4', 'D3', 'G3', 'B3', 'D4'],
+      'Five-string banjo standard: the 5th string is a short high-g drone string.',
+      ['Bluegrass — Earl Scruggs', 'Appalachian folk'],
+      'The drone 5th string never gets fretted — that’s where the banjo twang lives.',
+      'Banjo 5-string set', 'Earl Scruggs'),
+    P('tenor_banjo', C.world, 'Tenor Banjo / Irish (G D A E)', ['G2', 'D3', 'A3', 'E4'],
+      'Four strings in fifths — the Irish traditional and Dixieland sound.',
+      ['Irish session tunes', 'Dixieland jazz'],
+      'Violin fingering applies. Chords are three-note shapes, not barres.',
+      'Tenor banjo set', ''),
+    P('mandola', C.world, 'Mandola / Tenor (C G D A)', ['C3', 'G3', 'D4', 'A4'],
+      'Mandola is a fifth below the mandolin — warmer, woody, great for melody.',
+      ['Celtic ensemble work', 'Classical mandolin family'],
+      'Same fingering as mandolin, different key. A mandolin player’s second instrument.',
+      'Mandola set', ''),
+    P('charango', C.world, 'Charango (G C E A E)', ['G3', 'C4', 'E4', 'A4', 'E4'],
+      'Andean 5-course instrument, usually ten strings in five pairs.',
+      ['Andean folk music', 'Latin American traditional'],
+      'The reversed higher courses give it the buzzing, sparkling texture.',
+      'Charango set', ''),
+    P('russian', C.world, 'Russian Guitar — 7-String (D G B D G B D)', ['D2', 'G2', 'B2', 'D3', 'G3', 'B3', 'D4'],
+      'The Russian seven-string “gypsy” guitar: a G major chord across all seven open strings.',
+      ['Russian romance repertoire', 'Gypsy guitar tradition'],
+      'Unique in guitar history — literally a major triad open. Chords are learned as shapes over the G chord.',
+      '7-string classical set', 'Russian romance tradition'),
+    P('oud', C.world, 'Oud — Arabic (D G A D G C)', ['D2', 'G2', 'A2', 'D3', 'G3', 'C4'],
+      'The Arabic oud tuning family (in C): deep, microtonal-friendly and very resonant.',
+      ['Arabic maqam music', 'Turkish makam traditions'],
+      'Fretless instrument — your ear is the fretboard. This preset is for reference tones.',
+      'Oud set', ''),
+    P('bass', C.inst, 'Bass — Standard, 4-string (E A D G)', ['E1', 'A1', 'D2', 'G2'],
+      'Four strings, one octave below guitar strings 6–3. Lock in with the kick drum.',
+      ['Every great bassline you know'],
+      'Bass strings are wound differently — never put guitar strings on a bass (or vice versa).',
+      '45–105 medium 4-string set', ''),
+    P('bass_dropd', C.inst, 'Bass — Drop D (D A D G)', ['D1', 'A1', 'D2', 'G2'],
+      'Drop the low E to D for nu-metal and grunge bass riffs.',
+      ['Nu-metal bass anchors', 'Tool-style riffing'],
+      'A heavier low string (110–115) keeps the D from flubbing.',
+      '50–110', ''),
+    P('bass_five', C.inst, 'Bass — 5-String (B E A D G)', ['B0', 'E1', 'A1', 'D2', 'G2'],
+      'Five-string bass: low B below the E string. Standard for modern rock, gospel and metal.',
+      ['Gospel & contemporary worship bass', 'Modern session work'],
+      'Mute the low B with your thumb or it will ring sympathetically all night.',
+      '45–130 5-string set', ''),
+    P('bass_six', C.inst, 'Bass — 6-String (B E A D G C)', ['B0', 'E1', 'A1', 'D2', 'G2', 'C3'],
+      'Six-string bass adds a high C string for chord and melody work.',
+      ['Prog & fusion bass', 'Solo bass repertoire'],
+      'Neck is wide — many players use it for chords, not for stretching.',
+      '6-string bass set', ''),
+    P('bass_halfstep', C.inst, 'Bass — E♭ Standard', ['Eb1', 'Ab1', 'Db2', 'Gb2'],
+      'Half step down bass — matches an E♭-tuned guitar set.',
+      ['Hendrix & SRV repertoire', 'Modern hard rock'],
+      'Match your guitar’s tuning exactly or the low end will phase against you.',
+      '50–110', ''),
+    P('uke', C.inst, 'Ukulele — Standard (g C E A)', ['G4', 'C4', 'E4', 'A4'],
+      'G C E A — the re-entrant “my dog has fleas” tuning.',
+      ['Somewhere Over the Rainbow — Israel Kamakawiwoʻole', 'Standard uke repertoire'],
+      'The 4th string is high (re-entrant) — that’s the uke’s signature lilting sound.',
+      'Soprano/concert uke set', ''),
+    P('uke_lowg', C.inst, 'Ukulele — Low G (G C E A)', ['G3', 'C4', 'E4', 'A4'],
+      'Low-G swaps the thin 4th string for a wound low G — full bass, guitar-like.',
+      ['Fingerstyle ukulele', 'Jake Shimabukuro arrangements'],
+      'You must buy a dedicated low-G set; you cannot safely drop a re-entrant string an octave.',
+      'Low-G uke set', 'Jake Shimabukuro'),
+    P('uke_baritone', C.inst, 'Ukulele — Baritone (D G B E)', ['D3', 'G3', 'B3', 'E4'],
+      'Baritone uke is tuned like guitar strings 4–1 — a great stepping stone to guitar.',
+      ['Hawaiian baritone arrangements'],
+      'Same shapes as the top four guitar strings. Everything transfers.',
+      'Baritone uke set', ''),
+    P('mando', C.inst, 'Mandolin — Standard (G D A E)', ['G3', 'D4', 'A4', 'E5'],
+      'G D A E in fifths, like a tiny violin. Chop chords and tremolo.',
+      ['Bluegrass — Bill Monroe tradition', 'Chris Thile'],
+      'Fifths tuning means chords are movable shapes — learn one, move it everywhere.',
+      'Mandolin set (pairs)', 'Bill Monroe · Chris Thile'),
+    P('octave_mando', C.inst, 'Octave Mandolin (G D A E, low)', ['G2', 'D3', 'A3', 'E4'],
+      'An octave below the mandolin: massive sustain for Celtic accompaniment.',
+      ['Celtic / Irish session work', 'Tim O’Brien'],
+      'Same fingering as mandolin. Let open strings drone under melodies.',
+      'Octave mandolin set', 'Tim O’Brien'),
+    P('dobro', C.inst, 'Resonator / Dobro (G B D G B D)', ['G2', 'B2', 'D3', 'G3', 'B3', 'D4'],
+      'High-G Dobro tuning: bluegrass slide with the brightest, brassiest voice.',
+      ['Bluegrass dobro — Jerry Douglas', 'Country slide'],
+      'Played with a bullet bar and fingerpicks. The resonator does the projecting for you.',
+      'Dobro set', 'Jerry Douglas'),
+    P('tenor_guitar', C.inst, 'Tenor Guitar (C G D A)', ['C3', 'G3', 'D4', 'A4'],
+      'Four strings in fifths — jazz, Irish and folk rhythm machine.',
+      ['Dixieland jazz', 'Irish tenor guitar accompaniment'],
+      'Also popular in CGDA and GDAE — this preset is the standard CGDA one.',
+      'Tenor guitar set', ''),
+    P('lap_steel_open_d', C.inst, 'Lap Steel — Open D (D A D F♯ A D)', ['D2', 'A2', 'D3', 'Gb3', 'A3', 'D4'],
+      'The country lap steel standard: a D major chord under the bar.',
+      ['Country & western swing', 'Sacred steel tradition'],
+      'Lay the guitar flat, use a bullet bar, and learn to mute with both hands.',
+      'Lap steel set (heavy)', 'Sacred steel tradition'),
+
+    /* ------------------------------------------------------------------ */
+    /* Additional famous sets — added with the 2026 expansion              */
+    /* ------------------------------------------------------------------ */
+    P('open_cm', C.open, 'Open C Minor (C G C G C E♭)', ['C2', 'G2', 'C3', 'G3', 'C4', 'Eb4'],
+      'The dark cousin of Open C — all the power of the low C drone, but minor.',
+      ['Black metal & doom atmospherics', '“Dark” slide and drone songwriting'],
+      'Drop the high E a semitone from Open C. If you have Open C you are one peg away.',
+      '12–56 (heavy bottom)', 'Doom & drone tradition'),
+    P('open_dm7', C.open, 'Open Dm7 / “Cross-note D7” (D A D F A C)', ['D2', 'A2', 'D3', 'F3', 'A3', 'C4'],
+      'Open D minor with a minor 7th on top — molasses slide for slow blues.',
+      ['Skip James-style minor slide', '“Cross-note” blues tradition'],
+      'From Open D: drop the 3rd string one semitone (F♯→F) and the 1st two semitones (D→C).',
+      '12–54', 'Skip James tradition'),
+    P('open_gm7', C.open, 'Open Gm7 / Spanish Minor (D G D F B♭ D)', ['D2', 'G2', 'D3', 'F3', 'Bb3', 'D4'],
+      'Open G minus the 3rd, plus the ♭7 — the “Spanish” minor sound of gospel slide.',
+      ['Gospel & sacred steel slide', 'Blind Willie Johnson tradition'],
+      'Great with a bottleneck for tremolo-heavy gospel phrases.',
+      '13–56 (slide set)', 'Sacred steel tradition'),
+    P('dropd_add9', C.folk, 'Drop D + Add9 (D A D E A D)', ['D2', 'A2', 'D3', 'E3', 'A3', 'D4'],
+      'Drop D with the top two reversed: a D5 with an added 9 — huge open-strum chords.',
+      ['Post-rock & ambient guitar', 'Modern “shimmer” songwriting'],
+      'Strum all six and let the E ring against the D — instant droning major 2nd shimmer.',
+      '11–52', 'Post-rock & ambient'),
+    P('a_standard', C.metal, 'A Standard (A D G C E A)', ['A1', 'D2', 'G2', 'C3', 'E3', 'A3'],
+      'Three semitones below Drop D territory: a cavernous, sludgy A standard for doom and heavy stoner rock.',
+      ['Doom & sludge metal', 'Stoner rock in A'],
+      'You almost certainly need 13–62 or a baritone guitar. If it flubs, raise the action and lighten your pick attack.',
+      '13–62 or baritone', 'Doom & sludge tradition'),
+    P('drop_b_6', C.metal, 'Drop B♭ (B♭ F B♭ E♭ F B♭)', ['Bb1', 'F2', 'Bb2', 'Eb3', 'F3', 'Bb3'],
+      'Deepend territory: baritone strings needed, crushing power-chord clarity.',
+      ['Slipknot — “Duality” territory', 'Deathcore & downtuned metal'],
+      'This is 12–68 or baritone-guitar country. On normal strings it will flub and buzz.',
+      '13–68 or baritone', 'Slipknot · deathcore'),
+    P('bass_five_dropa', C.inst, 'Bass — 5-String Drop A (A E A D G)', ['A1', 'E1', 'A1', 'D2', 'G2'],
+      'Five-string bass with the low B dropped to A: modern metal low end with a pedal-friendly low A.',
+      ['Modern metal bass', 'Drop A guitar bands'],
+      'Same as standard 5-string, two semitones down on the lowest string only.',
+      '130–045 five-string set', 'Modern metal'),
+    P('uke_d', C.inst, 'Ukulele — D Tuning / “Canadian” (A D F♯ B)', ['A4', 'D4', 'Gb4', 'B4'],
+      'The older, brighter ukulele tuning — still standard in Canadian and some European teaching.',
+      ['Early 20th-century uke repertoire', 'Tin Pan Alley arrangements'],
+      'Two semitones above C tuning: same shapes, brighter and tighter.',
+      'Uke set (soprano)', 'Vintage uke tradition'),
+    P('banjo_sawmill', C.world, 'Banjo — Sawmill / Mountain Minor (g D G C D)', ['G4', 'D3', 'G3', 'C4', 'D4'],
+      'The mountain-minor banjo tuning: dark, modal and perfect for old-time modal tunes.',
+      ['Old-time Appalachian fiddle tunes', '“Cluck Old Hen” tradition'],
+      'From Open G, drop the 2nd string from B to C — one peg for a whole different mood.',
+      'Banjo set (5-string)', 'Old-time Appalachian tradition'),
+    P('banjo_double_c', C.world, 'Banjo — Double C (g C G C D)', ['G4', 'C3', 'G3', 'C4', 'D4'],
+      'The other old-time standard: two C strings in the middle for a full, modal strum.',
+      ['“Shady Grove”', 'Old-time & bluegrass ballad accompaniment'],
+      'From Open G, raise the 4th string from D to C and the 2nd from B to C.',
+      'Banjo set (5-string)', 'Old-time tradition'),
+    P('tenor_banjo_cgda', C.world, 'Tenor Banjo — CGDA (Jazz)', ['C3', 'G3', 'D4', 'A4'],
+      'The original jazz tenor banjo tuning in fifths — bright, rhythmic chord work.',
+      ['Dixieland & early jazz', 'Trad jazz rhythm playing'],
+      'Same interval pattern as viola/mandola: a chord shape works anywhere on the neck.',
+      'Tenor banjo set', 'Dixieland tradition'),
+    P('bouzouki_cfad', C.world, 'Bouzouki — CFAD (Tetrachordo)', ['C3', 'F3', 'A3', 'D4'],
+      'The four-course Greek bouzouki in fifths — the sound of rebetiko and modern Greek music.',
+      ['Rebetiko & laïko', 'Irish bouzouki players in C'],
+      'Four courses, each usually strung in octaves. Play drones and tremolo.',
+      'Bouzouki set (4-course)', 'Greek rebetiko tradition'),
+    P('bouzouki_gdad', C.world, 'Bouzouki — GDAD (Irish)', ['G2', 'D3', 'A3', 'D4'],
+      'The standard Irish bouzouki: two D strings for drone accompaniment under fiddle tunes.',
+      ['Planxty · Dónal Lunny', 'Irish session accompaniment'],
+      'Played with a flatpick; the open D strings ring as drones while you move chords.',
+      'Bouzouki set', 'Irish session tradition'),
+    P('mandolin_cross_a', C.world, 'Mandolin — Cross A / Sawmill (A E A E)', ['A3', 'E4', 'A4', 'E5'],
+      'Old-time “cross” tuning in A: modal drones and open string melody work.',
+      ['Old-time string band music', 'Fiddle classics in A minor'],
+      'Everything in A becomes easy — the two A strings are your drone engine.',
+      'Mandolin set (light)', 'Old-time tradition'),
+    P('five_std_7', C.drop, '7-String Half Step Down (A♯ D♯ G♯ C♯ F A♯)', ['Bb1', 'Eb2', 'Ab2', 'Db3', 'Gb3', 'Bb3', 'Eb4'],
+      'Seven strings a semitone down — huge chords with a dark, thick top end.',
+      ['Modern prog & djent', 'Metal in E♭ with a low A♯'],
+      'Drop the whole guitar a semitone; shapes stay the same.',
+      '7-string set 10–59', 'Prog metal'),
+    P('eight_dropa', C.drop, '8-String Drop A (A E A D G B E A)', ['A1', 'E2', 'A2', 'D3', 'G3', 'B3', 'E4', 'A4'],
+      '8-string tuned so the low pair is octaves in A — massive in the mix and still solo-friendly up top.',
+      ['Modern djent & progressive metal', 'Extended-range ambient work'],
+      'The two A strings an octave apart let you double a riff low and high at once.',
+      '8-string set 10–74', 'Djent & prog metal')
+  ];
+
+  const BY_ID = {};
+  PRESETS.forEach(p => { BY_ID[p.id] = p; });
+
+  function byId(id) { return BY_ID[id] || PRESETS[0]; }
   function guideFor(id) {
-    return GUIDE[id] || { desc: '', songs: [] };
+    const p = BY_ID[id];
+    return p ? { desc: p.desc, songs: p.songs, tip: p.tip, gauges: p.gauges, artist: p.artist } : { desc: '', songs: [] };
   }
   function categories() {
     const out = [];
@@ -116,6 +531,26 @@
   function label(p) {
     return p.name + ' · ' + p.strings.map(s => s.name).join(' ');
   }
+  function search(q) {
+    const s = String(q || '').toLowerCase().trim();
+    if (!s) return PRESETS.slice();
+    return PRESETS.filter(p =>
+      (p.name + ' ' + p.cat + ' ' + p.artist + ' ' + p.desc + ' ' + p.songs.join(' ')).toLowerCase().includes(s));
+  }
+  function stringCount(n) { return PRESETS.filter(p => p.strings.length === n); }
+  function byCat(cat) { return cat && cat !== 'all' ? PRESETS.filter(p => p.cat === cat) : PRESETS.slice(); }
+  function counts() { const out = {}; categories().forEach(c => { out[c] = PRESETS.filter(p => p.cat === c).length; }); return out; }
+  function all() { return PRESETS.slice(); }
+  function noteSet(p) { return p.strings.map(s => s.name).join(' '); }
 
-  window.MG.tunings = { PRESETS: PRESETS, byId: byId, categories: categories, label: label, guideFor: guideFor };
+  /* Suggested gauge for the currently selected tuning, accounting for capo. */
+  function gaugeFor(id) { const p = BY_ID[id]; return (p && p.gauges) || ''; }
+
+  const api = {
+    PRESETS: PRESETS, byId: byId, categories: categories, label: label,
+    guideFor: guideFor, search: search, stringCount: stringCount, noteSet: noteSet, gaugeFor: gaugeFor,
+    byCat: byCat, counts: counts, all: all
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') { window.TT = window.TT || {}; window.TT.tunings = api; }
 })();

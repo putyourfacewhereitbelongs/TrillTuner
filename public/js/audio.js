@@ -1,4 +1,4 @@
-/* My Guitar — shared Web Audio engine: context, mic, metronome clicks,
+/* Trill Tuner — shared Web Audio engine: context, mic, metronome clicks,
  * Karplus-Strong plucked-string synthesis (from scratch), recorder bus. */
 (function () {
   'use strict';
@@ -267,6 +267,6 @@
     });
   };
 
-  window.MG = window.MG || {};
-  window.MG.audio = A;
+  window.TT = window.TT || {};
+  window.TT.audio = A;
 })();

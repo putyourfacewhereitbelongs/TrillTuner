@@ -259,6 +259,96 @@
       chain: ['Nothing. Guitar → wireless → amp.'],
       amp: 'Plexi: Volume 10 · Bass 3 · Mid 7 · Treble 6 · Presence 5',
       notes: 'The most famous “no pedals” rig in rock. Every tone change comes from the guitar’s volume and tone knobs and from how hard he plays.'
+    },
+    {
+      id: 'prince', artist: 'Prince', guitar: 'Hohner Madcat Tele / Cloud guitar',
+      chain: ['Octave (OC-2 / OC-3)', 'Chorus into a Roland JC-120', 'Sometimes a Boss delay'],
+      amp: 'JC-120: Volume 6 · Treble 6 · Bass 5 · Chorus on',
+      notes: 'Clean, chorused, with an octave under the funk rhythm. The JC-120 is half the sound.'
+    },
+    {
+      id: 'nile', artist: 'Nile Rodgers (Chic)', guitar: 'Fender Stratocaster “Hitmaker” (1959)',
+      chain: ['Compressor', 'Chorus (subtle)', 'Direct / JC-120'],
+      amp: 'JC-120 or DI: dead clean, pick near the bridge, chuck the 16ths',
+      notes: 'The disco guitar is a clean Strat, a compressor, and the right right-hand. No dirt.'
+    },
+    {
+      id: 'morello', artist: 'Tom Morello (Rage Against the Machine)', guitar: 'Fender Telecaster (killswitch, kill-pot)',
+      chain: ['DigiTech Whammy', 'EQ / drop', 'Marshall 2205 or JCM'],
+      amp: 'JCM-style: Pre 6 · Master 4 · Presence 5 · B 4 · M 6 · T 6',
+      notes: 'The Whammy is the instrument. Toggle, killswitch and the treadle do more than any gain knob.'
+    },
+    {
+      id: 'marr', artist: 'Johnny Marr (The Smiths)', guitar: 'Fender Jaguar / Rickenbacker 330',
+      chain: ['Compressor', 'Chorus', 'Fender Twin'],
+      amp: 'Twin Reverb: Vol 4 · Treble 6 · Bass 4 · Reverb 3',
+      notes: 'Jangle is a bright guitar into a clean Twin with a hint of chorus. Capo and open chords do the rest.'
+    },
+    {
+      id: 'summers', artist: 'Andy Summers (The Police)', guitar: 'Fender Telecaster / Gibson 335',
+      chain: ['Chorus (CE-1 / CE-2)', 'Echo', 'Roland JC-120 or Twin'],
+      amp: 'JC-120 chorus on, delay dotted around 300–400 ms',
+      notes: 'The Police guitar is chorus + delay on a clean amp, playing the spaces as much as the notes.'
+    },
+    {
+      id: 'greenwood', artist: 'Jonny Greenwood (Radiohead)', guitar: 'Fender Telecaster Plus',
+      chain: ['Whammy', 'DS-1', 'delay', 'Vox AC30'],
+      amp: 'AC30: Top Boost 6 · Bass 4 · Treble 7 · Cut 3',
+      notes: 'Aggressive AC30 with a DS-1 and a Whammy. The trem arm and the pedalboard are the arrangement.'
+    },
+    {
+      id: 'adamjones', artist: 'Adam Jones (Tool)', guitar: 'Gibson Les Paul Custom (silverburst)',
+      chain: ['Wah', 'delay', 'Diezel VH4'],
+      amp: 'Diezel VH4: Gain 5 · B 4 · M 6 · T 6 · Presence 5',
+      notes: 'A mid-forward high-gain amp, a wah for the talky leads, and delay that is part of the riff.'
+    },
+    {
+      id: 'stvincent', artist: 'St. Vincent (Annie Clark)', guitar: 'Ernie Ball Music Man St. Vincent',
+      chain: ['Fuzz / Muff', 'Whammy / pitch', 'modern high-gain or modeler'],
+      amp: 'Archon or a modeler: Gain 5 · tight bass · present mids',
+      notes: 'Art-rock gain with pitch effects. The guitar’s music-man voicing is already mid-forward.'
+    },
+    {
+      id: 'petrucci', artist: 'John Petrucci (Dream Theater)', guitar: 'Music Man Majesty / JP',
+      chain: ['Boost / TS', 'delay', 'chorus', 'noise gate', 'Mesa Mark'],
+      amp: 'Mark series: Gain 6 · graphic EQ V · delay in the loop',
+      notes: 'A tight, EQ’d Boogie with time-based effects in the loop so the leads sing without getting muddy.'
+    },
+    {
+      id: 'bonamassa', artist: 'Joe Bonamassa', guitar: 'Gibson Les Paul (historics), a rotating cast',
+      chain: ['Klon-style boost', 'wah', 'Two-Rock / Dumble-style'],
+      amp: 'Two-Rock: Gain 4 · Master 6 · B 4 · M 6 · T 6',
+      notes: 'A clean-loud Dumble-style amp and a transparent boost. The guitar volume does the rest.'
+    },
+    {
+      id: 'trucks', artist: 'Derek Trucks', guitar: 'Gibson SG (late-50s style), open Eβ / E',
+      chain: ['Nothing. Guitar → Deluxe Reverb.'],
+      amp: 'Deluxe Reverb: Vol 6 · Treble 6 · Bass 4 · Reverb 3',
+      notes: 'Slide into a loud Deluxe, no pedals. The glass comes from touch and the open tuning.'
+    },
+    {
+      id: 'garyclark', artist: 'Gary Clark Jr.', guitar: 'Epiphone Casino / Fender Tele',
+      chain: ['Fuzz', 'wah', 'Fender Deluxe / Vibroverb'],
+      amp: 'Deluxe Reverb: Vol 5 · Treble 6 · Bass 4 · Reverb 4',
+      notes: 'Texas blues with a fuzz in the pocket and a wah for the single-note lines.'
+    },
+    {
+      id: 'cantrell', artist: 'Jerry Cantrell (Alice in Chains)', guitar: 'G&L Rampage / Les Paul',
+      chain: ['Wah', 'delay', 'Bogner Fish / Ecstasy'],
+      amp: 'Bogner Ecstasy: Gain 5 · B 4 · M 6 · T 6 · Presence 5',
+      notes: 'A mid-forward Bogner, a wah, and delay that hangs behind the vocal-like leads.'
+    },
+    {
+      id: 'homme', artist: 'Josh Homme (Queens of the Stone Age)', guitar: 'Motor Ave BelAire / Tele',
+      chain: ['Nothing, or a slight dirt. Tweed Bassman loud.'],
+      amp: 'Bassman: Bright 6 · Normal 5 · Bass 3 · Mid 7 · Treble 5, jumpered',
+      notes: 'Desert rock is a loud tweed and a hard right hand. Pedals get in the way.'
+    },
+    {
+      id: 'nancy', artist: 'Nancy Wilson (Heart)', guitar: 'Gibson acoustic / electric 12-string / Les Paul',
+      chain: ['Chorus', 'Vox AC30 or a clean Fender'],
+      amp: 'AC30: Top Boost 5 · Bass 4 · Treble 7 · Cut 4',
+      notes: 'Jangle and a 12-string into a chiming AC30. Chorus for the big choruses, not all the time.'
     }
   ];
 
@@ -305,7 +395,22 @@
     pumpkins: { name: 'The Smashing Pumpkins — op-amp Muff layers', ampId: 'jcm800-2203', pedalIds: ['op-amp-muff', 'phase-90', 'dd-3'] },
     blackkeys: { name: 'The Black Keys — Green Russian fuzz', ampId: 'supro-thunderbolt', pedalIds: ['green-russian-muff', 'tremolo', 'analog-delay'] },
     setzer: { name: 'Brian Setzer — slapback into a Bassman', ampId: 'bassman-59', pedalIds: ['boss-dm-2', 'tremolo'] },
-    angus: { name: 'Angus Young — SG straight into a Plexi', ampId: 'plexi-1959', pedalIds: [] }
+    angus: { name: 'Angus Young — SG straight into a Plexi', ampId: 'plexi-1959', pedalIds: [] },
+    prince: { name: 'Prince — octave into a JC-120', ampId: 'jc-120', pedalIds: ['boss-oc-3', 'chorus'] },
+    nile: { name: 'Nile Rodgers — compressor into a JC-120', ampId: 'jc-120', pedalIds: ['compressor', 'chorus'] },
+    morello: { name: 'Tom Morello — Whammy into a JCM', ampId: 'jcm800-2203', pedalIds: ['whammy', 'digitech-drop'] },
+    marr: { name: 'Johnny Marr — chorus into a Twin', ampId: 'twin-reverb-65', pedalIds: ['compressor', 'chorus'] },
+    summers: { name: 'Andy Summers — CE-2 into a JC-120', ampId: 'jc-120', pedalIds: ['ce-2w', 'analog-delay'] },
+    greenwood: { name: 'Jonny Greenwood — DS-1 and Whammy into an AC30', ampId: 'ac30', pedalIds: ['whammy', 'ds-1'] },
+    adamjones: { name: 'Adam Jones — wah and delay into a Diezel', ampId: 'diezel-vh4', pedalIds: ['wah-crybaby', 'analog-delay'] },
+    stvincent: { name: 'St. Vincent — Muff and Whammy into an Archon', ampId: 'prs-archon', pedalIds: ['big-muff', 'whammy'] },
+    petrucci: { name: 'John Petrucci — boost and delay into a Mark', ampId: 'mark-v', pedalIds: ['ts9', 'dd-7', 'chorus', 'noise-gate'] },
+    bonamassa: { name: 'Joe Bonamassa — Klon into a Two-Rock', ampId: 'two-rock-burnside', pedalIds: ['klon-centaur', 'wah-crybaby'] },
+    trucks: { name: 'Derek Trucks — SG straight into a Deluxe', ampId: 'deluxe-reverb-65', pedalIds: [] },
+    garyclark: { name: 'Gary Clark Jr. — fuzz and wah into a Deluxe', ampId: 'deluxe-reverb-65', pedalIds: ['fuzz-face', 'wah-crybaby'] },
+    cantrell: { name: 'Jerry Cantrell — wah into a Bogner', ampId: 'bogner-ecstasy', pedalIds: ['wah-crybaby', 'analog-delay'] },
+    homme: { name: 'Josh Homme — Tele into a jumpered Bassman', ampId: 'bassman-59', pedalIds: [] },
+    nancy: { name: 'Nancy Wilson — chorus into an AC30', ampId: 'ac30', pedalIds: ['chorus'] }
   };
   CHAINS.forEach(function (c) {
     const m = RIG_MAP[c.id];

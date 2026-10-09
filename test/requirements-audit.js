@@ -383,7 +383,7 @@ function kept(out, src) {
     man.name === 'Trill Tuner' && man.display === 'standalone' && man.icons.length >= 3
       && sw.indexOf('cache.addAll') > 0 && sw.indexOf('caches.match') > 0 && sw.indexOf('skipWaiting') > 0
       && head.indexOf('rel="manifest"') > 0 && head.indexOf('name="theme-color"') > 0
-      && head.indexOf('apple-mobile-web-app-capable') > 0 && head.indexOf('maximum-scale=1') > 0
+      && head.indexOf('apple-mobile-web-app-capable') > 0 && head.indexOf('viewport-fit=cover') > 0
       && icons && fs.existsSync(path.join(root, 'test', 'pwa-e2e.js')),
     'manifest “' + man.name + '” standalone · ' + man.icons.length + ' icons · sw precaches the app, falls back to the cached shell offline · theme #f59e0b · mobile viewport · offline E2E green');
 })();
@@ -395,16 +395,16 @@ function kept(out, src) {
   const demo = read('public/js/demo.js');
   const html = read('public/index.html');
   const views = ['tune', 'metronome', 'record', 'lyrics', 'songs', 'styles', 'maker', 'stems',
-    'backing', 'listening', 'learn', 'tools', 'rig', 'mine', 'progress', 'care'];
+    'backing', 'listening', 'learn', 'tools', 'rig', 'hookup', 'settings', 'mine', 'progress', 'care'];
   const covered = views.filter(v => demo.indexOf("view: '" + v + "'") > 0);
   const steps = (demo.match(/title: '/g) || []).length;
   item(14, 'A detailed demo you can skip — and if you do not skip it, every section is covered one by one, with Next and Skip, saving your progress',
-    'public/js/demo.js walks all 16 views with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
-    covered.length === 16 && steps >= 20
+    'public/js/demo.js walks all 18 views with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
+    covered.length === 18 && steps >= 20
       && html.indexOf('id="demo-next"') > 0 && html.indexOf('id="demo-skip"') > 0 && html.indexOf('id="demo-back"') > 0
       && demo.indexOf("set('demoStep'") > 0 && demo.indexOf("set('demoDone'") > 0
       && html.indexOf('id="btn-tour"') > 0,
-    steps + ' steps · all 16 sections covered (' + covered.length + '/16) · Next + Skip + Back · progress saved + resumed · restart from Tuning setup');
+    steps + ' steps · all 18 sections covered (' + covered.length + '/18) · Next + Skip + Back · progress saved + resumed · restart from Tuning setup');
 })();
 
 /* ---------------------------------------------------------------- */

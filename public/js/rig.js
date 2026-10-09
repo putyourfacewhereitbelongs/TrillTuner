@@ -30,6 +30,8 @@
       master: 0.55,
       monitor: false,
       monitorVol: 0.25,
+      liveGuitar: false,
+      mutePreview: true,
       userPresets: []
     };
   }
@@ -335,6 +337,10 @@
     window.TT.audio.pluck(freq, when, gain == null ? 0.5 : gain, nodes.input || undefined);
   }
   function testRiff(kind) {
+    if (R.state.liveGuitar && R.state.mutePreview !== false) {
+      if (window.TT.app && TT.app.toast) TT.app.toast('Preview riffs are off while live guitar is through the amp — you should only hear your guitar.');
+      return false;
+    }
     ensureCtx(); rebuild();
     const ctxNow = ctx.currentTime + 0.05;
     const std = [40, 45, 50, 55, 59, 64];               /* low E … high E */
@@ -802,9 +808,25 @@
       renderGuide(b.dataset.tab);
     }));
     document.querySelectorAll('[data-test-riff]').forEach(b => b.addEventListener('click', () => {
-      testRiff(b.dataset.testRiff);
-      window.TT.app.toast('Test riff through the live chain — turn the output up and the gain down if it clips.');
+      if (testRiff(b.dataset.testRiff) !== false) {
+        window.TT.app.toast('Test riff through the live chain — turn the output up and the gain down if it clips.');
+      }
     }));
+    const live = el2('rig-live');
+    if (live) {
+      live.checked = !!R.state.liveGuitar;
+      live.addEventListener('change', () => {
+        R.state.liveGuitar = live.checked;
+        if (live.checked) {
+          R.state.monitor = true;
+          const monBox = el2('rig-monitor'); if (monBox) monBox.checked = true;
+          if (window.TT.audio && TT.audio.micState !== 'on') TT.audio.startMic().then(() => updateMicRoute()).catch(e => {
+            if (TT.app && TT.app.toast) TT.app.toast((e && e.message) || 'Need the guitar input.');
+          });
+        }
+        save(); updateMicRoute();
+      });
+    }
     const mon = el2('rig-monitor');
     mon.addEventListener('change', async () => {
       R.state.monitor = mon.checked;
@@ -832,6 +854,7 @@
   };
 
   R.rebuild = rebuild;
+  R.updateMicRoute = updateMicRoute;
   R.addPedal = addPedal;
   R.getState = function () { return R.state; };   /* R.state is the data object itself */
   R.testRiff = testRiff;

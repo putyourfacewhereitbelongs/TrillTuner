@@ -88,7 +88,7 @@ const TOUR = [
   ['backing'], ['listening'],
   ['learn', 'beginner'], ['learn', 'drills'],
   ['tools', 'scales'], ['tools', 'circle'], ['tools', 'builder'], ['tools', 'looper'],
-  ['rig'], ['mine'], ['progress'], ['care'], ['tune']
+  ['rig'], ['hookup'], ['settings'], ['mine'], ['progress'], ['care'], ['tune']
 ];
 const TOUR_N = TOUR.length;
 
@@ -104,7 +104,7 @@ const TOUR_N = TOUR.length;
     const man = await res.json();
     ok(man.name === 'Trill Tuner' && man.short_name === 'Trill Tuner', 'manifest: name/short_name "Trill Tuner"');
     ok(man.display === 'standalone', 'manifest: display standalone');
-    ok(man.theme_color === '#f59e0b' && man.background_color === '#0b0d12', 'manifest: theme/background colours');
+    ok(man.theme_color === '#ffffff' && man.background_color === '#ffffff', 'manifest: theme/background colours');
     ok(man.start_url === '/', 'manifest: start_url /');
     ok(Array.isArray(man.icons) && man.icons.length >= 3, 'manifest: icons listed', man.icons.length + ' icons');
     for (const icon of man.icons) {
@@ -123,12 +123,12 @@ const TOUR_N = TOUR.length;
       swScript: !!document.querySelector('script') && /serviceWorker/.test(document.head.innerHTML)
     }));
     ok(meta.manifest === '/manifest.webmanifest', 'index.html links the manifest');
-    ok(meta.theme === '#f59e0b', 'meta theme-color #f59e0b');
+    ok(meta.theme === '#ffffff', 'meta theme-color #ffffff (sun-readable)');
     ok(meta.appleCapable === 'yes', 'apple-mobile-web-app-capable yes');
     ok(meta.appleTitle === 'Trill Tuner', 'apple-mobile-web-app-title "Trill Tuner"');
     ok(meta.appleIcon === '/icons/apple-touch-icon.png', 'apple-touch-icon linked');
-    ok(/maximum-scale=1/.test(meta.viewport) && /viewport-fit=cover/.test(meta.viewport),
-      'mobile viewport: maximum-scale=1 + viewport-fit=cover', meta.viewport);
+    ok(/width=device-width/.test(meta.viewport) && /viewport-fit=cover/.test(meta.viewport),
+      'mobile viewport: device-width + viewport-fit=cover (zoom allowed so nothing is clipped)', meta.viewport);
     const swRes = await page.goto(BASE + '/sw.js');
     ok((swRes.headers()['content-type'] || '').includes('text/javascript'), 'sw.js served as JavaScript');
     ok(page._errors.length === 0, 'no JS errors on load', page._errors.slice(0, 3).join(' | '));
@@ -169,9 +169,9 @@ const TOUR_N = TOUR.length;
       swController: !!navigator.serviceWorker.controller
     }));
     ok(offline.hasApp, 'offline reload: app boots (TT.app present)');
-    ok(offline.nav === 16, 'offline reload: all 16 nav buttons rendered', String(offline.nav));
+    ok(offline.nav === 18, 'offline reload: all 18 nav buttons rendered', String(offline.nav));
     ok(offline.tuneView, 'offline reload: tune view present');
-    ok(offline.bg === 'rgb(11, 13, 18)', 'offline reload: stylesheet applied from cache', offline.bg);
+    ok(offline.bg === 'rgb(255, 255, 255)', 'offline reload: stylesheet applied from cache', offline.bg);
     ok(offline.stylesheetApplied, 'offline reload: card styles applied');
     ok(offline.swController, 'offline reload: page controlled by the service worker');
 
@@ -465,8 +465,8 @@ const TOUR_N = TOUR.length;
     page.on('console', m => { if (m.type() === 'error') page._errors.push('console: ' + m.text()); });
     await page.goto('file://' + path.join(DIR, '..', 'public', 'index.html'), { waitUntil: 'domcontentloaded' });
     const boot = await waitFor(page, () => window.TT && TT.app && TT.app.showView
-      && document.querySelectorAll('.nav-btn').length === 16, 10000, 'app boots on file://');
-    ok(boot, 'file:// (APK shell): the app boots, all 16 nav buttons render');
+      && document.querySelectorAll('.nav-btn').length === 18, 10000, 'app boots on file://');
+    ok(boot, 'file:// (APK shell): the app boots, all 18 nav buttons render');
     await dismissSplashAndDemo(page);
     ok(await page.evaluate(() => !('serviceWorker' in navigator) || !navigator.serviceWorker.controller),
       'file://: no service worker controls the page (registration correctly skipped)');
@@ -611,9 +611,9 @@ const TOUR_N = TOUR.length;
     const t0 = Date.now();
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     const booted = await waitFor(page, () => window.TT && TT.app && TT.app.showView
-      && document.querySelectorAll('.nav-btn').length === 16, 15000, 'app boot');
+      && document.querySelectorAll('.nav-btn').length === 18, 15000, 'app boot');
     const bootMs = Date.now() - t0;
-    ok(booted && bootMs < 8000, 'app boots fast', bootMs + ' ms (16 views wired)');
+    ok(booted && bootMs < 8000, 'app boots fast', bootMs + ' ms (18 views wired)');
     await dismissSplashAndDemo(page);
     const t1 = Date.now();
     await page.click('#btn-mic-start');

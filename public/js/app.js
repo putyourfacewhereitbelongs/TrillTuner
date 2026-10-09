@@ -76,6 +76,7 @@
     if (id === 'progress' && TT.apkshare) TT.apkshare.render();
     if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
     if (id !== 'tools' && TT.playtools && TT.playtools.stop) TT.playtools.stop();
+    if (id === 'settings' && TT.settings && TT.settings.refreshInputs) TT.settings.refreshInputs();
   };
 
   function bindNav() {
@@ -161,6 +162,8 @@
     wire('tools', () => TT.tools.init());
     wire('practice', () => TT.practiceTools.init());
     wire('rig', () => TT.rig.init());
+    wire('hookup', () => TT.hookup && TT.hookup.init());
+    wire('settings', () => TT.settings && TT.settings.init());
     wire('share', () => TT.share.init());
     wire('pwa', () => TT.pwa.init());
     wire('remote', () => TT.remote.init());

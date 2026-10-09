@@ -6,6 +6,7 @@
     ctx: null, master: null, metroBus: null, recorderDest: null,
     analyser: null, micStream: null, micSource: null,
     micState: 'off', micError: '', // off | requesting | on | error
+    deviceId: null,
     level: 0, rmsDb: -100,
     onMic: null,
     _buf: null, _pluckCache: new Map()
@@ -40,8 +41,10 @@
     }
     A.micState = 'requesting'; A.micError = ''; emit();
     try {
+      const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      if (A.deviceId) audio.deviceId = { exact: A.deviceId };
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: audio,
         video: false
       });
       A.micStream = stream;
@@ -100,6 +103,18 @@
   };
   /* the node the analysis taps come from (post-filter when enabled) */
   A.tapNode = function () { return A._lp || A.micSource; };
+
+  A.listInputs = async function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    return devs.filter(d => d.kind === 'audioinput');
+  };
+  A.setDevice = async function (id) {
+    A.deviceId = id || null;
+    const wasOn = A.micState === 'on';
+    if (wasOn) A.stopMic();
+    if (wasOn) await A.startMic();
+  };
 
   /* ---------- capture `seconds` of mic audio for offline analysis
    * (polyphonic strum check, intonation helper, stem lab room take).

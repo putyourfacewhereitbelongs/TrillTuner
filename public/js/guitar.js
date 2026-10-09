@@ -32,7 +32,7 @@
     const hw = y => baseHalf + flare * (y - nutY) / (boardEnd - nutY);
     const leftCount = Math.ceil(n / 2);
     const pegY = i => 34 + i * 30;
-    const pegX = { left: 74, right: 226 };
+    const pegX = { left: cx - 60, right: cx + 60 };
     // wound strings: every string below the top three (all of them on a 4-string bass)
     const wound = i => n === 4 || i < n - 3;
     // string gauge: thickest low string → thinnest high string
@@ -50,7 +50,7 @@
 
     // neck outline (trapezoid) used for fill, grain clip, and shadow
     const neckD = `M${cx - hw(nutY)} ${nutY - 2} L${cx + hw(nutY)} ${nutY - 2} L${cx + hw(boardEnd)} ${boardEnd} L${cx - hw(boardEnd)} ${boardEnd} Z`;
-    const headD = `M${cx - 100} 40 Q${cx - 102} 14 ${cx - 78} 14 L${cx + 78} 14 Q${cx + 102} 14 ${cx + 100} 40 L${cx + 42} 122 Q${cx} ${nutY + 2} ${cx - 42} 122 Z`;
+    const headD = `M${cx - 72} 12 L${cx + 72} 12 Q${cx + 84} 12 ${cx + 86} 26 C${cx + 92} 50 ${cx + 98} 62 ${cx + 96} 72 C${cx + 92} 92 ${cx + 68} 104 ${cx + 66} 124 Q${cx} ${nutY + 2} ${cx - 66} 124 C${cx - 68} 104 ${cx - 92} 92 ${cx - 96} 72 C${cx - 98} 62 ${cx - 92} 50 ${cx - 86} 26 Q${cx - 84} 12 ${cx - 72} 12 Z`;
 
     let s = `<svg viewBox="0 0 ${W} ${H}" class="guitar-svg" role="img" aria-label="Guitar neck with ${n} strings">
       <defs>
@@ -80,13 +80,20 @@
     s += `<path d="${headD}" transform="translate(3 5)" fill="#000" opacity="0.3" filter="url(#${uid}-blur)"/>`;
 
     // ---- headstock ----
-    s += `<path class="g-head" d="${headD}" fill="url(#${uid}-wood)"/>`;
+    s += `<path class="g-head" d="${headD}" fill="url(#${uid}-wood)" stroke="${bind}" stroke-width="2.2" stroke-linejoin="round"/>`;
     s += `<g clip-path="url(#${uid}-headclip)">`;
     s += `<rect x="${cx - 110}" y="10" width="220" height="140" fill="url(#${uid}-head)"/>`;
-    [-30, -14, 2, 18, 34].forEach((dx, k) => {
-      s += `<path class="g-grain" d="M${cx + dx} 10 C${cx + dx + (k % 2 ? 6 : -6)} 60 ${cx + dx - (k % 2 ? 5 : -5)} 100 ${cx + dx + 2} 150"/>`;
+    [-44, -26, -8, 10, 28, 46].forEach((dx, k) => {
+      s += `<path class="g-grain" d="M${cx + dx} 6 C${cx + dx + (k % 2 ? 7 : -7)} 50 ${cx + dx - (k % 2 ? 5 : -5)} 90 ${cx + dx * 0.8} 140"/>`;
     });
     s += `</g>`;
+    // headstock edge shading: light from the top-left, a soft dark rim toward the nut
+    s += `<path d="${headD}" fill="none" stroke="#000" stroke-opacity=".25" stroke-width="5" transform="translate(0 1)" clip-path="url(#${uid}-headclip)"/>`;
+    // logo plate + truss-rod cover (adjustment access sits between the tuner rows)
+    s += `<rect class="g-plate" x="${cx - 19}" y="19" width="38" height="11" rx="2.5"/>`;
+    s += `<text class="g-plate-txt" x="${cx}" y="27.2" text-anchor="middle">TT</text>`;
+    s += `<rect class="g-truss" x="${cx - 9}" y="92" width="18" height="26" rx="5"/>`;
+    s += `<line class="g-truss-slot" x1="${cx}" y1="98" x2="${cx}" y2="112"/>`;
 
     // ---- fretboard ----
     s += `<path class="g-neck" d="${neckD}" fill="url(#${uid}-wood)" stroke="${bind}" stroke-width="2.4" stroke-linejoin="round"/>`;
@@ -152,8 +159,9 @@
     // ---- tuning machines (posts + buttons) ----
     pegs.forEach(p => {
       s += `<g class="g-peg" data-i="${p.stringIdx}" transform="translate(${p.x},${p.y})">` +
-        `<rect class="g-machine" x="-8" y="-5" width="16" height="10" rx="2"/>` +
-        `<circle class="peg-btn" r="10"/><circle class="peg-cap" r="3.5"/></g>`;
+        `<circle class="g-machine" r="7.5"/><circle class="g-bushing" r="5"/>` +
+        `<circle class="peg-btn" r="9.5"/><circle class="peg-cap" r="2.6"/>` +
+        `<line class="g-post-slot" x1="-3.5" y1="0" x2="3.5" y2="0"/></g>`;
     });
 
     // ---- strings: shadow, steel/wound body, wrap, highlight ----

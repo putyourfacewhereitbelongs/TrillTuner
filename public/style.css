@@ -202,13 +202,16 @@ body.gig-on .gig-btn { color: #2bff88; border-color: rgba(43,255,136,.5); }
 .g-dot { fill: #f3eee2; opacity: .92; }
 .g-side { fill: #f3eee2; opacity: .8; }
 .g-nut { fill: #efe9d8; stroke: #8f8570; stroke-width: .8; }
-.g-machine { fill: #3a4152; stroke: #12151d; stroke-width: 1; }
-.theme-acoustic .g-head { fill: #33261a; }
-.theme-electric .g-head { fill: #191c28; }
-.g-head { stroke: rgba(0, 0, 0, .4); }
+.g-machine { fill: #5d6577; stroke: #1a1e28; stroke-width: 1; }
+.g-bushing { fill: #c3cad8; stroke: #4a5160; stroke-width: .8; }
+.g-post-slot { stroke: #3b4252; stroke-width: 1.2; stroke-linecap: round; }
+.g-plate { fill: #c9ced9; stroke: #3b4150; stroke-width: .8; opacity: .9; }
+.g-plate-txt { fill: #2a2f3a; font-size: 7.5px; font-weight: 800; letter-spacing: .5px; }
+.g-truss { fill: #d4d9e3; stroke: #4a5160; stroke-width: .9; }
+.g-truss-slot { stroke: #3b4150; stroke-width: 1.2; stroke-linecap: round; }
 .g-link { stroke: #c4cbd8; opacity: .7; }
-.peg-btn { fill: #232a3a; stroke: #4a5468; stroke-width: 2; }
-.peg-cap { fill: #aab4c8; }
+.peg-btn { fill: #cdd3de; stroke: #4f5870; stroke-width: 1.4; }
+.peg-cap { fill: #3b4252; }
 .g-peg.active .peg-btn { fill: #2a3348; stroke: var(--accent); filter: drop-shadow(0 0 6px var(--glow)); animation: pulse 1.2s infinite; }
 .g-peg.active .peg-cap { fill: var(--accent); }
 .g-ball { fill: #0b0d12; stroke: #6c7487; stroke-width: 1; }

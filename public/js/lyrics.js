@@ -1,9 +1,9 @@
 /* Trill Tuner — Lyrics search.
  *
  * One field, because that is how people remember songs: type the song, or the
- * artist, or both, and it works. The server proxy asks the lyric databases and
- * the offline catalog is searched at the same time, so you always get something
- * back even with no connection.
+ * artist, or a first line, and it works. The built-in library (public-domain
+ * lyrics + play-along charts) answers immediately. Online lyric databases are
+ * a bonus when they respond — they never make the tab look broken.
  *
  * Favorites and recent searches are kept locally.
  */
@@ -25,57 +25,147 @@
     return String(a == null ? '' : a).trim();
   }
 
+  function norm(s) {
+    return String(s || '').toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9\s]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function chartOf(song) {
+    if (TT.lyricsdb && TT.lyricsdb.chartFromSong) return TT.lyricsdb.chartFromSong(song);
+    return {
+      title: song.title, artist: song.artist, album: '',
+      lyrics: [song.title, song.artist, '', song.progression, (song.chords || []).join('  '), '', song.notes].join('\n'),
+      source: 'Trill Tuner library', chart: true, songId: song.id
+    };
+  }
+
+  function pickBest(q, lyricHits, songs) {
+    const nq = norm(q);
+    const words = nq.split(/\s+/).filter(Boolean);
+    function titleScore(title, artist) {
+      const t = norm(title), a = norm(artist);
+      let s = 0;
+      if (t === nq) s += 20;
+      if ((t + ' ' + a) === nq || (a + ' ' + t) === nq) s += 22;
+      if (t.length > 2 && nq.indexOf(t) >= 0) s += 8;
+      if (words.every(w => (t + ' ' + a).indexOf(w) >= 0)) s += 5;
+      if (a === nq) s += 4;
+      return s;
+    }
+    let best = null, bestS = 0;
+    lyricHits.forEach(h => {
+      const s = titleScore(h.title, h.artist) + 3;
+      if (s > bestS) { bestS = s; best = { kind: 'lyrics', hit: h }; }
+    });
+    songs.forEach(h => {
+      const s = titleScore(h.title, h.artist);
+      if (s > bestS) { bestS = s; best = { kind: 'song', hit: h }; }
+    });
+    return bestS > 0 ? best : null;
+  }
+
   L.search = async function (a, b) {
     const q = queryOf(a, b);
     if (b != null && String(b).trim() && els && els.q) els.q.value = q;
     if (!q) { setStatus('Type a song title, an artist, or both — either one is enough.', 'err'); return; }
-    setStatus('Searching for “' + q + '”…');
+    setStatus('Searching the library for “' + q + '”…');
     if (els.result) els.result.hidden = true;
-    renderOffline(q);
+    const local = renderLibrary(q);
+    if (local && local.result) {
+      render(local.result);
+      addHistory(q, local.result);
+      setStatus(local.count + (local.count === 1 ? ' match' : ' matches') + ' in the library.');
+    } else {
+      setStatus('Not in the built-in library — checking lyric databases…');
+    }
     try {
       const r = await fetch('/api/lyrics?q=' + encodeURIComponent(q));
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || 'Not found');
-      render(j.result);
-      addHistory(q, j.result);
-      setStatus('');
+      if (j && j.ok && j.result && j.result.lyrics) {
+        /* prefer a full lyric hit from the network; keep a library chart if
+         * the network only repeated what we already showed */
+        const incoming = j.result;
+        const alreadyFull = current && current.fullLyrics && !current.chart;
+        if (!alreadyFull || (incoming.fullLyrics !== false && !incoming.chart && incoming.lyrics.length > (current.lyrics || '').length)) {
+          render(incoming);
+          addHistory(q, incoming);
+        }
+        setStatus('');
+      } else if (local && local.result) {
+        setStatus('Showing the built-in library.');
+      } else {
+        setStatus((j && j.error) || 'No match for that search. Try a title, an artist, or a first line.', 'err');
+      }
     } catch (e) {
-      setStatus(e.message || 'No connection to the lyric database — the offline library below still works.', 'err');
+      if (local && local.result) {
+        setStatus('Showing the built-in library.');
+      } else {
+        setStatus('No match in the library for that search. Try a title, an artist, or a first line.', 'err');
+      }
     }
   };
 
   /* what the app already knows about this search, before any network call */
-  function renderOffline(q) {
-    const res = TT.catalog.search(q, { cap: 8 });
-    const songs = res.songs.slice(0, 6);
-    if (!els.offline) return;
+  function renderLibrary(q) {
+    const lyricHits = (TT.lyricsdb && TT.lyricsdb.search) ? TT.lyricsdb.search(q, { cap: 12 }) : [];
+    const res = TT.catalog.search(q, { cap: 12 });
+    const songs = res.songs.slice(0, 8);
+    if (!els.offline) return { count: 0, result: null };
     els.offline.innerHTML = '';
-    if (!songs.length && !res.artists.length) {
-      els.offline.innerHTML = '<div class="dim">Not in the offline songbook — searching the lyric databases…</div>';
-      return;
+    const n = lyricHits.length + songs.length + res.artists.length;
+    if (!n) {
+      els.offline.innerHTML = '<div class="dim">Not in the built-in library — checking lyric databases…</div>';
+      return { count: 0, result: null };
     }
-    els.offline.appendChild(Object.assign(document.createElement('div'), { className: 'card-h small', textContent: 'In the offline songbook' }));
-    songs.forEach(s => {
+    els.offline.appendChild(Object.assign(document.createElement('div'), {
+      className: 'card-h small',
+      textContent: 'In the library'
+    }));
+    const seen = {};
+    lyricHits.forEach(h => {
+      seen[norm(h.title) + '|' + norm(h.artist)] = true;
       const row = document.createElement('div');
-      row.className = 'lyr-offline-row';
-      row.innerHTML = `<b>${s.title}</b> <span class="dim">${s.artist} · ${s.key} · ${s.chords.join(' ')}</span>`;
+      row.className = 'lyr-offline-row lyr-hit';
+      row.innerHTML = '<b>' + h.title + '</b> <span class="dim">' + h.artist + (h.year ? ' · ' + h.year : '') + ' · lyrics</span>';
+      row.tabIndex = 0;
+      const open = () => { render(TT.lyricsdb.toResult(h)); setStatus('Lyrics from the built-in library.'); };
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+      els.offline.appendChild(row);
+    });
+    songs.forEach(s => {
+      const k = norm(s.title) + '|' + norm(s.artist);
+      const row = document.createElement('div');
+      row.className = 'lyr-offline-row lyr-hit';
+      row.innerHTML = '<b>' + s.title + '</b> <span class="dim">' + s.artist + ' · ' + s.key + ' · ' + s.chords.join(' ') + '</span>';
       const b = document.createElement('button');
       b.className = 'btn btn-ghost tiny';
       b.textContent = '🎸 Play-along chart';
       b.type = 'button';
-      b.addEventListener('click', () => {
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
         if (TT.tablab) TT.tablab.openSong(s);
         TT.app.showView('maker');
       });
       row.appendChild(b);
+      if (!seen[k]) {
+        row.classList.add('lyr-hit');
+        row.tabIndex = 0;
+        const open = () => { render(chartOf(s)); setStatus('Play-along chart from the library.'); };
+        row.addEventListener('click', e => { if (e.target === b) return; open(); });
+      }
       els.offline.appendChild(row);
     });
-    res.artists.slice(0, 2).forEach(a => {
+    res.artists.slice(0, 3).forEach(a => {
       const row = document.createElement('div');
       row.className = 'lyr-offline-row';
-      row.innerHTML = `<b>${a.name}</b> <span class="dim">${a.genres.join(' · ')} — ${(a.songs || []).slice(0, 4).join(', ')}</span>`;
+      row.innerHTML = '<b>' + a.name + '</b> <span class="dim">' + a.genres.join(' · ') + ' — ' + (a.songs || []).slice(0, 4).join(', ') + '</span>';
       els.offline.appendChild(row);
     });
+    const best = pickBest(q, lyricHits, songs);
+    let result = null;
+    if (best && best.kind === 'lyrics') result = TT.lyricsdb.toResult(best.hit);
+    else if (best && best.kind === 'song') result = chartOf(best.hit);
+    return { count: n, result: result };
   }
 
   function render(res) {
@@ -83,7 +173,7 @@
     els.rTitle.textContent = res.title;
     els.rArtist.textContent = res.artist + (res.album ? ' · ' + res.album : '');
     els.body.textContent = res.lyrics;
-    els.src.textContent = 'via ' + res.source;
+    els.src.textContent = (res.chart ? 'Play-along chart · ' : 'Lyrics · ') + (res.source || 'library');
     els.result.hidden = false;
     updateFavBtn();
   }
@@ -186,17 +276,18 @@
       TT.app.toast('Drop the song file into the Tab maker and it will work out the chords, key and tempo itself.');
     });
 
-    /* suggestions come from the app's own songbook, mixed by hand */
-    const picks = ['Wonderwall', 'Dreams', 'Hallelujah', 'Wish You Were Here', 'Hotel California', 'Knockin’ on Heaven’s Door', 'Let It Be', 'Landslide'];
+    const picks = ['Amazing Grace', 'House of the Rising Sun', 'Drunken Sailor', 'Wonderwall', 'Dreams', 'Hallelujah', 'Wish You Were Here', 'Let It Be'];
     picks.forEach(title => {
+      const fromLy = TT.lyricsdb && TT.lyricsdb.LYRICS ? TT.lyricsdb.LYRICS.find(s => s.title === title) : null;
       const song = TT.catalog.SONGS.find(s => s.title === title) || TT.catalog.SONGS[0];
-      els.suggest.appendChild(chip(song.title + ' — ' + song.artist, () => {
-        els.q.value = song.title + ' ' + song.artist;
-        L.search(song.title + ' ' + song.artist);
+      const label = fromLy ? fromLy.title + ' — ' + fromLy.artist : song.title + ' — ' + song.artist;
+      const q = fromLy ? fromLy.title : (song.title + ' ' + song.artist);
+      els.suggest.appendChild(chip(label, () => {
+        els.q.value = q;
+        L.search(q);
       }));
     });
-    /* a few artists, to show that one name alone is enough */
-    ['Fleetwood Mac', 'Jimi Hendrix', 'Oasis', 'The Beatles'].forEach(name => {
+    ['Fleetwood Mac', 'Jimi Hendrix', 'Oasis', 'The Beatles', 'Traditional'].forEach(name => {
       els.suggest.appendChild(chip('by ' + name, () => {
         els.q.value = name;
         L.search(name);
@@ -204,7 +295,9 @@
     });
     renderFavs();
     renderHistory();
-    if (els.offline) els.offline.innerHTML = '<div class="dim">Type a title, an artist, or both — either one is enough. The songbook is searched first, then the lyric databases.</div>';
+    const nSongs = (TT.catalog && TT.catalog.counts && TT.catalog.counts.songs) || 0;
+    const nLy = (TT.lyricsdb && TT.lyricsdb.counts && TT.lyricsdb.counts.lyrics) || 0;
+    if (els.offline) els.offline.innerHTML = '<div class="dim">Type a title, an artist, or both — either one is enough. ' + nLy + ' lyrics and ' + nSongs + ' play-along charts are in the library on this device.</div>';
   };
 
   window.TT = window.TT || {};

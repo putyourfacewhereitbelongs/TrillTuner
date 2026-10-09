@@ -499,10 +499,10 @@ check('rename: no old branding anywhere in the DOM', () => {
 
 /* ================= the play-along feature set ================= */
 
-check('catalog: the offline songbook, lessons and artists are real data', () => {
+check('catalog: the play-along songbook, lessons and artists are real data', () => {
   const TT = window.TT;
   const c = TT.catalog.counts;
-  if (c.songs < 150) throw new Error('too few songs: ' + c.songs);
+  if (c.songs < 350) throw new Error('too few songs: ' + c.songs);
   if (c.lessons < 25) throw new Error('too few lessons: ' + c.lessons);
   if (c.artists < 40) throw new Error('too few artists: ' + c.artists);
   const broken = [];
@@ -587,13 +587,14 @@ check('lyrics: one box, and an artist name on its own is enough', async () => {
   if (!doc.getElementById('lyr-q')) throw new Error('no single search box');
   if (doc.getElementById('lyr-artist') || doc.getElementById('lyr-title')) throw new Error('the two-field form is still there');
   /* jsdom has no fetch: the search must fail soft, not throw, and must still
-     show the offline songbook it found */
+     show the built-in library it found — never “you are offline” as the answer */
   const res = await window.TT.lyrics.search('Fleetwood Mac');
   const status = doc.getElementById('lyr-status').textContent;
   const offline = doc.getElementById('lyr-offline').textContent;
   if (/both/i.test(status)) throw new Error('still demanding both fields: ' + status);
-  if (!offline || !/Fleetwood/i.test(offline)) throw new Error('no offline fallback rendered: ' + offline);
-  return 'artist-only query degraded gracefully';
+  if (/you are offline/i.test(status + offline)) throw new Error('lyrics tab still says it is offline: ' + status);
+  if (!offline || !/Fleetwood/i.test(offline)) throw new Error('no library fallback rendered: ' + offline);
+  return 'artist-only query answered from the library';
 });
 
 check('songs view: a search renders playable cards with keys, tempos and chords', () => {

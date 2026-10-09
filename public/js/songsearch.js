@@ -1,9 +1,9 @@
 /* Trill Tuner — Songs: the play-along library.
  *
  * One box, and it searches everything by song OR artist (or genre, or chords):
- * 159 chord charts, 51 artist profiles and 30 technique lessons, all of it
+ * Hundreds of chord charts, artist profiles and technique lessons, all of it
  * stored in the app so it works with no connection at all. When there *is* a
- * connection it also asks the server for lyrics matches, so the search gets
+ * connection it also asks the server for extra lyric matches, so the search gets
  * wider rather than breaking.
  *
  * Every result can be turned into something you can actually play: a chord
@@ -277,7 +277,7 @@
 
   /* the online half: same question, asked of the server, merged in quietly */
   async function onlineSearch(q) {
-    els.online.innerHTML = '<div class="dim">Asking the server for anything the offline library does not have…</div>';
+    els.online.innerHTML = '<div class="dim">Checking lyric databases for anything the library does not already have…</div>';
     try {
       const r = await fetch('/api/songs?q=' + encodeURIComponent(q));
       const j = await r.json();
@@ -314,7 +314,7 @@
         els.online.appendChild(row);
       });
     } catch (e) {
-      els.online.innerHTML = `<div class="dim">No connection to the lyric database right now — but the ${TT.catalog.counts.songs} songs, ${TT.catalog.counts.artists} artists and ${TT.catalog.counts.lessons} lessons above are stored inside the app and work offline. (${e.message})</div>`;
+      els.online.innerHTML = `<div class="dim">The built-in library above is the full local collection — ${TT.catalog.counts.songs} songs, ${TT.catalog.counts.artists} artists and ${TT.catalog.counts.lessons} lessons, all on this device.</div>`;
     }
   }
 
@@ -322,7 +322,7 @@
   SS.search = function (q) {
     state.query = (q || '').trim();
     if (els.q && els.q.value !== q) els.q.value = state.query;
-    const res = TT.catalog.search(state.query, { cap: 60 });
+    const res = TT.catalog.search(state.query, { cap: 100 });
     renderResults(res);
     const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
     let line = '';
@@ -332,13 +332,13 @@
       if (res.songs.some(x => x.chordMatch)) line += ' — including songs that use those chords';
     }
     setStatus(line, '');
-    /* only ask the server when there IS a server to ask — offline (PWA) and
-     * inside the APK (file://) the offline library is the whole answer */
+    /* only ask the server when there IS a server to ask — PWA/APK file:// the
+     * built-in library is the whole answer, and it is not a broken state */
     const canAskServer = navigator.onLine && location.protocol.indexOf('http') === 0;
     if (state.query.length >= 2 && canAskServer) onlineSearch(state.query);
     else if (els.online) els.online.innerHTML = '<div class="dim">' + (canAskServer
-      ? 'Search with two or more letters and this will also check the online lyric database.'
-      : 'You are offline — the built-in library above is everything (it is all on this device).') + '</div>';
+      ? 'Search with two or more letters and this will also check online lyric databases.'
+      : 'Using the built-in library on this device — ' + TT.catalog.counts.songs + ' songs, all searchable.') + '</div>';
   };
 
   SS.openSong = function (id) {
@@ -397,7 +397,9 @@
     if (els.btnCopySet) els.btnCopySet.addEventListener('click', copySetlist);
     if (els.btnClearSet) els.btnClearSet.addEventListener('click', () => { TT.store.set('setlist', []); renderSetlist(); setStatus('Set list cleared.'); });
     renderSetlist();
-    if (els.online) els.online.innerHTML = '<div class="dim">Search with two or more letters and this will also check the online lyric database.</div>';
+    if (els.online) els.online.innerHTML = '<div class="dim">Search with two or more letters and this will also check online lyric databases.</div>';
+    const blurb = document.getElementById('ss-blurb');
+    if (blurb) blurb.textContent = TT.catalog.counts.songs + ' play-along songs in the library, searchable by title, artist, genre or chords.';
     /* open on something useful rather than an empty page */
     SS.search('beginner');
   };

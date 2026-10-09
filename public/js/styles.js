@@ -217,7 +217,7 @@
       '</div>' +
       (missing.length ? '<div class="sy-block"><b>Also listen to</b><div class="chipwrap">' +
         missing.map(t => '<button class="chip" data-listen="' + esc(t) + '">' + esc(t) + '</button>').join('') +
-        '</div><div class="dim smallish">Not in the offline songbook — these open a lyric search for the title.</div></div>' : '') +
+        '</div><div class="dim smallish">Not in the play-along book yet — these open a lyric search for the title.</div></div>' : '') +
       '<div class="sy-actions">' +
         (rig ? '<button class="btn btn-primary tiny" id="sy-rig">🔊 Load the ' + esc(recipeName(rig)) + ' rig</button>' : '') +
         '<button class="btn tiny" id="sy-search">🔍 Search the songbook for ' + esc(a.name.split(' ')[0]) + '</button>' +

@@ -279,12 +279,17 @@ function kept(out, src) {
   const styles = read('public/js/styles.js');
   const online = read('public/js/songsearch.js').indexOf('/api/songs') > 0;
   const artists = C.ARTISTS.filter(a => C.artistSongs(a.name).length).length;
-  const ok = counts.songs >= 160 && counts.lessons >= 28 && counts.artists >= 45 && artists === counts.artists && online && /TECHNIQUES/.test(styles);
+  const lyricsdb = read('public/js/lib/lyricsdb.js');
+  const more = read('public/js/lib/catalog-more.js');
+  const lyrJs = read('public/js/lyrics.js');
+  const libraryFirst = /Searching the library/.test(lyrJs) && !/offline songbook/.test(lyrJs);
+  const ok = counts.songs >= 350 && counts.lessons >= 28 && counts.artists >= 45 && artists === counts.artists && online && /TECHNIQUES/.test(styles)
+    && /Amazing Grace/.test(lyricsdb) && /Hey Jude/.test(more) && libraryFirst;
   item(8, 'More extensive search for lyrics and songs to play along with',
     'the offline catalogue across songs/artists/lessons/techniques, plus the online lyric lookup and per-artist pages',
     ok,
     counts.songs + ' songs · ' + counts.artists + ' artist pages (all with playable songs) · ' + counts.lessons +
-    ' lessons · 28 techniques · online lyric tab: ' + (online ? 'wired' : 'missing'));
+    ' lessons · built-in lyrics + extra catalog · library-first lyric search · online lyric tab: ' + (online ? 'wired' : 'missing'));
 })();
 
 /* ---------------------------------------------------------------- */

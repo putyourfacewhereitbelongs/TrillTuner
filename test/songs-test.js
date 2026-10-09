@@ -27,7 +27,7 @@ const notePc = n => T.pc(n);
 
 /* 1. the catalogue is a real catalogue */
 (function () {
-  ok(SONGS.length >= 150, 'the songbook is big enough to search', SONGS.length + ' songs');
+  ok(SONGS.length >= 350, 'the songbook is big enough to search', SONGS.length + ' songs');
   ok(LESSONS.length >= 28, 'the academy still has its lessons', LESSONS.length + ' lessons');
   ok(ARTISTS.length >= 45, 'there are enough artists to browse by style', ARTISTS.length + ' artists');
 
@@ -102,7 +102,7 @@ const notePc = n => T.pc(n);
   ok(genre.count >= 10, 'a style word finds a set to play', genre.count + ' results for “blues”');
   ok(chord.songs.length >= 3, 'a chord list finds songs that use those shapes', chord.songs.length + ' songs fit “G C D”');
   const browse = C.SONGS.length;
-  ok(browse > 150, 'the whole book is browsable even with no query', browse + ' songs');
+  ok(browse > 350, 'the whole book is browsable even with no query', browse + ' songs');
   ok(C.search('zzzznotarealsong').songs.length === 0, 'a miss is an empty list, not an error', 'clean');
   /* a suggestion is never a dead end */
   const sg = C.suggest('wonder');

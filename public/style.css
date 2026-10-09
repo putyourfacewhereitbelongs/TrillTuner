@@ -376,10 +376,10 @@ body.gig-on .gig-btn { color: #2bff88; border-color: rgba(43,255,136,.5); }
    LYRICS
    ============================================================ */
 .lyr-grid { display: grid; grid-template-columns: minmax(400px, 860px); justify-content: center; }
-.lyr-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; }
+.lyr-form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .chipwrap { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .chip-s {
-  background: #0e1119; border: 1px solid var(--line); color: #c3cad8; border-radius: 999px;
+  background: var(--well); border: 1px solid var(--line); color: var(--text); border-radius: 999px;
   padding: 6px 13px; font: 500 12.5px inherit; cursor: pointer;
 }
 .chip-s:hover { border-color: var(--accent); color: var(--text); }
@@ -392,11 +392,13 @@ body.gig-on .gig-btn { color: #2bff88; border-color: rgba(43,255,136,.5); }
 .lyr-artist { color: var(--muted); font-size: 14px; margin-top: 2px; }
 .lyr-actions { display: flex; gap: 8px; flex: none; }
 .lyrics {
-  background: #0a0d14; border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px;
+  background: var(--well); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px;
   max-height: 460px; overflow-y: auto; white-space: pre-wrap; font: 400 14.5px/1.75 inherit;
-  color: #d6dbe8; margin: 0;
+  color: var(--text); margin: 0;
 }
-.lyr-src { margin-top: 8px; font-size: 11.5px; color: #5f6878; text-align: right; }
+.lyr-src { margin-top: 8px; font-size: 11.5px; color: var(--muted); text-align: right; }
+.lyr-hit { cursor: pointer; }
+.lyr-hit:hover { border-color: var(--accent); }
 
 /* ============================================================
    LEARN
@@ -1063,7 +1065,8 @@ button.chip-btn:hover { border-color: var(--accent); }
 .lyr-offline { display: grid; gap: 6px; margin: 8px 0; }
 .lyr-offline-row {
   display: flex; justify-content: space-between; gap: 10px; align-items: center;
-  background: #0e1119; border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; font-size: 13.5px;
+  background: var(--well); border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; font-size: 13.5px;
+  color: var(--text);
 }
 
 /* ---------- drop zones ---------------------------------------------- */

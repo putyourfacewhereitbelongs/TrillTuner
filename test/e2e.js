@@ -201,8 +201,8 @@ async function dismissSplash(page) {
     await page.click('[data-view="lyrics"]');
     await page.type('#lyr-q', 'Dreams Fleetwood Mac');
     await page.click('#lyr-form button[type="submit"]');
-    /* online: the result panel fills in. offline: the search must fail soft —
-     * an honest status plus the offline songbook, never a crash. */
+    /* library-first: Dreams is in the play-along book, so the result panel
+     * fills in even when lyric APIs are unreachable. */
     await waitFor(page, () => {
       if (!document.getElementById('lyr-result').hidden) return true;
       const st = document.getElementById('lyr-status').textContent;
@@ -216,10 +216,10 @@ async function dismissSplash(page) {
       offline: document.getElementById('lyr-offline').textContent
     }));
     if (lyr.shown) {
-      ok(lyr.title === 'Dreams' && lyr.len > 100, 'lyrics search works', lyr.title + ' / ' + lyr.len + ' chars');
+      ok(/Dreams/i.test(lyr.title) && lyr.len > 100, 'lyrics search works', lyr.title + ' / ' + lyr.len + ' chars');
     } else {
-      ok(/no lyrics|no connection|failed to fetch/i.test(lyr.status) && /Fleetwood/i.test(lyr.offline),
-        'lyrics search fails soft offline (status + songbook)', lyr.status.slice(0, 60));
+      ok(/Fleetwood/i.test(lyr.offline) && !/you are offline/i.test(lyr.status),
+        'lyrics search still shows the library (never “you are offline”)', (lyr.status || '').slice(0, 60));
     }
 
     // learn

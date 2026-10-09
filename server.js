@@ -11,6 +11,8 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   /* 0.0.0.0 so sandbox/preview proxies can reach it */
 const PUBLIC = path.join(__dirname, 'public');
+const lyricsdb = require('./public/js/lib/lyricsdb.js');
+const catalog = require('./public/js/lib/catalog.js');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -81,27 +83,55 @@ function splitQuery(q) {
     .sort((a, b) => (b.artist && b.title ? 1 : 0) - (a.artist && a.title ? 1 : 0));
 }
 
-async function searchLyrics(query) {
+function localLyricsResult(query) {
+  const songs = catalog.search(query, { cap: 12 }).songs;
+  return lyricsdb.bestMatch(query, songs);
+}
+
+function localSongHits(q) {
+  const out = [];
+  const seen = new Set();
+  function add(title, artist, extra) {
+    const key = (title + '|' + artist).toLowerCase();
+    if (!title || seen.has(key)) return;
+    seen.add(key);
+    out.push(Object.assign({ title: title, artist: artist || '' }, extra || {}));
+  }
+  lyricsdb.search(q, { cap: 40 }).forEach(h => {
+    add(h.title, h.artist, { album: h.year ? String(h.year) : '', hasLyrics: true, source: 'library' });
+  });
+  catalog.search(q, { cap: 40 }).songs.forEach(s => {
+    add(s.title, s.artist, { album: s.key + ' · ' + s.bpm + ' BPM', hasLyrics: false, source: 'library', chords: s.chords });
+  });
+  out.sort((a, b) => lyricsdb.titleScore(q, b.title, b.artist) - lyricsdb.titleScore(q, a.title, a.artist));
+  return out;
+}
+
+async function searchLyricsRemote(query) {
   const errs = [];
   const pairs = splitQuery(query);
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const unreachable = e => /abort|fetch|ENOTFOUND|ECONN|network|timed out|Timeout|Failed to fetch/i.test(String(e && e.message || e));
   /* 1) lrclib exact lookup for the most specific reading */
   for (const p of pairs) {
     if (!p.artist || !p.title) continue;
     try {
       const q = new URLSearchParams({ artist_name: p.artist, track_name: p.title });
-      const j = await fetchJSON('https://lrclib.net/api/get?' + q, 8000);
+      const j = await fetchJSON('https://lrclib.net/api/get?' + q, 2500);
       if (j && (j.plainLyrics || j.syncedLyrics)) {
         const ly = clean(j.plainLyrics || desync(j.syncedLyrics));
         if (ly) return { source: 'lrclib.net', artist: j.artistName || p.artist, title: j.trackName || p.title, album: j.albumName || '', lyrics: ly };
       }
-    } catch (e) { errs.push('lrclib/get: ' + e.message); }
+    } catch (e) {
+      errs.push('lrclib/get: ' + e.message);
+      if (unreachable(e)) { const err = new Error('lyric databases unreachable'); err.detail = errs.join(' | '); throw err; }
+    }
   }
   /* 2) lrclib fuzzy search — this is the one that makes an artist-only or
    *    title-only query work */
   try {
     const q = new URLSearchParams({ q: String(query).trim() });
-    const arr = await fetchJSON('https://lrclib.net/api/search?' + q, 9000);
+    const arr = await fetchJSON('https://lrclib.net/api/search?' + q, 2500);
     if (Array.isArray(arr) && arr.length) {
       const withLyrics = arr.filter(r => r.plainLyrics || r.syncedLyrics);
       /* prefer a hit whose artist AND title both look like the query */
@@ -116,12 +146,15 @@ async function searchLyrics(query) {
         if (ly) return { source: 'lrclib.net', artist: hit.artistName, title: hit.trackName, album: hit.albumName || '', lyrics: ly };
       }
     }
-  } catch (e) { errs.push('lrclib/search: ' + e.message); }
+  } catch (e) {
+    errs.push('lrclib/search: ' + e.message);
+    if (unreachable(e)) { const err = new Error('lyric databases unreachable'); err.detail = errs.join(' | '); throw err; }
+  }
   /* 3) lyrics.ovh, both readings */
   for (const p of pairs) {
     if (!p.artist || !p.title) continue;
     try {
-      const j = await fetchJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(p.artist)}/${encodeURIComponent(p.title)}`, 9000);
+      const j = await fetchJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(p.artist)}/${encodeURIComponent(p.title)}`, 2500);
       if (j && j.lyrics) {
         const ly = clean(j.lyrics);
         if (ly) return { source: 'lyrics.ovh', artist: p.artist, title: p.title, album: '', lyrics: ly };
@@ -136,22 +169,28 @@ async function searchLyrics(query) {
 /* Song search: the app's own library lives in the browser, so this exists to
  * cast a wider net when there is a connection — lrclib knows far more songs
  * than any bundled list can. It never blocks the offline search. */
+async function searchLyrics(query) {
+  const local = localLyricsResult(query);
+  if (local) return local;
+  return searchLyricsRemote(query);
+}
+
 async function searchSongs(q) {
-  const out = [];
+  const out = localSongHits(q);
+  const seen = new Set(out.map(r => (r.title + '|' + r.artist).toLowerCase()));
   try {
     const params = new URLSearchParams({ q: String(q).trim() });
-    const arr = await fetchJSON('https://lrclib.net/api/search?' + params, 9000);
+    const arr = await fetchJSON('https://lrclib.net/api/search?' + params, 2500);
     if (Array.isArray(arr)) {
-      const seen = new Set();
       arr.forEach(r => {
         const key = (r.trackName + '|' + r.artistName).toLowerCase();
         if (!r.trackName || seen.has(key)) return;
         seen.add(key);
-        out.push({ title: r.trackName, artist: r.artistName || '', album: r.albumName || '', hasLyrics: !!(r.plainLyrics || r.syncedLyrics), instrumental: !!r.instrumental });
+        out.push({ title: r.trackName, artist: r.artistName || '', album: r.albumName || '', hasLyrics: !!(r.plainLyrics || r.syncedLyrics), instrumental: !!r.instrumental, source: 'lrclib.net' });
       });
     }
-  } catch (e) { /* offline is fine — the client keeps its own results */ }
-  return out.slice(0, 24);
+  } catch (e) { /* remote miss is fine — the library results already answered */ }
+  return out.slice(0, 48);
 }
 
 /* ---------- remote-tuner sessions (zero-dependency SSE) ----------

@@ -75,6 +75,7 @@
     if (id === 'progress' && TT.share) TT.share.render();
     if (id === 'progress' && TT.apkshare) TT.apkshare.render();
     if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
+    if (id !== 'tools' && TT.playtools && TT.playtools.stop) TT.playtools.stop();
   };
 
   function bindNav() {

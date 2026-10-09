@@ -452,6 +452,14 @@ async function dismissSplash(page) {
     await new Promise(r => setTimeout(r, 200));
     const tension = await page.$eval('#tension-out', el => el.textContent);
     ok(/lb/.test(tension), 'string tension calculator outputs real numbers', tension.replace(/\s+/g, ' ').slice(0, 60));
+    await page.click('#tools-tabs .tab[data-tab="caged"]');
+    await new Promise(r => setTimeout(r, 200));
+    const caged = await page.$$eval('#pt-caged-out .caged-card', els => els.length);
+    ok(caged === 5, 'CAGED draws the five major shapes', caged + ' cards');
+    await page.click('#tools-tabs .tab[data-tab="looper"]');
+    await new Promise(r => setTimeout(r, 150));
+    const rec = await page.$eval('#pt-loop-rec', el => el.textContent);
+    ok(/Rec/.test(rec), 'looper rec button is on the page', rec);
 
     // --- practice studio ---
     await page.click('[data-view="learn"]');

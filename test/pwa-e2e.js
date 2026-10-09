@@ -80,16 +80,17 @@ const canvasPainted = sel => page => page.evaluate(s => {
   return dark > 50;
 }, sel);
 
-/* the 26 demo steps: view + (tab) the tour must land on, in order */
+/* demo steps: view + (tab) the tour must land on, in order */
 const TOUR = [
   ['tune'], ['tune'], ['tune'], ['tune'], ['tune'], ['tune'],
   ['metronome'], ['metronome'],
   ['record'], ['lyrics'], ['songs'], ['styles'], ['maker'], ['stems'],
   ['backing'], ['listening'],
   ['learn', 'beginner'], ['learn', 'drills'],
-  ['tools', 'scales'], ['tools', 'circle'], ['tools', 'builder'],
+  ['tools', 'scales'], ['tools', 'circle'], ['tools', 'builder'], ['tools', 'looper'],
   ['rig'], ['mine'], ['progress'], ['care'], ['tune']
 ];
+const TOUR_N = TOUR.length;
 
 (async () => {
   /* ==================== 1. manifest + PWA meta + icons ==================== */
@@ -204,11 +205,11 @@ const TOUR = [
       backDisabled: document.getElementById('demo-back').disabled,
       dots: document.querySelectorAll('#demo-dots i').length
     }));
-    ok(st.step === '1 / 26', 'demo starts at step 1 / 26', st.step);
+    ok(st.step === '1 / ' + TOUR_N, 'demo starts at step 1 / ' + TOUR_N, st.step);
     ok(st.title.length > 0, 'demo step has a title', st.title);
     ok(st.hasNext && st.hasSkip && st.hasBack, 'demo has Next + Skip + Back buttons');
     ok(st.backDisabled, 'Back is disabled on the first step');
-    ok(st.dots === 26, 'demo shows 26 progress dots', String(st.dots));
+    ok(st.dots === TOUR_N, 'demo shows ' + TOUR_N + ' progress dots', String(st.dots));
 
     /* walk every step, one by one, checking view + tab + saved progress */
     let walkOk = true;
@@ -222,23 +223,23 @@ const TOUR = [
         saved: Number(JSON.parse(localStorage.getItem('tt.demoStep') || '0')),
         tab: document.querySelector('.view.active .tabs .tab.active') ? document.querySelector('.view.active .tabs .tab.active').getAttribute('data-tab') : null
       }));
-      const wantStep = (i + 1) + ' / 26';
+      const wantStep = (i + 1) + ' / ' + TOUR_N;
       if (after.step !== wantStep) { console.log('  step mismatch: ' + before + ' → ' + after.step); walkOk = false; }
       if (after.view !== 'view-' + view) { console.log('  view mismatch at step ' + (i + 1) + ': ' + after.view + ' != view-' + view); walkOk = false; }
       if (after.saved !== i) { console.log('  progress not saved at step ' + (i + 1) + ': ' + after.saved); walkOk = false; }
       if (tab && after.tab !== tab) { console.log('  tab mismatch at step ' + (i + 1) + ': ' + after.tab + ' != ' + tab); walkOk = false; }
     }
-    ok(walkOk, 'demo walks all 26 steps — every section covered one by one, progress saved each step');
+    ok(walkOk, 'demo walks all ' + TOUR_N + ' steps — every section covered one by one, progress saved each step');
 
     /* Back goes one step back */
     await page.click('#demo-back');
     await new Promise(r => setTimeout(r, 300));
     st = await page.evaluate(() => document.getElementById('demo-step').textContent);
-    ok(st === '25 / 26', 'Back returns to the previous step', st);
+    ok(st === (TOUR_N - 1) + ' / ' + TOUR_N, 'Back returns to the previous step', st);
 
     /* finish */
     await page.click('#demo-next');
-    await page.click('#demo-next');   /* 26 → Finish */
+    await page.click('#demo-next');   /* last → Finish */
     await new Promise(r => setTimeout(r, 400));
     st = await page.evaluate(() => ({
       visible: !document.getElementById('demo-overlay').hidden,
@@ -251,7 +252,7 @@ const TOUR = [
     await page.click('#btn-tour');
     await new Promise(r => setTimeout(r, 400));
     st = await page.evaluate(() => document.getElementById('demo-step').textContent);
-    ok(st === '1 / 26', '"Take the tour" restarts the tour from step 1', st);
+    ok(st === '1 / ' + TOUR_N, '"Take the tour" restarts the tour from step 1', st);
     await page.click('#demo-skip');
     await new Promise(r => setTimeout(r, 300));
     st = await page.evaluate(() => ({
@@ -287,7 +288,7 @@ const TOUR = [
       visible: !document.getElementById('demo-overlay').hidden,
       step: document.getElementById('demo-step').textContent
     }));
-    ok(st.visible && st.step === '4 / 26', 'resume continues exactly at the saved step', st.step);
+    ok(st.visible && st.step === '4 / ' + TOUR_N, 'resume continues exactly at the saved step', st.step);
     ok(page._errors.length === 0, 'demo: zero JS errors', page._errors.slice(0, 3).join(' | '));
     await browser.close();
   }

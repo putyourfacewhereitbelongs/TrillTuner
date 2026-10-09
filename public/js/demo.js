@@ -56,6 +56,8 @@
       text: 'Tap any key to see its signature, its relative minor and its chords — the map that makes every key feel like home.' },
     { view: 'tools', target: '#tools-tabs', tab: 'builder', title: 'Chord builder & fretboard trainer',
       text: 'Build any chord and see it on a real fretboard, then take the fretboard trainer — it quizzes you on shapes until they are in your hands. The learn view has the full chord library with fingerings too.' },
+    { view: 'tools', target: '#tools-tabs', tab: 'looper', title: 'Phrase looper, drone, CAGED & bends',
+      text: 'Record a riff and play over it, hold a drone in any key, map the five CAGED shapes across the neck, chime natural harmonics, set a saddle, and land bends on pitch — the tools you actually reach for while the guitar is in your lap.' },
     { view: 'rig', target: '#rig-amp-select', title: 'The rig — amps & pedals',
       text: '52 real amplifiers with their actual panels and dialed-in settings, 125 pedals with real controls, 26 famous rigs to load in one click, and a signal chain you can audition through Web Audio.' },
     { view: 'mine', target: '#view-mine .card', title: 'My stuff',

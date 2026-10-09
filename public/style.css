@@ -773,6 +773,38 @@ button.chip-btn:hover { border-color: var(--accent); }
 .mod-action { color: var(--accent) !important; font-weight: 600; }
 @media (max-width: 900px) { .cof-grid { grid-template-columns: 1fr; } }
 
+.smallish { font-size: 12px; line-height: 1.4; }
+.pt-wave {
+  display: block; width: 100%; height: 64px; margin: 8px 0 14px;
+  border-radius: 10px; border: 1px solid var(--line); background: #0e1119; color: var(--accent);
+}
+#pt-loop-rec.rec-on { background: var(--red); border-color: var(--red); color: #fff; }
+.caged-grid, .harm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 12px; margin-top: 8px; }
+.caged-card, .harm-card {
+  background: #0e1119; border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 12px; color: inherit; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px; font: inherit;
+}
+.caged-card:hover, .harm-card:hover { border-color: var(--accent); }
+.caged-card b, .harm-card b { font-size: 13px; }
+.caged-box { width: 100%; height: auto; color: var(--muted); }
+.harm-card small { color: var(--accent); font-weight: 700; }
+.pt-into-readout { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0 8px; }
+.pt-into-readout > div { display: flex; flex-direction: column; gap: 2px; }
+.pt-into-readout b { font-size: 16px; }
+.pt-meter {
+  position: relative; height: 10px; background: #0e1119; border: 1px solid var(--line);
+  border-radius: 6px; margin: 10px 0 12px; overflow: hidden;
+}
+.pt-meter i {
+  position: absolute; top: -3px; left: 50%; width: 3px; height: 16px;
+  background: var(--accent); border-radius: 2px; transition: transform .15s;
+}
+.pt-bend-read { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; margin: 8px 0; }
+.pt-bend-track { height: 12px; background: #0e1119; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.pt-bend-fill { display: block; height: 100%; width: 0; background: var(--accent); transition: width .08s; }
+.pt-verdict { font-size: 14px; font-weight: 600; color: var(--muted); min-height: 1.4em; }
+
 /* ============================================================
    RIG — amplifier, pedalboard, signal chain, guides
    ============================================================ */

@@ -310,6 +310,8 @@ check('learn tabs all render', () => {
 });
 check('tools: scales, circle, builder, trainer, tension, setup, capo, mods', () => {
   const tabs = [...window.document.querySelectorAll('#tools-tabs .tab')].map(t => t.dataset.tab);
+  const want = ['scales', 'circle', 'builder', 'game', 'tension', 'setup', 'capo', 'mods', 'looper', 'drone', 'caged', 'harmonics', 'into', 'bends'];
+  want.forEach(t => { if (tabs.indexOf(t) < 0) throw new Error('missing tools tab ' + t); });
   tabs.forEach(t => {
     window.document.querySelector(`#tools-tabs .tab[data-tab="${t}"]`).click();
     const pane = window.document.getElementById('tools-' + t);
@@ -320,7 +322,32 @@ check('tools: scales, circle, builder, trainer, tension, setup, capo, mods', () 
   const diagrams = window.document.querySelectorAll('#chord-diagrams .chord-svg').length;
   const cells = window.document.querySelectorAll('#game-board .game-cell').length;
   if (!dots || !svg || !diagrams || !cells) throw new Error(`dots ${dots} cof ${svg} chords ${diagrams} cells ${cells}`);
-  return `${dots} scale notes · ${svg} circle keys · ${diagrams} chord diagrams · ${cells} trainer cells`;
+  return `${dots} scale notes · ${svg} circle keys · ${diagrams} chord diagrams · ${cells} trainer cells · ${tabs.length} tabs`;
+});
+check('play tools: looper, CAGED maps, harmonics, bend lab', () => {
+  window.document.querySelector('#tools-tabs .tab[data-tab="caged"]').click();
+  const cards = window.document.querySelectorAll('#pt-caged-out .caged-card');
+  if (cards.length !== 5) throw new Error('expected 5 major CAGED cards, got ' + cards.length);
+  if (!cards[0].querySelector('svg.caged-box')) throw new Error('CAGED card has no chord box');
+  window.document.getElementById('pt-caged-qual').value = 'min';
+  window.document.getElementById('pt-caged-qual').dispatchEvent(new window.Event('change'));
+  const minors = window.document.querySelectorAll('#pt-caged-out .caged-card').length;
+  if (minors !== 3) throw new Error('expected 3 minor shapes, got ' + minors);
+  window.document.querySelector('#tools-tabs .tab[data-tab="looper"]').click();
+  ['pt-loop-rec', 'pt-loop-play', 'pt-loop-half', 'pt-loop-undo', 'pt-loop-clear', 'pt-loop-overdub', 'pt-loop-snap'].forEach(id => {
+    if (!window.document.getElementById(id)) throw new Error('missing ' + id);
+  });
+  window.document.querySelector('#tools-tabs .tab[data-tab="harmonics"]').click();
+  const harms = window.document.querySelectorAll('#pt-harm-out .harm-card').length;
+  if (harms < 6) throw new Error('harmonic nodes ' + harms);
+  window.document.querySelector('#tools-tabs .tab[data-tab="bends"]').click();
+  if (!window.document.getElementById('pt-bend-btn') || !window.document.getElementById('pt-bend-fill')) throw new Error('bend lab controls missing');
+  window.document.querySelector('#tools-tabs .tab[data-tab="drone"]').click();
+  window.document.getElementById('pt-drone-btn').click();
+  if (!window.TT.playtools.state.drone.on) throw new Error('drone did not start');
+  window.TT.app.showView('tune');
+  if (window.TT.playtools.state.drone.on) throw new Error('drone kept running after leaving Tools');
+  return cards.length + ' CAGED · ' + harms + ' harmonic nodes';
 });
 check('tension calculator matches the published D’Addario chart', () => {
   window.document.querySelector('#tools-tabs .tab[data-tab="tension"]').click();

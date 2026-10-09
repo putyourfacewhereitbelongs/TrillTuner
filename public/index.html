@@ -954,6 +954,12 @@
         <button class="tab" data-tab="setup">Setup &amp; specs</button>
         <button class="tab" data-tab="capo">Capo &amp; transpose</button>
         <button class="tab" data-tab="mods">Pickups &amp; mods</button>
+        <button class="tab" data-tab="looper">Looper</button>
+        <button class="tab" data-tab="drone">Drone</button>
+        <button class="tab" data-tab="caged">CAGED</button>
+        <button class="tab" data-tab="harmonics">Harmonics</button>
+        <button class="tab" data-tab="into">Intonation</button>
+        <button class="tab" data-tab="bends">Bend lab</button>
       </div>
 
       <div id="tools-scales" class="tabpane active">
@@ -1073,6 +1079,117 @@
         <div class="card">
           <div class="card-h">Pickups, electronics and modifications</div>
           <div id="mods-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-looper" class="tabpane">
+        <div class="card">
+          <div class="card-h">Phrase looper — record a bar, play over it</div>
+          <p class="hint">The classic floor-pedal trick, without the pedal. Record a riff (or a chord vamp), then solo over it. Tick <b>overdub</b> to stack another pass (headphones, so the previous layer doesn’t bleed into the mic); tick <b>snap to bars</b> to trim to the metronome.</p>
+          <canvas id="pt-loop-wave" class="pt-wave" width="640" height="64" aria-hidden="true"></canvas>
+          <div class="tools-controls">
+            <button class="btn btn-primary" id="pt-loop-rec">● Rec</button>
+            <button class="btn" id="pt-loop-play">▶ Play loop</button>
+            <button class="btn tiny" id="pt-loop-half">½ speed</button>
+            <button class="btn tiny" id="pt-loop-undo">Undo</button>
+            <button class="btn tiny" id="pt-loop-clear">Clear</button>
+            <label class="check"><input type="checkbox" id="pt-loop-overdub"><span>Overdub</span></label>
+            <label class="check"><input type="checkbox" id="pt-loop-snap" checked><span>Snap to metronome bars</span></label>
+            <label class="field inline"><span>Loop volume</span><input type="range" id="pt-loop-vol" min="0" max="1" step="0.01" value="0.9"></label>
+          </div>
+          <p class="hint" id="pt-loop-status">Empty — record a phrase, then play over it. The loop keeps going while you switch to CAGED or the bend lab.</p>
+        </div>
+      </div>
+
+      <div id="tools-drone" class="tabpane">
+        <div class="card">
+          <div class="card-h">Drone — a root (and fifth) that never blinks</div>
+          <p class="hint">Play scales, bends and chords against a held pitch. If you wander out of the key you will hear it immediately — the cheapest, most honest ear trainer there is.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="pt-drone-root"></select></label>
+            <label class="field inline"><span>Wave</span>
+              <select id="pt-drone-wave">
+                <option value="triangle" selected>Triangle (soft)</option>
+                <option value="sawtooth">Saw (brighter)</option>
+                <option value="sine">Sine (pure)</option>
+                <option value="square">Square (reedy)</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="pt-drone-fifth" checked><span>Add the fifth</span></label>
+            <label class="check"><input type="checkbox" id="pt-drone-oct" checked><span>Add the octave</span></label>
+            <label class="field inline"><span>Volume</span><input type="range" id="pt-drone-vol" min="0" max="0.5" step="0.01" value="0.18"></label>
+            <button class="btn btn-primary" id="pt-drone-btn">▶ Start drone</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tools-caged" class="tabpane">
+        <div class="card">
+          <div class="card-h">CAGED — five shapes that cover the whole neck</div>
+          <p class="hint">Every major (and minor) chord is one of five open shapes, moved up the neck. Learn where each lives for a root and you can play that chord — and its scale box — anywhere. Tap a card to hear it.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="pt-caged-root"></select></label>
+            <label class="field inline"><span>Quality</span>
+              <select id="pt-caged-qual">
+                <option value="maj">Major</option>
+                <option value="min">Minor</option>
+              </select>
+            </label>
+          </div>
+          <div class="caged-grid" id="pt-caged-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-harmonics" class="tabpane">
+        <div class="card">
+          <div class="card-h">Natural harmonics — the nodes that ring by themselves</div>
+          <p class="hint">Rest a finger lightly over the fretwire (don’t press down), pick, and lift. Fret 12 is the octave, 7 is an octave plus a fifth, 5 is two octaves. Tap a card to hear the target; press Listen and play the harmonic — it lights up when you hit it.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>String</span><select id="pt-harm-string"></select></label>
+            <button class="btn btn-primary" id="pt-harm-listen">▶ Listen</button>
+            <span class="pt-verdict" id="pt-harm-verdict">Pick a string, then chime a harmonic.</span>
+          </div>
+          <div class="harm-grid" id="pt-harm-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-into" class="tabpane">
+        <div class="card">
+          <div class="card-h">Intonation — set this string’s saddle</div>
+          <p class="hint">Compare the open string to the 12th-fret octave. Sharp at the 12th → move the saddle <b>back</b> (away from the neck). Flat → move it <b>forward</b>. One saddle at a time, then re-check. The Care tab has a full six-string worksheet; this is the “do this string now” version.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>String</span><select id="pt-into-string"></select></label>
+            <button class="btn" id="pt-into-open-btn">Capture open</button>
+            <button class="btn" id="pt-into-12-btn">Capture 12th</button>
+          </div>
+          <div class="pt-into-readout">
+            <div><span class="dim">Open</span><b id="pt-into-open">–</b></div>
+            <div><span class="dim">12th fret</span><b id="pt-into-12">–</b></div>
+          </div>
+          <div class="pt-meter" aria-hidden="true"><i id="pt-into-needle"></i></div>
+          <p class="hint" id="pt-into-status">Play the open string, capture it, then the 12th-fret octave.</p>
+        </div>
+      </div>
+
+      <div id="tools-bends" class="tabpane">
+        <div class="card">
+          <div class="card-h">Bend lab — land the note, not “around the note”</div>
+          <p class="hint">Play the unbent pitch first (that becomes the zero). Then bend toward the target. Green means you are within ±12 cents of a half-step, a whole-step or a third — the three bends that actually show up in songs.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Target</span>
+              <select id="pt-bend-target">
+                <option value="100">+100 ¢ · half step (one fret)</option>
+                <option value="200" selected>+200 ¢ · whole step (two frets)</option>
+                <option value="300">+300 ¢ · minor 3rd</option>
+                <option value="400">+400 ¢ · major 3rd</option>
+              </select>
+            </label>
+            <button class="btn btn-primary" id="pt-bend-btn">▶ Listen</button>
+            <button class="btn tiny" id="pt-bend-reset">Reset zero</button>
+          </div>
+          <div class="pt-bend-read" id="pt-bend-read">–</div>
+          <div class="pt-bend-track"><i id="pt-bend-fill" class="pt-bend-fill"></i></div>
+          <p class="pt-verdict" id="pt-bend-verdict">Press Listen, play the unbent note, then bend.</p>
         </div>
       </div>
     </section>
@@ -1356,6 +1473,7 @@
 <script src="js/learn.js"></script>
 <script src="js/care.js"></script>
 <script src="js/tools.js"></script>
+<script src="js/playtools.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/rig.js"></script>
 <script src="js/share.js"></script>

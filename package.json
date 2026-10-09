@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/yin-test.js && node test/poly-test.js && node test/dsp-test.js && node test/backing-test.js && node test/songs-test.js && node test/apk-test.js && node test/requirements-audit.js",
+    "test": "node test/yin-test.js && node test/poly-test.js && node test/dsp-test.js && node test/backing-test.js && node test/songs-test.js && node test/playtools-test.js && node test/apk-test.js && node test/requirements-audit.js",
     "test:e2e": "node test/e2e.js && node test/layout.js && node test/pwa-e2e.js",
     "test:dom": "node test/dom-smoke.js",
     "test:apk": "node test/apk-test.js && python3 test/apk-verify.py",

@@ -314,15 +314,32 @@ function kept(out, src) {
   const nav = read('public/index.html');
   const wired = views.every(v => nav.indexOf('data-view="' + v + '"') > 0 && nav.indexOf('id="view-' + v + '"') > 0);
   const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js',
-    'test/apk-test.js', 'test/pwa-e2e.js', 'test/requirements-audit.js']
+    'test/apk-test.js', 'test/pwa-e2e.js', 'test/requirements-audit.js', 'test/playtools-test.js']
     .filter(f => fs.existsSync(path.join(root, f)));
   const badges = (read('public/js/share.js').match(/\{ id: '/g) || []).length;
   const presets = (read('public/js/backing.js').match(/\{ name: '[^']+'/g) || []).length;
   item(10, 'And more advanced things',
     'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, eight node test suites',
-    wired && tests.length === 8 && badges >= 30,
-    views.join(' · ') + ' all reachable · ' + tests.length + '/8 node suites · ' + badges + ' badges · ' +
+    wired && tests.length === 9 && badges >= 30,
+    views.join(' · ') + ' all reachable · ' + tests.length + '/9 node suites · ' + badges + ' badges · ' +
     presets + ' backing presets · ' + (read('public/js/stemlab.js').match(/\{ id: '/g) || []).length + ' stem recipes');
+})();
+
+(function () {
+  const html = read('public/index.html');
+  const js = read('public/js/playtools.js');
+  const tabs = ['looper', 'drone', 'caged', 'harmonics', 'into', 'bends'];
+  const ids = ['pt-loop-rec', 'pt-loop-overdub', 'pt-loop-snap', 'pt-drone-btn', 'pt-caged-out', 'pt-harm-out', 'pt-into-open-btn', 'pt-bend-btn'];
+  const hasTabs = tabs.every(t => html.indexOf('data-tab="' + t + '"') > 0 && html.indexOf('id="tools-' + t + '"') > 0);
+  const hasIds = ids.every(id => html.indexOf('id="' + id + '"') > 0);
+  const hasLogic = ['shapeFrets', 'snapLoop', 'droneFreqs', 'CAGED_MAJ', 'HARMONICS'].every(k => js.indexOf(k) > 0);
+  const wired = html.indexOf('js/playtools.js') > 0 && read('public/js/tools.js').indexOf('TT.playtools.init') > 0
+    && read('public/js/app.js').indexOf('TT.playtools.stop') > 0;
+  item(19, 'Advanced play tools that make sitting down with a guitar more useful — looper, drone, CAGED, harmonics, intonation, bend lab',
+    'Tools tabs and panes exist, playtools.js maps the five CAGED shapes (open E/A/G/C/D plus minors), snaps loops to metronome bars, holds a root-fifth-octave drone, lists natural-harmonic nodes, and the drone/loop stop when you leave Tools',
+    hasTabs && hasIds && hasLogic && wired && fs.existsSync(path.join(root, 'test', 'playtools-test.js')),
+    tabs.length + ' play tabs · ' + ids.filter(id => html.indexOf('id="' + id + '"') > 0).length + '/' + ids.length +
+    ' controls · CAGED + snapLoop + droneFreqs + harmonics wired · stops on leave');
 })();
 
 /* ---------------------------------------------------------------- */
@@ -382,7 +399,7 @@ function kept(out, src) {
   const covered = views.filter(v => demo.indexOf("view: '" + v + "'") > 0);
   const steps = (demo.match(/title: '/g) || []).length;
   item(14, 'A detailed demo you can skip — and if you do not skip it, every section is covered one by one, with Next and Skip, saving your progress',
-    'public/js/demo.js walks all 16 views in 26 steps with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
+    'public/js/demo.js walks all 16 views with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
     covered.length === 16 && steps >= 20
       && html.indexOf('id="demo-next"') > 0 && html.indexOf('id="demo-skip"') > 0 && html.indexOf('id="demo-back"') > 0
       && demo.indexOf("set('demoStep'") > 0 && demo.indexOf("set('demoDone'") > 0

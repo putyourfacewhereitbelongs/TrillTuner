@@ -149,6 +149,12 @@ const ok = (c, l, e) => { console.log(`${c?'PASS':'FAIL'} ${l}${e!==undefined?' 
     const cof = document.querySelector('#cof-svg .cof-key');
     out.push(['tools: circle of fifths keys', document.querySelectorAll('#cof-svg .cof-key').length === 12 && vis(cof)]);
     out.push(['tools: chord diagrams drawn', document.querySelectorAll('#chord-diagrams .chord-svg').length >= 4]);
+    document.querySelector('#tools-tabs .tab[data-tab="caged"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    out.push(['tools: CAGED cards drawn', document.querySelectorAll('#pt-caged-out .caged-card').length >= 5]);
+    document.querySelector('#tools-tabs .tab[data-tab="looper"]').click();
+    await new Promise(r => setTimeout(r, 80));
+    out.push(['tools: looper rec button', vis(document.getElementById('pt-loop-rec'))]);
     out.push(['tools: no horizontal overflow', noOverflow()]);
 
     /* --- practice studio --- */

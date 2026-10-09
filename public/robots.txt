@@ -1,0 +1,3 @@
+# Trill Tuner — everything runs on your device; nothing here is meant to be indexed.
+User-agent: *
+Disallow: /api/

@@ -1,24 +1,31 @@
 #!/usr/bin/env node
 'use strict';
-/* Trill Tuner — tiny zero-dependency server: static files + lyrics search proxy */
+/* Trill Tuner — tiny zero-dependency server: static files + lyrics search proxy
+ * + the APK download + LAN host info + remote-tuner sessions (SSE). */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';   /* 0.0.0.0 so sandbox/preview proxies can reach it */
 const PUBLIC = path.join(__dirname, 'public');
+const lyricsdb = require('./public/js/lib/lyricsdb.js');
+const catalog = require('./public/js/lib/catalog.js');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
-  '.webm': 'video/webm'
+  '.webm': 'video/webm',
+  '.apk': 'application/vnd.android.package-archive'
 };
 
 function send(res, code, obj) {
@@ -76,27 +83,55 @@ function splitQuery(q) {
     .sort((a, b) => (b.artist && b.title ? 1 : 0) - (a.artist && a.title ? 1 : 0));
 }
 
-async function searchLyrics(query) {
+function localLyricsResult(query) {
+  const songs = catalog.search(query, { cap: 12 }).songs;
+  return lyricsdb.bestMatch(query, songs);
+}
+
+function localSongHits(q) {
+  const out = [];
+  const seen = new Set();
+  function add(title, artist, extra) {
+    const key = (title + '|' + artist).toLowerCase();
+    if (!title || seen.has(key)) return;
+    seen.add(key);
+    out.push(Object.assign({ title: title, artist: artist || '' }, extra || {}));
+  }
+  lyricsdb.search(q, { cap: 40 }).forEach(h => {
+    add(h.title, h.artist, { album: h.year ? String(h.year) : '', hasLyrics: true, source: 'library' });
+  });
+  catalog.search(q, { cap: 40 }).songs.forEach(s => {
+    add(s.title, s.artist, { album: s.key + ' · ' + s.bpm + ' BPM', hasLyrics: false, source: 'library', chords: s.chords });
+  });
+  out.sort((a, b) => lyricsdb.titleScore(q, b.title, b.artist) - lyricsdb.titleScore(q, a.title, a.artist));
+  return out;
+}
+
+async function searchLyricsRemote(query) {
   const errs = [];
   const pairs = splitQuery(query);
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const unreachable = e => /abort|fetch|ENOTFOUND|ECONN|network|timed out|Timeout|Failed to fetch/i.test(String(e && e.message || e));
   /* 1) lrclib exact lookup for the most specific reading */
   for (const p of pairs) {
     if (!p.artist || !p.title) continue;
     try {
       const q = new URLSearchParams({ artist_name: p.artist, track_name: p.title });
-      const j = await fetchJSON('https://lrclib.net/api/get?' + q, 8000);
+      const j = await fetchJSON('https://lrclib.net/api/get?' + q, 2500);
       if (j && (j.plainLyrics || j.syncedLyrics)) {
         const ly = clean(j.plainLyrics || desync(j.syncedLyrics));
         if (ly) return { source: 'lrclib.net', artist: j.artistName || p.artist, title: j.trackName || p.title, album: j.albumName || '', lyrics: ly };
       }
-    } catch (e) { errs.push('lrclib/get: ' + e.message); }
+    } catch (e) {
+      errs.push('lrclib/get: ' + e.message);
+      if (unreachable(e)) { const err = new Error('lyric databases unreachable'); err.detail = errs.join(' | '); throw err; }
+    }
   }
   /* 2) lrclib fuzzy search — this is the one that makes an artist-only or
    *    title-only query work */
   try {
     const q = new URLSearchParams({ q: String(query).trim() });
-    const arr = await fetchJSON('https://lrclib.net/api/search?' + q, 9000);
+    const arr = await fetchJSON('https://lrclib.net/api/search?' + q, 2500);
     if (Array.isArray(arr) && arr.length) {
       const withLyrics = arr.filter(r => r.plainLyrics || r.syncedLyrics);
       /* prefer a hit whose artist AND title both look like the query */
@@ -111,12 +146,15 @@ async function searchLyrics(query) {
         if (ly) return { source: 'lrclib.net', artist: hit.artistName, title: hit.trackName, album: hit.albumName || '', lyrics: ly };
       }
     }
-  } catch (e) { errs.push('lrclib/search: ' + e.message); }
+  } catch (e) {
+    errs.push('lrclib/search: ' + e.message);
+    if (unreachable(e)) { const err = new Error('lyric databases unreachable'); err.detail = errs.join(' | '); throw err; }
+  }
   /* 3) lyrics.ovh, both readings */
   for (const p of pairs) {
     if (!p.artist || !p.title) continue;
     try {
-      const j = await fetchJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(p.artist)}/${encodeURIComponent(p.title)}`, 9000);
+      const j = await fetchJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(p.artist)}/${encodeURIComponent(p.title)}`, 2500);
       if (j && j.lyrics) {
         const ly = clean(j.lyrics);
         if (ly) return { source: 'lyrics.ovh', artist: p.artist, title: p.title, album: '', lyrics: ly };
@@ -131,23 +169,61 @@ async function searchLyrics(query) {
 /* Song search: the app's own library lives in the browser, so this exists to
  * cast a wider net when there is a connection — lrclib knows far more songs
  * than any bundled list can. It never blocks the offline search. */
+async function searchLyrics(query) {
+  const local = localLyricsResult(query);
+  if (local) return local;
+  return searchLyricsRemote(query);
+}
+
 async function searchSongs(q) {
-  const out = [];
+  const out = localSongHits(q);
+  const seen = new Set(out.map(r => (r.title + '|' + r.artist).toLowerCase()));
   try {
     const params = new URLSearchParams({ q: String(q).trim() });
-    const arr = await fetchJSON('https://lrclib.net/api/search?' + params, 9000);
+    const arr = await fetchJSON('https://lrclib.net/api/search?' + params, 2500);
     if (Array.isArray(arr)) {
-      const seen = new Set();
       arr.forEach(r => {
         const key = (r.trackName + '|' + r.artistName).toLowerCase();
         if (!r.trackName || seen.has(key)) return;
         seen.add(key);
-        out.push({ title: r.trackName, artist: r.artistName || '', album: r.albumName || '', hasLyrics: !!(r.plainLyrics || r.syncedLyrics), instrumental: !!r.instrumental });
+        out.push({ title: r.trackName, artist: r.artistName || '', album: r.albumName || '', hasLyrics: !!(r.plainLyrics || r.syncedLyrics), instrumental: !!r.instrumental, source: 'lrclib.net' });
       });
     }
-  } catch (e) { /* offline is fine — the client keeps its own results */ }
-  return out.slice(0, 24);
+  } catch (e) { /* remote miss is fine — the library results already answered */ }
+  return out.slice(0, 48);
 }
+
+/* ---------- remote-tuner sessions (zero-dependency SSE) ----------
+ * One device hosts a session and shows a QR code; a second device on the same
+ * network scans it, loads this same app from the host and the two tuners sync
+ * live over Server-Sent Events. Sessions live in memory and expire. */
+const SESSION_TTL_MS = 30 * 60 * 1000;
+const sessions = new Map();   /* id -> { hosts: [entry], joiners: [entry], created } */
+
+function broadcast(session, role, obj) {
+  const list = role === 'host' ? session.hosts : session.joiners;
+  const line = 'data: ' + JSON.stringify(obj) + '\n\n';
+  for (const entry of list) {
+    try { entry.res.write(line); } catch (e) { /* dead socket — cleaned on close */ }
+  }
+}
+
+function dropEntry(session, entry) {
+  for (const list of [session.hosts, session.joiners]) {
+    const i = list.indexOf(entry);
+    if (i >= 0) list.splice(i, 1);
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of sessions) {
+    if (now - s.created > SESSION_TTL_MS) {
+      for (const entry of [...s.hosts, ...s.joiners]) { try { entry.res.end(); } catch (e) {} }
+      sessions.delete(id);
+    }
+  }
+}, 60 * 1000).unref();
 
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://localhost');
@@ -166,7 +242,11 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, { ok: true, result });
     } catch (e) {
       console.error('[lyrics]', e.message, '|', e.detail || '');
-      send(res, 404, { ok: false, error: e.message });
+      /* "no results" (offline, unknown song) is a handled outcome, not an HTTP
+       * error: answer 200 with ok:false, exactly like /api/songs below, so a
+       * graceful offline search never logs a console error in the browser.
+       * The client reads the body's ok flag either way. */
+      send(res, 200, { ok: false, error: e.message });
     }
     return;
   }
@@ -180,6 +260,115 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       send(res, 200, { ok: false, error: e.message, results: [] });
     }
+    return;
+  }
+
+  /* ---------- the app's own LAN address (for the connect / share QR codes) ---------- */
+  if (u.pathname === '/api/host') {
+    const ips = [];
+    const ifs = os.networkInterfaces();
+    for (const name of Object.keys(ifs)) {
+      for (const a of ifs[name] || []) {
+        if ((a.family === 'IPv4' || a.family === 4) && !a.internal) ips.push(a.address);
+      }
+    }
+    send(res, 200, { ok: true, ips: ips, port: PORT });
+    return;
+  }
+
+  /* ---------- the Android APK, hosted by the app itself ---------- */
+  if (u.pathname === '/download/trill-tuner.apk' || u.pathname === '/download/TrillTuner.apk') {
+    const fp = path.join(PUBLIC, 'downloads', 'TrillTuner.apk');
+    fs.stat(fp, (err, st) => {
+      if (err || !st.isFile()) {
+        send(res, 404, { ok: false, error: 'The APK has not been built yet — run `node tools/build-apk.py` on the host.' });
+        return;
+      }
+      let apkVersion = '';
+      try { apkVersion = require('./package.json').version || ''; } catch (e) {}
+      const headers = {
+        'Content-Type': MIME['.apk'],
+        'Content-Disposition': 'attachment; filename="TrillTuner.apk"',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+        'X-APK-Version': apkVersion
+      };
+      const range = req.headers.range;
+      if (range) {
+        const m = /bytes=(\d*)-(\d*)/.exec(range);
+        let start = m && m[1] ? parseInt(m[1], 10) : 0;
+        let end = m && m[2] ? parseInt(m[2], 10) : st.size - 1;
+        if (start > end || end >= st.size) { res.writeHead(416, { 'Content-Range': 'bytes */' + st.size }); res.end(); return; }
+        if (start >= st.size) start = 0;
+        res.writeHead(206, Object.assign(headers, {
+          'Content-Range': 'bytes ' + start + '-' + end + '/' + st.size,
+          'Content-Length': end - start + 1
+        }));
+        if (req.method === 'HEAD') { res.end(); return; }
+        fs.createReadStream(fp, { start: start, end: end }).pipe(res);
+        return;
+      }
+      res.writeHead(200, Object.assign(headers, { 'Content-Length': st.size }));
+      if (req.method === 'HEAD') { res.end(); return; }
+      fs.createReadStream(fp).pipe(res);
+    });
+    return;
+  }
+
+  /* ---------- remote-tuner sessions ---------- */
+  const sessMatch = u.pathname.match(/^\/api\/sessions\/([a-z0-9]{6,16})\/(events|msg)$/);
+  const sessInfo = u.pathname.match(/^\/api\/sessions\/([a-z0-9]{6,16})$/);
+  if (sessInfo && req.method === 'GET') {
+    const info = sessions.get(sessInfo[1]);
+    if (!info) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    send(res, 200, { ok: true, hosts: info.hosts.length, joiners: info.joiners.length });
+    return;
+  }
+  if (u.pathname === '/api/sessions' && req.method === 'POST') {
+    if (sessions.size > 200) { send(res, 503, { ok: false, error: 'too many sessions' }); return; }
+    const id = crypto.randomBytes(5).toString('hex');
+    sessions.set(id, { hosts: [], joiners: [], created: Date.now() });
+    send(res, 200, { ok: true, id: id });
+    return;
+  }
+  if (sessMatch && sessMatch[2] === 'events') {
+    const s = sessions.get(sessMatch[1]);
+    if (!s) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    const role = u.searchParams.get('as') === 'join' ? 'join' : 'host';
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    /* a 2 kB comment defeats proxies that buffer the first tiny SSE frame,
+     * which is why the host never saw "connected" after the other device loaded */
+    res.write('retry: 3000\n:' + ' '.repeat(2048) + '\n\n');
+    const entry = { res: res, role: role };
+    (role === 'host' ? s.hosts : s.joiners).push(entry);
+    const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch (e) {} }, 15000);
+    req.on('close', () => {
+      clearInterval(ping);
+      dropEntry(s, entry);
+      if (role === 'join') broadcast(s, 'host', { type: 'left', from: 'join' });
+      else broadcast(s, 'join', { type: 'left', from: 'host' });
+    });
+    if (role === 'join') broadcast(s, 'host', { type: 'joined', from: 'join' });
+    else broadcast(s, 'join', { type: 'joined', from: 'host' });
+    return;
+  }
+  if (sessMatch && sessMatch[2] === 'msg' && req.method === 'POST') {
+    const s = sessions.get(sessMatch[1]);
+    if (!s) { send(res, 404, { ok: false, error: 'no such session' }); return; }
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on('end', () => {
+      let msg;
+      try { msg = JSON.parse(body); } catch (e) { send(res, 400, { ok: false, error: 'bad json' }); return; }
+      if (!msg || (msg.from !== 'host' && msg.from !== 'join')) { send(res, 400, { ok: false, error: 'bad message' }); return; }
+      broadcast(s, msg.from === 'host' ? 'join' : 'host', { type: 'msg', from: msg.from, data: msg.data });
+      send(res, 200, { ok: true });
+    });
     return;
   }
 

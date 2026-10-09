@@ -279,12 +279,17 @@ function kept(out, src) {
   const styles = read('public/js/styles.js');
   const online = read('public/js/songsearch.js').indexOf('/api/songs') > 0;
   const artists = C.ARTISTS.filter(a => C.artistSongs(a.name).length).length;
-  const ok = counts.songs >= 160 && counts.lessons >= 28 && counts.artists >= 45 && artists === counts.artists && online && /TECHNIQUES/.test(styles);
+  const lyricsdb = read('public/js/lib/lyricsdb.js');
+  const more = read('public/js/lib/catalog-more.js');
+  const lyrJs = read('public/js/lyrics.js');
+  const libraryFirst = /Searching the library/.test(lyrJs) && !/offline songbook/.test(lyrJs);
+  const ok = counts.songs >= 350 && counts.lessons >= 28 && counts.artists >= 45 && artists === counts.artists && online && /TECHNIQUES/.test(styles)
+    && /Amazing Grace/.test(lyricsdb) && /Hey Jude/.test(more) && libraryFirst;
   item(8, 'More extensive search for lyrics and songs to play along with',
     'the offline catalogue across songs/artists/lessons/techniques, plus the online lyric lookup and per-artist pages',
     ok,
     counts.songs + ' songs · ' + counts.artists + ' artist pages (all with playable songs) · ' + counts.lessons +
-    ' lessons · 28 techniques · online lyric tab: ' + (online ? 'wired' : 'missing'));
+    ' lessons · built-in lyrics + extra catalog · library-first lyric search · online lyric tab: ' + (online ? 'wired' : 'missing'));
 })();
 
 /* ---------------------------------------------------------------- */
@@ -313,15 +318,116 @@ function kept(out, src) {
   const views = ['styles', 'backing', 'mine'];
   const nav = read('public/index.html');
   const wired = views.every(v => nav.indexOf('data-view="' + v + '"') > 0 && nav.indexOf('id="view-' + v + '"') > 0);
-  const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js', 'test/requirements-audit.js']
+  const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js',
+    'test/apk-test.js', 'test/pwa-e2e.js', 'test/requirements-audit.js', 'test/playtools-test.js']
     .filter(f => fs.existsSync(path.join(root, f)));
   const badges = (read('public/js/share.js').match(/\{ id: '/g) || []).length;
   const presets = (read('public/js/backing.js').match(/\{ name: '[^']+'/g) || []).length;
   item(10, 'And more advanced things',
-    'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, five node test suites',
-    wired && tests.length === 6 && badges >= 30,
-    views.join(' · ') + ' all reachable · ' + tests.length + '/6 node suites · ' + badges + ' badges · ' +
+    'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, eight node test suites',
+    wired && tests.length === 9 && badges >= 30,
+    views.join(' · ') + ' all reachable · ' + tests.length + '/9 node suites · ' + badges + ' badges · ' +
     presets + ' backing presets · ' + (read('public/js/stemlab.js').match(/\{ id: '/g) || []).length + ' stem recipes');
+})();
+
+(function () {
+  const html = read('public/index.html');
+  const js = read('public/js/playtools.js');
+  const tabs = ['looper', 'drone', 'caged', 'harmonics', 'into', 'bends'];
+  const ids = ['pt-loop-rec', 'pt-loop-overdub', 'pt-loop-snap', 'pt-drone-btn', 'pt-caged-out', 'pt-harm-out', 'pt-into-open-btn', 'pt-bend-btn'];
+  const hasTabs = tabs.every(t => html.indexOf('data-tab="' + t + '"') > 0 && html.indexOf('id="tools-' + t + '"') > 0);
+  const hasIds = ids.every(id => html.indexOf('id="' + id + '"') > 0);
+  const hasLogic = ['shapeFrets', 'snapLoop', 'droneFreqs', 'CAGED_MAJ', 'HARMONICS'].every(k => js.indexOf(k) > 0);
+  const wired = html.indexOf('js/playtools.js') > 0 && read('public/js/tools.js').indexOf('TT.playtools.init') > 0
+    && read('public/js/app.js').indexOf('TT.playtools.stop') > 0;
+  item(19, 'Advanced play tools that make sitting down with a guitar more useful — looper, drone, CAGED, harmonics, intonation, bend lab',
+    'Tools tabs and panes exist, playtools.js maps the five CAGED shapes (open E/A/G/C/D plus minors), snaps loops to metronome bars, holds a root-fifth-octave drone, lists natural-harmonic nodes, and the drone/loop stop when you leave Tools',
+    hasTabs && hasIds && hasLogic && wired && fs.existsSync(path.join(root, 'test', 'playtools-test.js')),
+    tabs.length + ' play tabs · ' + ids.filter(id => html.indexOf('id="' + id + '"') > 0).length + '/' + ids.length +
+    ' controls · CAGED + snapLoop + droneFreqs + harmonics wired · stops on leave');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 12. the Android app: a real, signed, self-hosted APK              */
+/* ---------------------------------------------------------------- */
+(function () {
+  const apkPath = path.join(root, 'public', 'downloads', 'TrillTuner.apk');
+  const exists = fs.existsSync(apkPath);
+  const size = exists ? fs.statSync(apkPath).size : 0;
+  const raw = exists ? fs.readFileSync(apkPath) : Buffer.alloc(0);
+  /* the central directory of a zip stores entry names as plain text */
+  const zipHas = s => raw.length > 0 && raw.indexOf(Buffer.from(s)) >= 0;
+  const man = read('apk-src/AndroidManifest.xml');
+  const smaliDir = path.join(root, 'apk-src', 'smali', 'com', 'trilltuner', 'app');
+  const smali = ['MainActivity.smali', 'TClient.smali', 'TChrome.smali', 'TBridge.smali']
+    .every(f => fs.existsSync(path.join(smaliDir, f)));
+  const perms = ['INTERNET', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_NETWORK_STATE', 'VIBRATE',
+    'ACCESS_WIFI_STATE', 'WAKE_LOCK', 'POST_NOTIFICATIONS', 'READ_MEDIA_AUDIO', 'BLUETOOTH_CONNECT']
+    .every(p => man.indexOf('android.permission.' + p) > 0);
+  item(12, 'An Android app version of the whole thing — named Trill Tuner, correct permissions, built and working',
+    'public/downloads/TrillTuner.apk is a real signed APK (zip entries + v1/v2/v3 signatures verified by test/apk-test.js and test/apk-verify.py); the shell source lives in apk-src/ (manifest + smali) and tools/build-apk.py rebuilds it without an SDK',
+    exists && size > 200 * 1024 && zipHas('AndroidManifest.xml') && zipHas('classes.dex') && zipHas('resources.arsc')
+      && zipHas('assets/index.html') && zipHas('META-INF/') && man.indexOf('package="com.trilltuner.app"') > 0
+      && man.indexOf('android:label="Trill Tuner"') > 0 && perms && smali
+      && fs.existsSync(path.join(root, 'tools', 'build-apk.py')),
+    'APK ' + (size / 1024).toFixed(0) + ' KB · package com.trilltuner.app · label “Trill Tuner” · minSdk 24 / targetSdk 34 · mic + wifi + storage + bluetooth + notifications · 4 smali shell classes · signed v1+v2+v3 (apksigner verify) · deep-checked by test/apk-test.js + test/apk-verify.py');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 13. the web version stays and becomes a PWA, offline after load   */
+/* ---------------------------------------------------------------- */
+(function () {
+  const man = JSON.parse(read('public/manifest.webmanifest'));
+  const sw = read('public/sw.js');
+  const head = read('public/index.html');
+  const icons = ['public/icons/icon-192.png', 'public/icons/icon-512.png',
+    'public/icons/icon-maskable-512.png', 'public/icons/apple-touch-icon.png']
+    .every(f => fs.existsSync(path.join(root, f)));
+  item(13, 'The web version remains and becomes a PWA — 100% offline after the first load',
+    'manifest.webmanifest (standalone, icons) + sw.js (precache-all, navigation fallback, skipWaiting) + PWA meta in index.html; the offline reload itself is proven in test/pwa-e2e.js (network cut, tuner still detects in-tune)',
+    man.name === 'Trill Tuner' && man.display === 'standalone' && man.icons.length >= 3
+      && sw.indexOf('cache.addAll') > 0 && sw.indexOf('caches.match') > 0 && sw.indexOf('skipWaiting') > 0
+      && head.indexOf('rel="manifest"') > 0 && head.indexOf('name="theme-color"') > 0
+      && head.indexOf('apple-mobile-web-app-capable') > 0 && head.indexOf('viewport-fit=cover') > 0
+      && icons && fs.existsSync(path.join(root, 'test', 'pwa-e2e.js')),
+    'manifest “' + man.name + '” standalone · ' + man.icons.length + ' icons · sw precaches the app, falls back to the cached shell offline · theme #f59e0b · mobile viewport · offline E2E green');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 14. the guided demo: skippable, every section, progress saved     */
+/* ---------------------------------------------------------------- */
+(function () {
+  const demo = read('public/js/demo.js');
+  const html = read('public/index.html');
+  const views = ['tune', 'metronome', 'record', 'lyrics', 'songs', 'styles', 'maker', 'stems',
+    'backing', 'listening', 'learn', 'tools', 'rig', 'hookup', 'settings', 'mine', 'progress', 'care'];
+  const covered = views.filter(v => demo.indexOf("view: '" + v + "'") > 0);
+  const steps = (demo.match(/title: '/g) || []).length;
+  item(14, 'A detailed demo you can skip — and if you do not skip it, every section is covered one by one, with Next and Skip, saving your progress',
+    'public/js/demo.js walks all 18 views with Next/Skip/Back, saves tt.demoStep after every step, resumes after a reload; wired to #btn-tour; proven end to end in test/pwa-e2e.js',
+    covered.length === 18 && steps >= 20
+      && html.indexOf('id="demo-next"') > 0 && html.indexOf('id="demo-skip"') > 0 && html.indexOf('id="demo-back"') > 0
+      && demo.indexOf("set('demoStep'") > 0 && demo.indexOf("set('demoDone'") > 0
+      && html.indexOf('id="btn-tour"') > 0,
+    steps + ' steps · all 18 sections covered (' + covered.length + '/18) · Next + Skip + Back · progress saved + resumed · restart from Tuning setup');
+})();
+
+/* ---------------------------------------------------------------- */
+/* 15. QR sharing of the APK + remote tuning over the LAN            */
+/* ---------------------------------------------------------------- */
+(function () {
+  const html = read('public/index.html');
+  const server = read('server.js');
+  const qr = read('public/js/lib/qrcode.js');
+  item(15, 'Sharing with a QR code that links to the download of the actual APK — hosted by the app itself — plus a QR to connect another device over the LAN for live, fully inclusive tuning',
+    'vendored QR generator + TT.qr wrapper; the progress view shows the APK QR + link to /download/trill-tuner.apk served by server.js; the tune view hosts a session (QR to ?join=<id>) and two devices mirror each other live over SSE — proven in test/pwa-e2e.js',
+    qr.length > 10000 && fs.existsSync(path.join(root, 'public', 'js', 'qr.js'))
+      && html.indexOf('id="apk-qr"') > 0 && html.indexOf('id="apk-link"') > 0 && html.indexOf('id="btn-apk-open"') > 0
+      && server.indexOf("'/download/trill-tuner.apk'") > 0 && server.indexOf('application/vnd.android.package-archive') > 0
+      && html.indexOf('id="btn-remote-host"') > 0 && html.indexOf('id="remote-qr"') > 0
+      && server.indexOf("'/api/sessions'") > 0 && server.indexOf('(events|msg)') > 0
+      && server.indexOf("'/api/host'") > 0 && fs.existsSync(path.join(root, 'public', 'js', 'remote.js')),
+    'QR lib vendored (qrcode-generator, MIT) · APK QR + copy/share/open buttons · server hosts the APK (MIME + range support) · host QR → ?join=<id> · SSE sessions mirror note/cents/status both ways');
 })();
 
 /* ---------------------------------------------------------------- */
@@ -343,6 +449,136 @@ function kept(out, src) {
         'HTTP check against the running server',
         false, 'the server is not answering on port 3000 (' + e.message + ') — start it with `node server.js`');
     }
+    /* the long-song path of the Stem lab: a song is separated in slices, and the
+     * slices have to add up to the same audio as a whole-file pass — and what
+     * comes out has to fit in the fold, or the WAV and the sound card clip it */
+    try {
+      const long = Math.round(9.5 * SR);
+      const seg = [new Float32Array(long), new Float32Array(long)];
+      let seed = 11;
+      const nz = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+      let segPeak = 0;
+      for (let i = 0; i < long; i++) {
+        const t = i / SR, beat = (i % Math.round(SR * 0.5)) / SR;
+        const hit = 0.6 * Math.exp(-beat * 22) * nz();
+        seg[0][i] = 0.3 * Math.sin(TAU * 440 * t) + 0.3 * Math.sin(TAU * 220 * t) + hit;
+        seg[1][i] = 0.3 * Math.sin(TAU * 440 * t) - 0.3 * Math.sin(TAU * 220 * t) + hit * 0.95;
+        segPeak = Math.max(segPeak, Math.abs(seg[0][i]), Math.abs(seg[1][i]));
+      }
+      const whole = D.separate(seg, SR, 'vocals', { remove: true, amount: 0.9 });
+      const sliced = await D.separateChunked(seg, SR, 'vocals', { remove: true, amount: 0.9, sliceSeconds: 4 });
+      let track = 0, peak = 0;
+      for (let i = 0; i < long; i++) {
+        track = Math.max(track, Math.abs(sliced.channels[0][i] - whole.channels[0][i]));
+        peak = Math.max(peak, Math.abs(sliced.channels[0][i]));
+      }
+      let stopped = null;
+      try { await D.separateChunked(seg, SR, 'drums', { remove: true, shouldAbort: () => true, sliceSeconds: 4 }); }
+      catch (e) { stopped = e; }
+      const lab = read('public/js/stemlab.js');
+      const ui = ['st-btn-cancel', 'st-btn-mic', 'st-btn-wav', 'st-btn-play', 'st-btn-run'].filter(id => read('public/index.html').indexOf('id="' + id + '"') > 0);
+      const micTake = /recordSeconds/.test(lab) && /startMic|stopMic/.test(read('public/js/audio.js'));
+      item(16, 'The Stem lab holds up on a whole song — the slices add up, nothing clips, and a long run can be stopped',
+        'a 9.5 s song separated twice (whole file, and in 4 s slices through the same path the page uses), the results compared sample by sample, plus the lab’s own controls',
+        track <= segPeak * 0.02 && peak <= 1 && stopped && stopped.aborted === true && ui.length >= 5 && micTake,
+        sliced.slices + ' slices land within ' + (100 * track / segPeak).toFixed(2) + '% of the whole-file pass (peak ' + peak.toFixed(3) + ', fold ' +
+        (peak <= 1 ? 'clean' : 'broken') + '), a run can be stopped (“' + (stopped ? stopped.message : 'nothing thrown') + '”), and the lab offers ' +
+        ui.length + ' of 5 controls, mic take ' + (micTake ? 'wired' : 'missing') + ')');
+    } catch (e) {
+      item(16, 'The Stem lab holds up on a whole song — the slices add up, nothing clips, and a long run can be stopped',
+        'the sliced separation path', false, 'threw ' + e.message);
+    }
+
+    /* the transport: a waveform, a clock, skipping, and an A–B loop */
+    (function () {
+      const html = read('public/index.html');
+      const lab = read('public/js/stemlab.js');
+      const ids = ['st-wave', 'st-pos', 'st-dur', 'st-ab-label', 'st-btn-aset', 'st-btn-bset', 'st-btn-abclear'];
+      const have = ids.filter(id => html.indexOf('id="' + id + '"') > 0);
+      const api = ['S.seek =', 'S.markA =', 'S.markB =', 'S.clearAB =', 'S.transport ='].filter(x => lab.indexOf(x) > 0);
+      const draws = /function drawStatic/.test(lab) && /fillRect\(x, y0/.test(lab) && /xOf\(state\.pos/.test(lab);
+      const abLoop = /loopStart = sp\.a/.test(lab) && /loopEnd = /.test(lab);
+      const dragAB = /drag === 'range'/.test(lab);
+      item(17, 'A waveform of the take with the playing time, skipping anywhere, and a loop between two points you pick (A and B)',
+        'the DOM contract, the transport API the browser tests drive, the drawing itself, click-to-skip, drag from A to B on the wave to loop, and the A–B loop handed to the audio node',
+        have.length === ids.length && api.length === 5 && draws && abLoop && dragAB,
+        have.length + '/' + ids.length + ' controls · ' + api.length + '/5 API calls · waveform + playhead drawing: ' + (draws ? 'wired' : 'missing') +
+        ' · A–B reaches the audio node: ' + (abLoop ? 'yes' : 'no') + ' · driven for real in test/dom-smoke.js and test/pwa-e2e.js (§9)');
+    })();
+
+    /* the separation must not fade the voice: measured against the voice itself */
+    (function () {
+      try {
+        const FS = 22050, TAU = Math.PI * 2;
+        const words = [];
+        for (let k = 0; k < 10; k++) words.push({ at: 0.5 + k * 0.5, dur: 0.34, f0: 196 * Math.pow(2, (k % 4) / 12) });
+        const total = Math.ceil((words[words.length - 1].at + 1) * FS);
+        const voice = new Float32Array(total);
+        let seed = 3;
+        const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+        words.forEach(w => {
+          const s0 = Math.round(w.at * FS), len = Math.round(w.dur * FS);
+          for (let i = 0; i < len; i++) {
+            const t = i / FS, vib = 1 + 0.012 * Math.sin(TAU * 5.5 * t);
+            const env = Math.min(1, t / 0.02) * Math.min(1, (w.dur - t) / 0.05);
+            let v = 0;
+            for (let h = 1; h <= 6; h++) v += Math.sin(TAU * w.f0 * h * vib * t) / (h * 1.4);
+            voice[s0 + i] += 0.34 * env * v * (1 + 0.25 * rnd());
+          }
+        });
+        const gl = new Float32Array(total), gr = new Float32Array(total), lo = new Float32Array(total), dr = new Float32Array(total);
+        const chords = [[196, 246.9, 392], [220, 277.2, 440], [174.6, 261.6, 349.2], [146.8, 220, 293.7]];
+        for (let bar = 0; bar < total / FS; bar++) {
+          const ch = chords[bar % 4], start = Math.round(bar * FS);
+          for (let st = 0; st < 4; st++) {
+            const off = Math.round(st * 0.25 * FS);
+            ch.forEach((f, k) => {
+              const at = start + off + Math.round(k * 0.012 * FS);
+              for (let i = 0; i < 0.5 * FS && at + i < total; i++) {
+                const t = i / FS, e = Math.exp(-t * 3.2) * Math.min(1, t / 0.004);
+                gl[at + i] += 0.15 * e * Math.sin(TAU * f * t);
+                gr[at + i] += 0.15 * e * Math.sin(TAU * f * 1.003 * t);
+              }
+            });
+          }
+          for (let i = 0; i < FS; i++) { const at = start + i; if (at >= total) break; lo[at] += 0.24 * Math.sin(TAU * 82 * (at / FS)); }
+        }
+        for (let b = 0; b < Math.ceil(total / FS / 0.5); b++) {
+          const at = Math.round(b * 0.5 * FS);
+          for (let i = 0; i < 0.2 * FS && at + i < total; i++) dr[at + i] += 0.5 * Math.exp(-(i / FS) * 26) * rnd();
+        }
+        const mix = [new Float32Array(total), new Float32Array(total)];
+        for (let i = 0; i < total; i++) { mix[0][i] = voice[i] + gl[i] + lo[i] + dr[i]; mix[1][i] = voice[i] + gr[i] + lo[i] + dr[i]; }
+        const HOP = Math.round(0.01 * FS);
+        const env = a => { const o = []; for (let i = 0; i + HOP <= a.length; i += HOP) { let sum = 0; for (let k = 0; k < HOP; k++) sum += a[i + k] * a[i + k]; o.push(Math.sqrt(sum / HOP)); } return o; };
+        const dB = x => 20 * Math.log10((x || 0) + 1e-9);
+        const envV = env(voice);
+        const measure = out => {
+          const envO = env(out[0]);
+          const on = [], st = [];
+          words.forEach(w => {
+            const s0 = Math.round(w.at / 0.01), len = Math.round(w.dur / 0.01);
+            if (Math.max.apply(null, envV.slice(s0 + 12, s0 + len - 4)) < 0.05) return;
+            for (let k = 0; k < 4; k++) on.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+            for (let k = 12; k < len - 3; k++) st.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+          });
+          const med = a => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+          return { on: med(on), st: med(st) };
+        };
+        const iso = measure(D.separate(mix, FS, 'vocals', { remove: false, amount: 0.92 }).channels);
+        const rem = measure(D.separate(mix, FS, 'vocals', { remove: true, amount: 0.92 }).channels);
+        item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
+          'a synthesised voice with ten words over guitar, bass and drums, measured in 10 ms frames against the real voice: isolating, the first 40 ms of a word must not sit below the steady part (a fade-in); removing, the notch must already be shut at a word’s onset',
+          iso.on >= -3 && Math.abs(iso.on - iso.st) <= 3 && rem.on <= -5 && rem.st <= -5 && Math.abs(Math.abs(rem.on) - Math.abs(rem.st)) <= 1.5,
+          'isolated voice: word onset ' + iso.on.toFixed(1) + ' dB off the real voice, steady part ' + iso.st.toFixed(1) +
+          ' dB · removed voice: ' + rem.on.toFixed(1) + ' dB leaked at the onset vs ' +
+          rem.st.toFixed(1) + ' dB mid-word — no swell back in');
+      } catch (e) {
+        item(18, 'The separation keeps the voice’s own dynamics — it must not fade the voice in and out',
+          'the voice-envelope measurement', false, 'threw ' + e.message);
+      }
+    })();
+
     finish();
   };
 

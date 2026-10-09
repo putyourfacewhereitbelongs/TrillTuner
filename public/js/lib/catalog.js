@@ -862,7 +862,7 @@
     out.songs.sort((a, b) => b.match - a.match);
     out.lessons.sort((a, b) => b.match - a.match);
     out.artists.sort((a, b) => b.match - a.match);
-    const cap = opts.cap || 40;
+    const cap = opts.cap || 80;
     out.songs = out.songs.slice(0, cap);
     out.lessons = out.lessons.slice(0, cap);
     out.artists = out.artists.slice(0, cap);
@@ -1005,4 +1005,9 @@
   G.TT = G.TT || {};
   G.TT.catalog = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  /* extra play-along songs live in catalog-more.js (browser script tag, or
+   * require here so node tests see the full library) */
+  if (typeof require === 'function' && typeof module !== 'undefined') {
+    try { require('./catalog-more.js'); } catch (e) { /* browser has no require */ }
+  }
 })();

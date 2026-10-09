@@ -39,9 +39,31 @@
     if (opts && opts.toast) toast(msg);
   }
 
+  function closeMenu() {
+    const nav = document.getElementById('nav');
+    const backdrop = document.getElementById('nav-backdrop');
+    const btn = document.getElementById('btn-menu');
+    if (nav) nav.classList.remove('open');
+    if (backdrop) backdrop.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('nav-open');
+  }
+  function openMenu() {
+    const nav = document.getElementById('nav');
+    const backdrop = document.getElementById('nav-backdrop');
+    const btn = document.getElementById('btn-menu');
+    if (nav) nav.classList.add('open');
+    if (backdrop) backdrop.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('nav-open');
+  }
+  app.closeMenu = closeMenu;
+  app.openMenu = openMenu;
+
   app.showView = function (id) {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
+    closeMenu();
     if (id === 'tune') TT.tuner.resume(); else TT.tuner.pause();
     if (id === 'learn') TT.learn.renderPractice();
     if (id !== 'listening' && TT.listener && TT.listener.state && TT.listener.state.running) TT.listener.stop();
@@ -51,12 +73,23 @@
     if (id === 'mine' && TT.mine && TT.mine.render) TT.mine.render();
     if (id === 'styles' && TT.styles) TT.styles.init();
     if (id === 'progress' && TT.share) TT.share.render();
+    if (id === 'progress' && TT.apkshare) TT.apkshare.render();
     if (id === 'tools' && TT.tools) TT.tools.setTab(document.querySelector('#tools-tabs .tab.active').dataset.tab);
+    if (id !== 'tools' && TT.playtools && TT.playtools.stop) TT.playtools.stop();
+    if (id === 'settings' && TT.settings && TT.settings.refreshInputs) TT.settings.refreshInputs();
   };
 
   function bindNav() {
     document.querySelectorAll('.nav-btn').forEach(b =>
       b.addEventListener('click', () => app.showView(b.dataset.view)));
+    const btn = document.getElementById('btn-menu');
+    const backdrop = document.getElementById('nav-backdrop');
+    if (btn) btn.addEventListener('click', () => {
+      const nav = document.getElementById('nav');
+      if (nav && nav.classList.contains('open')) closeMenu(); else openMenu();
+    });
+    if (backdrop) backdrop.addEventListener('click', closeMenu);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
   }
 
   function bindMode() {
@@ -129,7 +162,13 @@
     wire('tools', () => TT.tools.init());
     wire('practice', () => TT.practiceTools.init());
     wire('rig', () => TT.rig.init());
+    wire('hookup', () => TT.hookup && TT.hookup.init());
+    wire('settings', () => TT.settings && TT.settings.init());
     wire('share', () => TT.share.init());
+    wire('pwa', () => TT.pwa.init());
+    wire('remote', () => TT.remote.init());
+    wire('apkshare', () => TT.apkshare.init());
+    wire('demo', () => TT.demo.init());
     bindNav();
     bindMode();
     bindMicPill();

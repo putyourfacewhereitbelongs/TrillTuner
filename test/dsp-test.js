@@ -335,5 +335,281 @@ console.log('\nTrill Tuner — audio lab tests\n');
   ok(level(acoustic, { remove: true }) < -1, 'acoustic chop: with the acoustic on its own the chop bites', 'acoustic alone ' + level(acoustic, { remove: true }).toFixed(2) + ' dB');
 })();
 
-console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);
-process.exit(failures ? 1 : 0);
+/* ------------------------------------------------------------------ */
+/* 12. edges and leftovers: a separated file must start and end cleanly, */
+/*     must never leave the fold, and must be stoppable mid-way.        */
+/* ------------------------------------------------------------------ */
+(async function () {
+  const SECS = 3, N = SR * SECS;
+  /* a song that starts on a hit — the shape that used to come back as a bang at
+   * the head of the file: a decaying thump plus sustained pad and top end */
+  const L = new Float32Array(N), R = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const t = i / SR;
+    const body = 0.25 * Math.sin(2 * Math.PI * 220 * t) + 0.2 * Math.sin(2 * Math.PI * 660 * t) + 0.12 * Math.sin(2 * Math.PI * 3000 * t);
+    const hit = 0.6 * Math.exp(-t / 0.02) * Math.sin(2 * Math.PI * 200 * t);
+    L[i] = body + hit;
+    R[i] = body * 0.85 + hit * 0.9;               /* a little width, not a pure centre */
+  }
+  let srcPeak = 0;
+  for (let i = 0; i < N; i++) srcPeak = Math.max(srcPeak, Math.abs(L[i]), Math.abs(R[i]));
+
+  const edgeWindow = Math.round(0.05 * SR);          /* first/last 50 ms */
+  const modes = Object.keys(D.PROFILES);
+  let worstHead = 0, worstTail = 0, worstAny = 0, worstMode = '', worstHeadMode = '';
+  modes.forEach(m => {
+    [true, false].forEach(remove => {
+      const r = D.separate([L.slice(), R.slice()], SR, m, { remove: remove, amount: 0.92 });
+      r.channels.forEach(ch => {
+        for (let i = 0; i < N; i++) {
+          const v = Math.abs(ch[i]);
+          if (v > worstAny) { worstAny = v; worstMode = m + (remove ? ' remove' : ' isolate'); }
+          if (i < edgeWindow && v > worstHead) { worstHead = v; worstHeadMode = m + (remove ? ' remove' : ' isolate'); }
+          if (i >= N - edgeWindow && v > worstTail) worstTail = v;
+        }
+      });
+    });
+  });
+  ok(worstHead <= srcPeak * 1.02,
+    'a separation does not bang at the head of the file',
+    'loudest first 50 ms ' + worstHead.toFixed(3) + ' vs source peak ' + srcPeak.toFixed(3) + ' (' + worstHeadMode + ')');
+  ok(worstTail <= srcPeak * 1.02,
+    'a separation does not bang at the tail of the file',
+    'loudest last 50 ms ' + worstTail.toFixed(3));
+  ok(worstAny <= 1.0, 'no separation sample leaves the −1…1 fold anywhere',
+    'peak ' + worstAny.toFixed(3) + ' (' + worstMode + ')');
+
+  /* the chunked path splices slices together — the joins must be as clean as the
+   * ends of the file (this is where the old window-sum floor used to bite) */
+  const long = Math.round(9.5 * SR);
+  const big = [new Float32Array(long), new Float32Array(long)];
+  let bigPeak = 0;
+  let noiseSeed = 11;
+  const noise = () => (noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+  for (let i = 0; i < long; i++) {
+    const t = i / SR;
+    const beat = (i % Math.round(SR * 0.5)) / SR;
+    /* broadband hits on purpose: a spectral mask is at its most content
+     * dependent with noise, so this is the fixture that shows a bad splice */
+    const hit = 0.6 * Math.exp(-beat * 22) * noise();
+    big[0][i] = 0.3 * Math.sin(2 * Math.PI * 440 * t) + 0.3 * Math.sin(2 * Math.PI * 220 * t) + hit;
+    big[1][i] = 0.3 * Math.sin(2 * Math.PI * 440 * t) - 0.3 * Math.sin(2 * Math.PI * 220 * t) + hit * 0.95;
+    bigPeak = Math.max(bigPeak, Math.abs(big[0][i]), Math.abs(big[1][i]));
+  }
+  const chunked = await D.separateChunked(big, SR, 'vocals', { remove: true, amount: 0.9, sliceSeconds: 4 });
+  let joinPeak = 0;
+  for (let s = 1; s < chunked.slices; s++) {
+    const at = Math.round(s * 4 * SR);
+    for (let i = Math.max(0, at - 441); i < Math.min(long, at + 441); i++) joinPeak = Math.max(joinPeak, Math.abs(chunked.channels[0][i]));
+  }
+  ok(chunked.slices > 1, 'the chunked path really did split the file', chunked.slices + ' slices');
+  ok(joinPeak <= bigPeak * 1.02, 'slice joins do not stand out by level',
+    'loudest ±10 ms around a join ' + joinPeak.toFixed(3) + ' vs source peak ' + bigPeak.toFixed(3));
+
+  /* loudness is not the whole story. Two things actually matter at a join: the
+   * sliced result has to land on the same audio as separating the whole file in
+   * one go, and the join must not be a step. (The slices are cross-faded and
+   * framed on the same grid as a whole-song pass, so both hold.) */
+  const oneShot = D.separate(big, SR, 'vocals', { remove: true, amount: 0.9 });
+  let trackDiff = 0, seamJump = 0, bodyJump = 0, worstOwn = 0;
+  for (let i = 0; i < long; i++) trackDiff = Math.max(trackDiff, Math.abs(chunked.channels[0][i] - oneShot.channels[0][i]));
+  for (let i = 1; i < long; i++) {
+    let nearJoin = false;
+    for (let s = 1; s < chunked.slices; s++) if (Math.abs(i - Math.round(s * 4 * SR)) <= 441) nearJoin = true;
+    const dj = Math.abs((chunked.channels[0][i] - oneShot.channels[0][i]) - (chunked.channels[0][i - 1] - oneShot.channels[0][i - 1]));
+    if (nearJoin) seamJump = Math.max(seamJump, dj); else bodyJump = Math.max(bodyJump, dj);
+    worstOwn = Math.max(worstOwn, Math.abs(chunked.channels[0][i] - chunked.channels[0][i - 1]));
+  }
+  ok(trackDiff <= bigPeak * 0.02,
+    'the sliced path lands on the whole-song result — the slice context changes nothing audible',
+    'biggest disagreement with a whole-file pass ' + trackDiff.toFixed(4) + ' = ' + (100 * trackDiff / bigPeak).toFixed(2) + '% of the source peak');
+  ok(seamJump <= bodyJump + 1e-6,
+    'a join is not a special place — the result is as smooth there as anywhere else',
+    'biggest sample-to-sample move of (sliced − whole-file) at a join ' + seamJump.toExponential(2) +
+    ' vs ' + bodyJump.toExponential(2) + ' elsewhere · biggest move of the result itself ' + worstOwn.toFixed(3));
+  ok(worstOwn <= bigPeak * 1.02, 'the sliced result never steps out of the source fold',
+    'biggest sample-to-sample move ' + worstOwn.toFixed(3) + ' vs source peak ' + bigPeak.toFixed(3));
+
+  /* every result the app hands over goes through the chunked path, and nothing
+   * it produces may leave the fold — a wide-band isolate or the classic
+   * centre-cancel can legitimately be louder than the song it came from, so the
+   * path measures the take once and levels it only when it really has to */
+  let hotRaw = 0, hotMode = '';
+  for (let m = 0; m < modes.length; m++) {
+    for (let d = 0; d < 2; d++) {
+      const r = D.separate([L.slice(), R.slice()], SR, modes[m], { remove: !!d, amount: 1 });
+      let p = 0;
+      r.channels.forEach(ch => { for (let i = 0; i < N; i++) p = Math.max(p, Math.abs(ch[i])); });
+      if (p > hotRaw) { hotRaw = p; hotMode = modes[m] + (d ? ' remove' : ' isolate'); }
+    }
+  }
+  /* a deliberately hot take: a wide-band layer isolated from a noisy mix */
+  const noisy = [new Float32Array(SR * 2), new Float32Array(SR * 2)];
+  for (let i = 0; i < noisy[0].length; i++) {
+    const t = i / SR;
+    const drum = 0.8 * Math.exp(-((i % Math.round(SR * 0.25)) / SR) * 30) * Math.sin(2 * Math.PI * 3100 * t);
+    const tone = 0.3 * Math.sin(2 * Math.PI * 440 * t);
+    noisy[0][i] = drum + tone;
+    noisy[1][i] = drum + tone * 0.9;
+  }
+  let rawNoisy = 0;
+  D.separate(noisy, SR, 'drums', { remove: false, amount: 1 }).channels.forEach(ch => {
+    for (let i = 0; i < ch.length; i++) rawNoisy = Math.max(rawNoisy, Math.abs(ch[i]));
+  });
+  const guarded = await D.separateChunked(noisy, SR, 'drums', { remove: false, amount: 1, sliceSeconds: 4 });
+  let guardedPeak = 0;
+  guarded.channels.forEach(ch => { for (let i = 0; i < ch.length; i++) guardedPeak = Math.max(guardedPeak, Math.abs(ch[i])); });
+  ok(guardedPeak <= 1 && (guarded.gain === 1 || guarded.gain < 1),
+    'nothing the app hands over leaves the fold — a hot take is levelled, a fitting one untouched',
+    'raw isolate peaked ' + rawNoisy.toFixed(3) + ' → handed over at ' + guardedPeak.toFixed(3) +
+    (guarded.gain < 1 ? ' (levelled by ' + (20 * Math.log10(guarded.gain)).toFixed(2) + ' dB)' : ' (no levelling needed)') +
+    ' · loudest raw profile was ' + hotRaw.toFixed(3) + ' on ' + hotMode);
+  /* and the guard itself is honest: it leaves an ordinary take bit-for-bit alone */
+  const quietIn = [new Float32Array([0.2, -0.4, 0.3])];
+  const quietOut = D.limitPeak(quietIn);
+  const hotIn = [new Float32Array([0.5, -1.6, 1.2])];
+  const hotOut = D.limitPeak(hotIn);
+  let hotPeak = 0;
+  for (let i = 0; i < hotOut.channels[0].length; i++) hotPeak = Math.max(hotPeak, Math.abs(hotOut.channels[0][i]));
+  ok(quietOut.gain === 1 && quietOut.channels === quietIn && hotPeak <= 0.990001 && Math.abs(hotIn[0][1]) === Math.fround(1.6),
+    'the peak guard copies nothing it does not have to touch, and it never edits the caller’s buffer',
+    'quiet take gain ' + quietOut.gain + ' (same array: ' + (quietOut.channels === quietIn) + ') · hot take ' + hotIn[0][1] +
+    ' → ' + hotPeak.toFixed(3) + ' with gain ' + hotOut.gain.toFixed(3) + ', input left at ' + hotIn[0][1] + ' (unchanged: ' + (hotIn[0][1] === Math.fround(-1.6)) + ')');
+
+  /* stopping: a long separation can be abandoned between slices */
+  let aborted = null;
+  try {
+    await D.separateChunked(big, SR, 'drums', { remove: true, shouldAbort: () => true, sliceSeconds: 4 });
+  } catch (e) { aborted = e; }
+  ok(!!aborted && aborted.aborted === true, 'a separation can be stopped between slices',
+    aborted ? '“' + aborted.message + '”' : 'nothing was thrown');
+
+  /* ------------------------------------------------------------------ */
+  /* 13. the mask must not fade the voice                                */
+  /* ------------------------------------------------------------------ */
+  /* A soft, per-frame mask multiplies the voice by its own confidence: words
+   * ramp in when isolating, and the first tenth of a second of every word leaks
+   * through the notch when removing. Both are measured here against the voice
+   * itself (the mix would hide it), 10 ms frames, in dB:
+   *   · isolate — how far the voice is off, separately for the first 40 ms of a
+   *     word and for the steady part of it; the two must be close, or the mask
+   *     is shaping the voice's own envelope;
+   *   · remove — the leaked voice must be as weak at a word's onset as it is in
+   *     the steady state, or the instrumental “comes back” between syllables. */
+  {
+    const FS = 22050, TAU2 = Math.PI * 2;
+    const words = [];
+    for (let k = 0; k < 10; k++) words.push({ at: 0.5 + k * 0.5, dur: 0.34, f0: 196 * Math.pow(2, (k % 4) / 12) });
+    const total = Math.ceil((words[words.length - 1].at + 1) * FS);
+    const voice = new Float32Array(total);
+    let seed2 = 3;
+    const rnd2 = () => (seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5;
+    words.forEach(w => {
+      const s0 = Math.round(w.at * FS), len = Math.round(w.dur * FS);
+      for (let i = 0; i < len; i++) {
+        const t = i / FS, vib = 1 + 0.012 * Math.sin(TAU2 * 5.5 * t);
+        const env = Math.min(1, t / 0.02) * Math.min(1, (w.dur - t) / 0.05);
+        let v = 0;
+        for (let h = 1; h <= 6; h++) v += Math.sin(TAU2 * w.f0 * h * vib * t) / (h * 1.4);
+        voice[s0 + i] += 0.34 * env * v * (1 + 0.25 * rnd2());
+      }
+    });
+    const gl = new Float32Array(total), gr = new Float32Array(total), lo = new Float32Array(total), dr = new Float32Array(total);
+    const chords2 = [[196, 246.9, 392], [220, 277.2, 440], [174.6, 261.6, 349.2], [146.8, 220, 293.7]];
+    for (let bar = 0; bar < total / FS; bar++) {
+      const ch = chords2[bar % 4], start = Math.round(bar * FS);
+      for (let st = 0; st < 4; st++) {
+        const off = Math.round(st * 0.25 * FS);
+        ch.forEach((f, k) => {
+          const at2 = start + off + Math.round(k * 0.012 * FS);
+          for (let i = 0; i < 0.5 * FS && at2 + i < total; i++) {
+            const t = i / FS, e = Math.exp(-t * 3.2) * Math.min(1, t / 0.004);
+            gl[at2 + i] += 0.15 * e * Math.sin(TAU2 * f * t);
+            gr[at2 + i] += 0.15 * e * Math.sin(TAU2 * f * 1.003 * t);
+          }
+        });
+      }
+      for (let i = 0; i < FS; i++) { const at2 = start + i; if (at2 >= total) break; lo[at2] += 0.24 * Math.sin(TAU2 * 82 * (at2 / FS)); }
+    }
+    for (let b = 0; b < Math.ceil(total / FS / 0.5); b++) {
+      const at2 = Math.round(b * 0.5 * FS);
+      for (let i = 0; i < 0.2 * FS && at2 + i < total; i++) dr[at2 + i] += 0.5 * Math.exp(-(i / FS) * 26) * rnd2();
+    }
+    const m2 = [new Float32Array(total), new Float32Array(total)];
+    for (let i = 0; i < total; i++) { m2[0][i] = voice[i] + gl[i] + lo[i] + dr[i]; m2[1][i] = voice[i] + gr[i] + lo[i] + dr[i]; }
+
+    const HOP = Math.round(0.01 * FS);
+    const envOf = a => { const o = []; for (let i = 0; i + HOP <= a.length; i += HOP) { let sum = 0; for (let k = 0; k < HOP; k++) sum += a[i + k] * a[i + k]; o.push(Math.sqrt(sum / HOP)); } return o; };
+    const dB = x => 20 * Math.log10((x || 0) + 1e-9);
+    const envV = envOf(voice);
+    const measure = out => {
+      const envO = envOf(out[0]);
+      const onset = [], steady = [];
+      words.forEach(w => {
+        const s0 = Math.round(w.at / 0.01), len = Math.round(w.dur / 0.01);
+        if (Math.max.apply(null, envV.slice(s0 + 12, s0 + len - 4)) < 0.05) return;
+        for (let k = 0; k < 4; k++) onset.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+        for (let k = 12; k < len - 3; k++) steady.push(dB(envO[s0 + k]) - dB(envV[s0 + k]));
+      });
+      const med = a => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+      return { onset: med(onset), steady: med(steady) };
+    };
+    const iso2 = D.separate(m2, FS, 'vocals', { remove: false, amount: 0.92 });
+    const rem2 = D.separate(m2, FS, 'vocals', { remove: true, amount: 0.92 });
+    const i1 = measure(iso2.channels), r1 = measure(rem2.channels);
+    /* isolating: the voice must arrive with the word, not fade in. Absolute
+     * level can sit a couple of dB above the dry voice (island leak); what
+     * must not happen is the onset being several dB below the steady part. */
+    ok(i1.onset >= -3 && i1.onset <= 6 && Math.abs(i1.onset - i1.steady) <= 3,
+      'isolating a voice keeps the voice’s own envelope — words start at level, not faded in',
+      'the word onset sits ' + i1.onset.toFixed(1) + ' dB off the real voice, the steady part ' + i1.steady.toFixed(1) + ' dB');
+    /* removing: the notch must already be shut when a word starts, and stay shut */
+    ok(r1.onset <= -5 && r1.steady <= -5 && Math.abs(Math.abs(r1.onset) - Math.abs(r1.steady)) <= 1.5,
+      'removing a voice does not let the first tenth of every word back in',
+      'leaked voice at a word onset ' + r1.onset.toFixed(1) + ' dB vs ' + r1.steady.toFixed(1) + ' dB in the steady part ' +
+      '(a plain −6 dB fade of the voice reads −6.0 dB at both)');
+
+    /* a held vowel must not wander down. The previous smoother decayed toward
+     * zero on every frame the mask was not snapping open, so a dead-steady note
+     * lost 4 dB — a fade with nothing in the music causing it. */
+    {
+      const HS = 22050, N = Math.round(2.4 * HS), TAU = Math.PI * 2;
+      const heldV = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const t = i / HS;
+        const envH = Math.min(1, t / 0.03) * Math.min(1, (2.4 - t) / 0.1);
+        let v = 0; for (let h = 1; h <= 8; h++) v += Math.sin(TAU * 220 * h * t) / (h * 1.3);
+        heldV[i] = 0.30 * envH * v;
+      }
+      const hL = new Float32Array(N), hR = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const t = i / HS;
+        hL[i] = heldV[i] + 0.16 * Math.sin(TAU * 196 * t);
+        hR[i] = heldV[i] + 0.16 * Math.sin(TAU * 196.5 * t);
+      }
+      const heldO = D.separate([hL, hR], HS, 'vocals', { remove: false, amount: 0.92 }).channels[0];
+      const W = Math.round(0.02 * HS);
+      const row = [];
+      for (let w = Math.round(0.4 * HS); w + W < N - Math.round(0.4 * HS); w += W) {
+        let num = 0, den = 0;
+        for (let i = w; i < w + W; i++) { num += heldO[i] * heldV[i]; den += heldV[i] * heldV[i]; }
+        row.push(20 * Math.log10(Math.abs(num / (den + 1e-20)) + 1e-9));
+      }
+      const mean = row.reduce((a, b) => a + b, 0) / row.length;
+      const sd = Math.sqrt(row.reduce((a, b) => a + (b - mean) * (b - mean), 0) / row.length);
+      ok(mean >= -2.0 && mean <= 2.5 && (2 * sd) <= 4.5,
+        'a held vowel keeps its level — the mask does not fade it down',
+        'mean ' + mean.toFixed(1) + ' dB off the real voice, ripple ±' + (2 * sd).toFixed(1) + ' dB');
+    }
+
+    /* removing a *non-vocal* instrument (the guitar) must not fade the singer */
+    const chopped = D.separate(m2, FS, 'electric-guitar', { remove: true, amount: 0.9 });
+    const g1 = measure(chopped.channels);
+    ok(g1.onset >= -4 && Math.abs(g1.onset - g1.steady) <= 4,
+      'removing an instrument does not fade the voice',
+      'after chopping the guitar, the voice onset sits ' + g1.onset.toFixed(1) + ' dB off the real voice, the steady part ' + g1.steady.toFixed(1) + ' dB');
+  }
+
+  console.log(failures === 0 ? '\n✅ ALL AUDIO LAB TESTS PASSED' : `\n❌ ${failures} AUDIO LAB TEST(S) FAILED`);
+  process.exit(failures ? 1 : 0);
+})();

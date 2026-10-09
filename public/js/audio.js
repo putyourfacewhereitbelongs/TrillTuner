@@ -6,6 +6,7 @@
     ctx: null, master: null, metroBus: null, recorderDest: null,
     analyser: null, micStream: null, micSource: null,
     micState: 'off', micError: '', // off | requesting | on | error
+    deviceId: null,
     level: 0, rmsDb: -100,
     onMic: null,
     _buf: null, _pluckCache: new Map()
@@ -40,8 +41,10 @@
     }
     A.micState = 'requesting'; A.micError = ''; emit();
     try {
+      const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      if (A.deviceId) audio.deviceId = { exact: A.deviceId };
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: audio,
         video: false
       });
       A.micStream = stream;
@@ -101,11 +104,39 @@
   /* the node the analysis taps come from (post-filter when enabled) */
   A.tapNode = function () { return A._lp || A.micSource; };
 
+  A.listInputs = async function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    return devs.filter(d => d.kind === 'audioinput');
+  };
+  A.setDevice = async function (id) {
+    A.deviceId = id || null;
+    const wasOn = A.micState === 'on';
+    if (wasOn) A.stopMic();
+    if (wasOn) await A.startMic();
+  };
+
   /* ---------- capture `seconds` of mic audio for offline analysis
-   * (polyphonic strum check, intonation helper) ---------- */
-  A.captureBuffer = function (seconds) {
+   * (polyphonic strum check, intonation helper, stem lab room take).
+   * `onProgress(fraction)` is optional and fires as the samples arrive.
+   *
+   * The microphone is opened here when it is not running yet: every caller is a
+   * user pressing a button that says “listen”, so the button itself is the
+   * gesture that may ask for permission. A capture that opened the mic closes it
+   * again when it is done, unless the microphone was already running. ---------- */
+  A.captureBuffer = async function (seconds, onProgress) {
+    A.ensure();
+    const opened = !A.micSource || !A.analyser;
+    if (opened) await A.startMic();          /* throws with a readable reason */
+    try {
+      return await captureNow(seconds, onProgress);
+    } finally {
+      if (opened && A.micSource) A.stopMic(); /* leave the mic as we found it */
+    }
+  };
+
+  function captureNow(seconds, onProgress) {
     return new Promise((resolve, reject) => {
-      A.ensure();
       if (!A.micSource || !A.analyser) { reject(new Error('Microphone is off')); return; }
       const sr = A.ctx.sampleRate;
       const need = Math.floor(sr * seconds);
@@ -128,6 +159,7 @@
         const n = Math.min(d.length, need - got);
         all.set(d.subarray(0, n), got);
         got += n;
+        if (onProgress) onProgress(Math.min(1, got / need));
         if (got >= need) { cleanup(); resolve(all); }
       };
     });

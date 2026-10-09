@@ -127,6 +127,10 @@ const ok = (c, l, e) => { console.log(`${c?'PASS':'FAIL'} ${l}${e!==undefined?' 
     out.push(['rig: monitor + output sliders present', vis(document.getElementById('rig-monitor-vol')) && vis(document.getElementById('rig-master'))]);
     out.push(['rig: pedal search + type filter', vis(document.getElementById('rig-pedal-search')) && document.querySelectorAll('#rig-pedal-cat option').length >= 15]);
     out.push(['rig: pedal results clickable grid', document.querySelectorAll('#rig-pedal-results .pedal-hit').length > 5]);
+    /* the detail panel fills when a board pedal's "info" is clicked — loading a
+     * famous rig alone leaves it empty */
+    const infoBtn = document.querySelector('#rig-board-chain .board-row [data-detail]');
+    if (infoBtn) infoBtn.click();
     out.push(['rig: detail panel filled', document.getElementById('rig-pedal-detail').textContent.length > 40]);
     document.querySelector('#rig-guide .tab[data-tab="recipes"]').click();
     await new Promise(r => setTimeout(r, 150));
@@ -139,9 +143,18 @@ const ok = (c, l, e) => { console.log(`${c?'PASS':'FAIL'} ${l}${e!==undefined?' 
     const fb = document.querySelector('#scale-fretboard svg');
     out.push(['tools: fretboard svg visible', vis(fb) && fb.getBoundingClientRect().width > 400]);
     out.push(['tools: fretboard has note dots', document.querySelectorAll('#scale-fretboard .fb-dot').length >= 20]);
+    /* the circle renders when its tab is active — the tools view opens on scales */
+    document.querySelector('#tools-tabs .tab[data-tab="circle"]').click();
+    await new Promise(r => setTimeout(r, 150));
     const cof = document.querySelector('#cof-svg .cof-key');
     out.push(['tools: circle of fifths keys', document.querySelectorAll('#cof-svg .cof-key').length === 12 && vis(cof)]);
     out.push(['tools: chord diagrams drawn', document.querySelectorAll('#chord-diagrams .chord-svg').length >= 4]);
+    document.querySelector('#tools-tabs .tab[data-tab="caged"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    out.push(['tools: CAGED cards drawn', document.querySelectorAll('#pt-caged-out .caged-card').length >= 5]);
+    document.querySelector('#tools-tabs .tab[data-tab="looper"]').click();
+    await new Promise(r => setTimeout(r, 80));
+    out.push(['tools: looper rec button', vis(document.getElementById('pt-loop-rec'))]);
     out.push(['tools: no horizontal overflow', noOverflow()]);
 
     /* --- practice studio --- */
@@ -184,15 +197,24 @@ const ok = (c, l, e) => { console.log(`${c?'PASS':'FAIL'} ${l}${e!==undefined?' 
   // mobile layout check
   await page.setViewport({ width: 420, height: 900 });
   await new Promise(r => setTimeout(r, 400));
+  const menuShown = await page.evaluate(() => {
+    const btn = document.getElementById('btn-menu');
+    return !!(btn && getComputedStyle(btn).display !== 'none');
+  });
+  await page.evaluate(() => { if (TT.app && TT.app.openMenu) TT.app.openMenu(); });
+  await new Promise(r => setTimeout(r, 280));
   const mob = await page.evaluate(() => {
     const nav = document.querySelector('.sidenav').getBoundingClientRect();
     return {
       noHoriz: document.documentElement.scrollWidth <= window.innerWidth + 1,
-      navVisible: nav.width > 100 && nav.top < 900
+      navOpen: document.getElementById('nav').classList.contains('open'),
+      navVisible: nav.width > 100 && nav.left >= -2 && nav.left < 80
     };
   });
+  mob.menuShown = menuShown;
   ok(mob.noHoriz, 'mobile: no horizontal overflow');
-  ok(mob.navVisible, 'mobile: nav bar visible');
+  ok(mob.menuShown, 'mobile: Menu button is in the top bar');
+  ok(mob.navOpen && mob.navVisible, 'mobile: Menu opens the navigation drawer');
   await page.setViewport({ width: 420, height: 900 });
   // mobile care + gig checks
   const mob2 = await page.evaluate(() => {

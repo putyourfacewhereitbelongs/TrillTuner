@@ -1,8 +1,13 @@
 # Trill Tuner 🎸
 
-A complete guitar companion web app — **tuner, metronome, recorder, lyric search, a deep learning
+A complete guitar companion — **tuner, metronome, recorder, lyric search, a deep learning
 academy, an advanced guitar toolkit, a virtual amplifier + pedalboard, progress sharing and a
 guitar-care kit** — with pitch detection written from scratch (no audio libraries).
+
+It runs as a **web app you can install (PWA — 100% offline after the first load)**, and as a
+**native Android app** (`TrillTuner.apk`, built from this repo with no Android SDK, hosted by
+the app itself at `/download/trill-tuner.apk`). The same code powers both: the APK is a thin
+WebView shell around the web app, so it always ships exactly the code the test suites cover.
 
 Built as **Trill Tuner** (the app was renamed from its earlier working title; any settings, lessons,
 practice time or presets saved under the old name are migrated automatically, so nothing is lost).
@@ -18,10 +23,12 @@ node server.js        # → http://localhost:3000  (no runtime dependencies)
 ```
 
 ```bash
-npm test              # yin + poly + audio lab + backing studio + songbook + the requirements audit
-node test/dom-smoke.js   # the whole app booted in jsdom: every view, control and hand-off
+npm test              # yin + poly + audio lab + backing studio + songbook + APK structure + the requirements audit
+npm run test:dom      # the whole app booted in jsdom: every view, control and hand-off
+npm run test:e2e      # full browser end-to-end: the app + layout + PWA/offline/demo/QR/remote-sync
+npm run test:apk      # APK structure + a real `apksigner verify` + androguard deep validation
+npm run build:apk     # rebuild public/downloads/TrillTuner.apk (fetches its own tools on first run)
 node test/requirements-audit.js --write   # the feature checklist, with measurements, into docs/
-npm run test:e2e      # full browser end-to-end (needs puppeteer + a running server)
 ```
 
 `npm test` needs no browser and no audio files: every suite synthesises the signal it measures
@@ -267,6 +274,42 @@ so the acoustic loses roughly 4.5 dB more than anything else, and both other lay
 couple of dB of where they started. Fewer than −190 dB of the vocal survives the classic karaoke
 recipe. Results can be handed straight to the tab maker.
 
+### The player: waveform, clock, skip, and an A–B loop
+
+The moment a song is loaded — before any separation — it comes up with a **waveform and a clock**,
+directly under the file (not buried under the recipes). Click the wave to skip; **drag from point A
+to point B** on the wave to loop that section (the loop checkbox arms itself). You can still drop
+**⟦ A** and **Set B ⟧** at the playhead, press `[` / `]`, or drag the handles. The loop is handed to
+the audio node itself (`loopStart`/`loopEnd`), so there is no glitch at the wrap. With nothing set it
+loops the whole take. Arrow keys skip ±5 s, `Home`/`End` jump to the ends. The playhead follows the
+AudioContext clock rather than a wall timer, so the picture and the sound cannot drift apart. After
+you separate, the same player switches to the result (Save as WAV and “read its chords” unlock then).
+
+### Not fading the voice
+
+The mask is applied as a **running gain**, not frame by frame. A soft per-frame mask multiplies the
+voice by its own confidence, which is audible: words ramp in when isolating, and the first tenth of
+every word leaks through the notch when removing. So the gain now snaps in the direction that
+*protects* the target — the notch deepens and the island opens on the very frame a note appears — and
+eases *towards the new target* over ~40 ms (isolate) / ~110 ms (remove) once it stops (decaying
+towards silence instead was a fade all by itself: a held vowel wandered down 4 dB). The acoustic
+profile is deliberately excluded: its whole discriminator is the *shape* of the envelope, and holding
+gains across frames would smooth away the feature it is measuring.
+
+Measured against the real voice (10 ms frames, synthesised words over a band, plus a dead-steady
+vowel — the numbers `npm test` prints):
+
+| | word onset vs steady | held vowel |
+|---|---|---|
+| isolate, before | onset 3.5 dB off, 1.8 dB quieter than the body (a fade-in) | **−4 dB and falling** |
+| isolate, now | onset and body within **1.6 dB** of each other | **−0.1 dB**, ripple ±1.4 dB |
+| remove, before | 1.9 dB *more* voice leaked at the onset than mid-word | |
+| remove, now | −10 dB at the onset vs −11 dB mid-word — no swell back in | |
+
+What is left at a word's onset is the analysis window's own resolution (a 4096-point Hann window at
+22 kHz smears a transient over ±90 ms); making that shorter would cost the frequency resolution the
+notch needs to find harmonics.
+
 Long files are processed in overlapping slices through `separateChunked`, so a 10-minute song does not
 freeze the page; progress is reported as it goes.
 
@@ -302,3 +345,104 @@ tried, badges) and builds a **practice plan** of 10/20/30/45 minutes from it: tu
 use, warm up with the drill for the level you are playing at, run your hardest song at 70/85/100 % of
 its tempo with the metronome, play into the listener, then record one clean pass — with a button on
 every step that actually starts that step.
+
+## Android app (APK) — built from this repo, no SDK needed
+
+`npm run build:apk` (i.e. `python3 tools/build-apk.py`) produces
+**`public/downloads/TrillTuner.apk`** — the whole app as a native Android app:
+
+- **The web app, bundled.** The APK is a small WebView shell (`apk-src/smali/`: `MainActivity`,
+  `TClient`, `TChrome`, `TBridge`) that loads `file:///android_asset/index.html` with the entire
+  `public/` folder as assets. Every asset in the APK is byte-identical to the tested web app
+  (a test enforces it), so the APK *is* the app.
+- **Named "Trill Tuner"**, package `com.trilltuner.app`, versionName 2.1.0, minSdk 24 /
+  targetSdk 34, launcher icon in all five densities.
+- **The right permissions**: `INTERNET` (lyrics/API), `RECORD_AUDIO` (the tuner),
+  `MODIFY_AUDIO_SETTINGS`, `ACCESS_NETWORK_STATE`, `VIBRATE` (remote-tune haptics).
+  The mic is requested at runtime and granted through the WebView's permission callback.
+- **Signed properly**: v1 + v2 + v3 signatures (`apksigner verify` passes; the build script
+  creates a keystore with `keytool` on first run and keeps it in `tools/.cache/`, git-ignored).
+- **The build needs no Android SDK and no Gradle** — it fetches the few tools it needs itself
+  on first run (smali + apksigner + android.jar from a GitHub repo, aapt2 + a JRE from pypi)
+  into `tools/.cache/`, assembles the shell with smali, links the manifest + assets with aapt2,
+  merges `classes.dex` with correct zip alignment (resources.arsc stored + 4-byte aligned, as
+  Android 11+ requires), and signs.
+- **Inside the APK** a small `Android` JavaScript bridge adds what a WebView cannot do alone:
+  the device's LAN address for QR codes, the native share sheet, opening links in the browser,
+  keeping the screen awake in gig mode, and the app version.
+- **Verified without a device** as far as that is possible: `npm run test:apk` checks the zip
+  layout, asset fidelity, alignment, signature blocks, runs a real `apksigner verify`, and
+  `test/apk-verify.py` decodes the binary manifest with androguard (package, label, version,
+  permissions, launcher activity, dex classes, signature schemes, certificate). The web app
+  itself is also loaded over **file://** in the E2E — exactly the context the WebView loads
+  it in — and the tuner is proven to work there (mic, detection, in-tune lock, zero JS errors).
+
+## PWA — install it, then work 100% offline
+
+The web version is a full **progressive web app**:
+
+- `public/manifest.webmanifest` — name/short_name "Trill Tuner", standalone display,
+  amber theme colour, dark background, 192/512/maskable icons (generated by
+  `tools/make-icons.py`), apple-touch-icon and iOS meta tags, a mobile viewport
+  (`maximum-scale=1`, `viewport-fit=cover`).
+- `public/sw.js` — a service worker that **precaches every asset on first load**
+  (`node tools/build-pwa.js` stamps the asset list + a content-hash cache version),
+  serves cache-first, falls back to the cached shell for navigations when the network
+  is gone, runtime-caches the APK download, skips waiting and cleans old caches.
+- **100% offline after the first load** — proven, not promised: `test/pwa-e2e.js` loads
+  the app, cuts the network (`page.setOfflineMode(true)`), reloads, and the tuner still
+  detects an in-tune low E from the microphone with zero JavaScript errors.
+- Installable: the browser's install prompt is captured and offered as an
+  **📱 Install app** button in Tuning setup; installed, it runs standalone.
+- **Mobile-optimized and measured**: the E2E sweeps all 16 views *and every tab* at a
+  390×844 phone viewport (no horizontal overflow anywhere), checks the sidebar stays
+  tappable while the page scrolls, the demo card fits the screen, and the tuner works at
+  phone size. Boot time and mic→in-tune latency are measured too (~0.8 s boot,
+  ~1.8 s to a locked in-tune low E).
+
+## Guided demo — skippable, every section, progress saved
+
+A **26-step guided tour** covers all 16 sections one by one — it opens automatically on
+the very first visit (after the splash), and can be restarted any time from
+Tuning setup → **🧭 Take the tour**:
+
+- **Next →** and **← Back** move step by step (Back is disabled on step 1),
+  **Skip tour** closes it, and the last step offers **Finish ✓**.
+- Every step switches to its view (and its tab, for Learn/Tools), spotlights the control
+  it talks about, and explains it in one or two sentences.
+- **Progress is saved** after every step (`tt.demoStep`); closing the tab mid-tour and
+  coming back offers **Resume tour** from the exact step. Finishing or skipping marks
+  the tour done (`tt.demoDone`).
+- All of it is walked end to end by `test/pwa-e2e.js`.
+
+## Sharing the app — a QR code for the APK, hosted by the app itself
+
+The **Progress** view has a **Get the Android app** card:
+
+- a **QR code** (generated in the browser by the vendored `qrcode-generator`, MIT) that
+  encodes `…/download/trill-tuner.apk` — **the APK is hosted by the app itself**:
+  `server.js` serves it with the right MIME type (`application/vnd.android.package-archive`),
+  a `Content-Disposition` download name, `X-APK-Version`, and HTTP **range support**
+  (so downloads resume), and the service worker caches it for offline sharing too.
+- the raw link in a read-only box, **📋 Copy link**, **📤 Share** (Web Share API, or the
+  native Android share sheet inside the APK), and **⤓ Download TrillTuner.apk**
+  (inside the APK this opens the browser instead of navigating the WebView away).
+- Scan the code with any other phone on the same network → it installs Trill Tuner
+  straight from this device.
+
+## Remote tuner — two devices, one tuning, over your own network
+
+The **Tune** view has a **Remote tuner** card for fully inclusive device-to-device tuning:
+
+- **📡 Host a session** on one device (the web version, served by `server.js`) — it shows a
+  **QR code** and a link (`http://<lan-ip>:3000/?join=<id>`) built from the server's own
+  LAN address (`GET /api/host`).
+- Scan it (or open the link) on a **second device — any browser, or the Trill Tuner APK** —
+  and that device joins automatically: its tuner is mirrored to the host and the host's
+  tuner is mirrored to it, **live**: detected note, cents, in-tune guidance and per-string
+  progress, both directions, over zero-dependency Server-Sent Events
+  (`POST /api/sessions`, `GET /api/sessions/:id/events`, `POST /api/sessions/:id/msg`).
+- Each side sees the other lock in tune (with a small haptic on phones), and either side
+  can stop; sessions expire on their own. No accounts, no cloud — just your Wi-Fi.
+- Proven in `test/pwa-e2e.js` with two real browser pages: both in tune on the low E,
+  both mirroring each other's note/cents/status, and the joiner notified when the host stops.

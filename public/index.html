@@ -1,13 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-sun">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
 <title>Trill Tuner — Guitar Tuner, Amp & Pedals, Practice Studio</title>
-<meta name="description" content="Trill Tuner — a from-scratch guitar tuner with 94 tunings, 52 amplifiers and 125 pedals with real settings, a learning academy, practice studio, advanced tools, progress sharing and backups. Works offline, no account.">
+<meta name="description" content="Trill Tuner — a from-scratch guitar tuner with 94 tunings, a sun-readable white screen, 70+ amplifiers and 140+ pedals with real settings, a learning academy, practice studio, advanced tools, progress sharing and backups. Works offline, no account.">
+<meta name="theme-color" content="#ffffff">
+<script>
+try {
+  var raw = localStorage.getItem('tt.appearance');
+  var a = raw ? JSON.parse(raw) : 'sun';
+  document.documentElement.classList.remove('theme-sun', 'theme-night');
+  document.documentElement.classList.add(a === 'night' ? 'theme-night' : 'theme-sun');
+  document.querySelector('meta[name="color-scheme"]').setAttribute('content', a === 'night' ? 'dark' : 'light');
+} catch (e) {}
+</script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trill Tuner">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B8%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
+<script>/* Register the service worker as early as possible so the very first
+  visit is already enough to make the app work fully offline. On file:// (the
+  Android APK) registration is rejected — everything is local there anyway. */
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }</script>
 </head>
 <body class="theme-acoustic">
 <div class="splash" id="splash" hidden>
@@ -58,14 +82,18 @@
         <button class="seg-btn active" data-mode="acoustic">🎸 Acoustic</button>
         <button class="seg-btn" data-mode="electric">⚡ Electric</button>
       </div>
+      <button class="gig-btn" id="btn-sun" type="button" title="Sun / night — white screen for outdoor tuning">☀ Sun</button>
       <button class="gig-btn" id="btn-gig" title="Gig mode (G) — giant high-contrast stage display">◑ Gig mode</button>
       <button class="mic-pill" id="mic-pill" title="Toggle microphone">
         <span class="dot"></span><span id="mic-pill-text">Mic off</span>
       </button>
+      <button class="menu-btn" id="btn-menu" type="button" aria-label="Open menu" aria-controls="nav" aria-expanded="false">☰ Menu</button>
     </div>
   </header>
 
+  <div class="nav-backdrop" id="nav-backdrop" hidden></div>
   <nav class="sidenav" id="nav">
+    <div class="nav-group">Play</div>
     <button class="nav-btn active" data-view="tune">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v5a6 6 0 0 0 12 0V3"/><path d="M12 14v7"/></svg>
       <span>Tune</span>
@@ -78,6 +106,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg>
       <span>Record</span>
     </button>
+    <button class="nav-btn" data-view="listening">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M4 12v5a2 2 0 0 0 2 2h1"/><path d="M20 12v5a2 2 0 0 1-2 2h-1"/><path d="M17 12v3"/><path d="M7 12v3"/></svg>
+      <span>Listener</span>
+    </button>
+    <div class="nav-group">Songs</div>
     <button class="nav-btn" data-view="lyrics">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
       <span>Lyrics</span>
@@ -102,10 +135,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14c2 0 3-2 3-4s1-3 3-3 3 2 3 4 1 3 3 3 3-1 4-2"/><circle cx="6" cy="18" r="1.6"/><circle cx="18" cy="8" r="1.6"/></svg>
       <span>Backing</span>
     </button>
-    <button class="nav-btn" data-view="listening">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 16 0"/><path d="M4 12v5a2 2 0 0 0 2 2h1"/><path d="M20 12v5a2 2 0 0 1-2 2h-1"/><path d="M17 12v3"/><path d="M7 12v3"/></svg>
-      <span>Listener</span>
-    </button>
+    <div class="nav-group">Studio</div>
     <button class="nav-btn" data-view="learn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5-9 5z"/><path d="M7 12v4.5c0 1.7 2.4 3 5 3s5-1.3 5-3V12"/></svg>
       <span>Learn</span>
@@ -118,6 +148,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 20h10"/><circle cx="8" cy="11" r="2"/><circle cx="15" cy="9" r="1.4"/><circle cx="15" cy="14" r="1.4"/></svg>
       <span>Rig</span>
     </button>
+    <button class="nav-btn" data-view="hookup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12h8"/><path d="M4 8v8"/><path d="M20 8v8"/><path d="M8 8h.01"/><path d="M16 16h.01"/></svg>
+      <span>Hookup</span>
+    </button>
+    <div class="nav-group">You</div>
     <button class="nav-btn" data-view="mine">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-9.4A4.1 4.1 0 0 1 12 8a4.1 4.1 0 0 1 7 2.6c0 5-7 9.4-7 9.4z"/></svg>
       <span>My stuff</span>
@@ -129,6 +164,10 @@
     <button class="nav-btn" data-view="care">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
       <span>Care</span>
+    </button>
+    <button class="nav-btn" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1.1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>Settings</span>
     </button>
     <div class="nav-foot">
       <div>Trill Tuner</div>
@@ -243,6 +282,62 @@
           <div class="tone-bright" id="tone-bright"></div>
           <div class="card-h small">Auto assistant</div>
           <ul class="assistant" id="assistant-log"></ul>
+          <div class="row-btns">
+            <button class="btn btn-ghost" id="btn-tour">🧭 Take the tour</button>
+            <button class="btn btn-ghost" id="btn-install" hidden>📱 Install app</button>
+          </div>
+        </div>
+
+        <div class="card remote-card">
+          <div class="card-h">Remote tuner <span class="dim">— sync two devices over your network</span></div>
+          <div class="remote-grid">
+            <div class="remote-host">
+              <p class="hint">Host a tuning session on this device. Scan the QR code with a second phone or laptop on the same Wi-Fi and both tuners mirror each other live — fully inclusive: each side sees the other's note, cents and progress.</p>
+              <div class="row-btns">
+                <button class="btn btn-primary" id="btn-remote-host">📡 Host a session</button>
+                <button class="btn btn-ghost" id="btn-remote-stop" hidden>■ Stop hosting</button>
+              </div>
+              <div class="remote-qr-wrap" id="remote-qr-wrap" hidden>
+                <canvas id="remote-qr" class="qr-canvas" width="180" height="180"></canvas>
+                <div class="remote-qr-side">
+                  <div class="card-h small">Scan to join — or open this link</div>
+                  <input type="text" id="remote-link" class="link-out" readonly>
+                  <div class="row-btns">
+                    <button class="btn btn-ghost tiny" id="btn-remote-copy">📋 Copy link</button>
+                    <button class="btn btn-ghost tiny" id="btn-remote-share">📤 Share</button>
+                  </div>
+                  <div class="dim smallish" id="remote-status">Waiting for a device to connect…</div>
+                </div>
+              </div>
+            </div>
+            <div class="remote-live" id="remote-live" hidden>
+              <div class="card-h small" id="remote-live-title">Connected device</div>
+              <div class="remote-readout">
+                <div class="note-big" id="remote-note">–</div>
+                <div class="remote-meta">
+                  <div class="cents" id="remote-cents">–¢</div>
+                  <div class="tune-status" id="remote-status-line">listening…</div>
+                </div>
+              </div>
+              <div class="chips" id="remote-chips"></div>
+              <p class="hint" id="remote-hint"></p>
+            </div>
+            <div class="remote-join" id="remote-join" hidden>
+              <div class="card-h small" id="remote-join-h">Connecting to the host…</div>
+              <p class="hint" id="remote-join-status">This device is mirrored to the host. Play a string — they see your note, and you see theirs below.</p>
+              <div class="remote-readout">
+                <div class="note-big" id="remote-peer-note">–</div>
+                <div class="remote-meta">
+                  <div class="cents" id="remote-peer-cents">–¢</div>
+                  <div class="tune-status" id="remote-peer-line">waiting for the host…</div>
+                </div>
+              </div>
+              <div class="dim smallish" id="remote-peer-hint"></div>
+              <div class="row-btns">
+                <button class="btn btn-ghost tiny" id="btn-remote-leave">Leave session</button>
+              </div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -358,10 +453,10 @@
         <div class="card lyr-card">
           <div class="card-h">Song lyric search</div>
           <form id="lyr-form" class="lyr-form">
-            <input id="lyr-q" placeholder="Song OR artist — “Dreams”, “Fleetwood Mac”, or both" autocomplete="off">
+            <input id="lyr-q" placeholder="Song, artist or first line — “Dreams”, “Fleetwood Mac”, “how sweet the sound”" autocomplete="off">
             <button class="btn btn-primary" type="submit">Search</button>
           </form>
-          <div class="dim smallish">One box is all it needs: an artist name on its own, a song title on its own, or the two together.</div>
+          <div class="dim smallish">One box is all it needs: an artist name on its own, a song title on its own, or the two together. The built-in library answers instantly — lyrics for traditional songs, play-along charts for everything else.</div>
           <div class="chipwrap" id="lyr-suggest"></div>
           <div class="lyr-offline" id="lyr-offline"></div>
           <div class="lyr-status" id="lyr-status"></div>
@@ -530,7 +625,45 @@
           </div>
           <div class="st-source" id="st-source" hidden></div>
           <div class="st-barwrap"><i id="st-bar"></i><span id="st-pct">0%</span></div>
+          <div class="st-runrow">
+            <button class="btn btn-ghost tiny" id="st-btn-cancel" hidden>■ Stop separating</button>
+            <span class="dim smallish" id="st-run-note"></span>
+          </div>
           <div class="st-status" id="st-status">Load a song, then pick a recipe.</div>
+        </div>
+
+        <div class="card" id="st-result" hidden>
+          <div class="card-h" id="st-result-h">The song</div>
+          <div class="st-effect" id="st-effect"></div>
+          <div class="st-player">
+            <canvas id="st-wave" class="st-wave" width="880" height="96" tabindex="0" role="img"
+              aria-label="Waveform. Click to skip. Drag from point A to point B to loop that section."></canvas>
+            <div class="st-clock">
+              <b id="st-pos">0:00</b>
+              <span class="dim smallish" id="st-ab-label">whole take</span>
+              <span class="dim" id="st-dur">0:00</span>
+            </div>
+            <p class="hint st-wave-hint">Click the wave to skip · drag from A to B to loop that section</p>
+          </div>
+          <div class="row-btns">
+            <button class="btn btn-primary tiny" id="st-btn-play">▶ Play</button>
+            <button class="btn tiny" id="st-btn-aset" title="Loop in at where the playhead is (keyboard: [)">⟦ Set A</button>
+            <button class="btn tiny" id="st-btn-bset" title="Loop out at where the playhead is (keyboard: ])">Set B ⟧</button>
+            <button class="btn btn-ghost tiny" id="st-btn-abclear" title="Loop the whole take again">✕ Clear A–B</button>
+          </div>
+          <div class="row-btns">
+            <button class="btn tiny" id="st-btn-wav">⬇ Save as WAV</button>
+            <button class="btn btn-ghost tiny" id="st-btn-tab">🎸 Read its chords in the Tab maker</button>
+          </div>
+          <div class="st-ctls">
+            <label class="field inline"><span>Volume</span><input id="st-vol" type="range" min="0" max="1" step="0.02" value="0.9"></label>
+            <label class="check"><input type="checkbox" id="st-loop"><span>Loop the section</span></label>
+          </div>
+          <div class="card-h small">Recently separated</div>
+          <div class="chipwrap" id="st-history"></div>
+        </div>
+
+        <div class="card" id="st-recipes-card">
           <div class="card-h small">Recipes</div>
           <div class="st-presets" id="st-presets"></div>
           <div class="card-h small">Or build your own</div>
@@ -542,22 +675,6 @@
             </div></label>
             <label class="field inline"><span>Amount <b id="st-amount-show">92%</b></span><input id="st-amount" type="range" min="0" max="100" value="92"></label>
           </div>
-        </div>
-
-        <div class="card" id="st-result" hidden>
-          <div class="card-h">Result</div>
-          <div class="st-effect" id="st-effect"></div>
-          <div class="row-btns">
-            <button class="btn btn-primary tiny" id="st-btn-play">▶ Play</button>
-            <button class="btn tiny" id="st-btn-wav">⬇ Save as WAV</button>
-            <button class="btn btn-ghost tiny" id="st-btn-tab">🎸 Read its chords in the Tab maker</button>
-          </div>
-          <div class="st-ctls">
-            <label class="field inline"><span>Volume</span><input id="st-vol" type="range" min="0" max="1" step="0.02" value="0.9"></label>
-            <label class="check"><input type="checkbox" id="st-loop"><span>Loop</span></label>
-          </div>
-          <div class="card-h small">Recently separated</div>
-          <div class="chipwrap" id="st-history"></div>
         </div>
 
         <div class="card">
@@ -664,6 +781,9 @@
             <label class="check"><input type="checkbox" id="bk-drums" checked> Drums</label>
             <label class="check"><input type="checkbox" id="bk-bass" checked> Bass</label>
             <label class="check"><input type="checkbox" id="bk-chords" checked> Chords</label>
+            <label class="check"><input type="checkbox" id="bk-piano"> Piano</label>
+            <label class="check"><input type="checkbox" id="bk-strings"> Strings</label>
+            <label class="check"><input type="checkbox" id="bk-organ"> Organ</label>
             <label class="check"><input type="checkbox" id="bk-arp"> Arpeggio instead of chords</label>
           </div>
           <div class="row-btns">
@@ -856,6 +976,12 @@
         <button class="tab" data-tab="setup">Setup &amp; specs</button>
         <button class="tab" data-tab="capo">Capo &amp; transpose</button>
         <button class="tab" data-tab="mods">Pickups &amp; mods</button>
+        <button class="tab" data-tab="looper">Looper</button>
+        <button class="tab" data-tab="drone">Drone</button>
+        <button class="tab" data-tab="caged">CAGED</button>
+        <button class="tab" data-tab="harmonics">Harmonics</button>
+        <button class="tab" data-tab="into">Intonation</button>
+        <button class="tab" data-tab="bends">Bend lab</button>
       </div>
 
       <div id="tools-scales" class="tabpane active">
@@ -977,6 +1103,117 @@
           <div id="mods-out"></div>
         </div>
       </div>
+
+      <div id="tools-looper" class="tabpane">
+        <div class="card">
+          <div class="card-h">Phrase looper — record a bar, play over it</div>
+          <p class="hint">The classic floor-pedal trick, without the pedal. Record a riff (or a chord vamp), then solo over it. Tick <b>overdub</b> to stack another pass (headphones, so the previous layer doesn’t bleed into the mic); tick <b>snap to bars</b> to trim to the metronome.</p>
+          <canvas id="pt-loop-wave" class="pt-wave" width="640" height="64" aria-hidden="true"></canvas>
+          <div class="tools-controls">
+            <button class="btn btn-primary" id="pt-loop-rec">● Rec</button>
+            <button class="btn" id="pt-loop-play">▶ Play loop</button>
+            <button class="btn tiny" id="pt-loop-half">½ speed</button>
+            <button class="btn tiny" id="pt-loop-undo">Undo</button>
+            <button class="btn tiny" id="pt-loop-clear">Clear</button>
+            <label class="check"><input type="checkbox" id="pt-loop-overdub"><span>Overdub</span></label>
+            <label class="check"><input type="checkbox" id="pt-loop-snap" checked><span>Snap to metronome bars</span></label>
+            <label class="field inline"><span>Loop volume</span><input type="range" id="pt-loop-vol" min="0" max="1" step="0.01" value="0.9"></label>
+          </div>
+          <p class="hint" id="pt-loop-status">Empty — record a phrase, then play over it. The loop keeps going while you switch to CAGED or the bend lab.</p>
+        </div>
+      </div>
+
+      <div id="tools-drone" class="tabpane">
+        <div class="card">
+          <div class="card-h">Drone — a root (and fifth) that never blinks</div>
+          <p class="hint">Play scales, bends and chords against a held pitch. If you wander out of the key you will hear it immediately — the cheapest, most honest ear trainer there is.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="pt-drone-root"></select></label>
+            <label class="field inline"><span>Wave</span>
+              <select id="pt-drone-wave">
+                <option value="triangle" selected>Triangle (soft)</option>
+                <option value="sawtooth">Saw (brighter)</option>
+                <option value="sine">Sine (pure)</option>
+                <option value="square">Square (reedy)</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="pt-drone-fifth" checked><span>Add the fifth</span></label>
+            <label class="check"><input type="checkbox" id="pt-drone-oct" checked><span>Add the octave</span></label>
+            <label class="field inline"><span>Volume</span><input type="range" id="pt-drone-vol" min="0" max="0.5" step="0.01" value="0.18"></label>
+            <button class="btn btn-primary" id="pt-drone-btn">▶ Start drone</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tools-caged" class="tabpane">
+        <div class="card">
+          <div class="card-h">CAGED — five shapes that cover the whole neck</div>
+          <p class="hint">Every major (and minor) chord is one of five open shapes, moved up the neck. Learn where each lives for a root and you can play that chord — and its scale box — anywhere. Tap a card to hear it.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Root</span><select id="pt-caged-root"></select></label>
+            <label class="field inline"><span>Quality</span>
+              <select id="pt-caged-qual">
+                <option value="maj">Major</option>
+                <option value="min">Minor</option>
+              </select>
+            </label>
+          </div>
+          <div class="caged-grid" id="pt-caged-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-harmonics" class="tabpane">
+        <div class="card">
+          <div class="card-h">Natural harmonics — the nodes that ring by themselves</div>
+          <p class="hint">Rest a finger lightly over the fretwire (don’t press down), pick, and lift. Fret 12 is the octave, 7 is an octave plus a fifth, 5 is two octaves. Tap a card to hear the target; press Listen and play the harmonic — it lights up when you hit it.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>String</span><select id="pt-harm-string"></select></label>
+            <button class="btn btn-primary" id="pt-harm-listen">▶ Listen</button>
+            <span class="pt-verdict" id="pt-harm-verdict">Pick a string, then chime a harmonic.</span>
+          </div>
+          <div class="harm-grid" id="pt-harm-out"></div>
+        </div>
+      </div>
+
+      <div id="tools-into" class="tabpane">
+        <div class="card">
+          <div class="card-h">Intonation — set this string’s saddle</div>
+          <p class="hint">Compare the open string to the 12th-fret octave. Sharp at the 12th → move the saddle <b>back</b> (away from the neck). Flat → move it <b>forward</b>. One saddle at a time, then re-check. The Care tab has a full six-string worksheet; this is the “do this string now” version.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>String</span><select id="pt-into-string"></select></label>
+            <button class="btn" id="pt-into-open-btn">Capture open</button>
+            <button class="btn" id="pt-into-12-btn">Capture 12th</button>
+          </div>
+          <div class="pt-into-readout">
+            <div><span class="dim">Open</span><b id="pt-into-open">–</b></div>
+            <div><span class="dim">12th fret</span><b id="pt-into-12">–</b></div>
+          </div>
+          <div class="pt-meter" aria-hidden="true"><i id="pt-into-needle"></i></div>
+          <p class="hint" id="pt-into-status">Play the open string, capture it, then the 12th-fret octave.</p>
+        </div>
+      </div>
+
+      <div id="tools-bends" class="tabpane">
+        <div class="card">
+          <div class="card-h">Bend lab — land the note, not “around the note”</div>
+          <p class="hint">Play the unbent pitch first (that becomes the zero). Then bend toward the target. Green means you are within ±12 cents of a half-step, a whole-step or a third — the three bends that actually show up in songs.</p>
+          <div class="tools-controls">
+            <label class="field inline"><span>Target</span>
+              <select id="pt-bend-target">
+                <option value="100">+100 ¢ · half step (one fret)</option>
+                <option value="200" selected>+200 ¢ · whole step (two frets)</option>
+                <option value="300">+300 ¢ · minor 3rd</option>
+                <option value="400">+400 ¢ · major 3rd</option>
+              </select>
+            </label>
+            <button class="btn btn-primary" id="pt-bend-btn">▶ Listen</button>
+            <button class="btn tiny" id="pt-bend-reset">Reset zero</button>
+          </div>
+          <div class="pt-bend-read" id="pt-bend-read">–</div>
+          <div class="pt-bend-track"><i id="pt-bend-fill" class="pt-bend-fill"></i></div>
+          <p class="pt-verdict" id="pt-bend-verdict">Press Listen, play the unbent note, then bend.</p>
+        </div>
+      </div>
     </section>
 
     <!-- ==================== RIG ==================== -->
@@ -1038,6 +1275,7 @@
             <button class="btn btn-ghost" data-test-riff="chug">🤘 Test chug</button>
             <button class="btn btn-ghost" data-test-riff="lead">🎼 Test lead</button>
           </div>
+          <label class="check"><input type="checkbox" id="rig-live"><span>Live guitar through the amp — speakers play only the processed sound (preview riffs off)</span></label>
           <label class="check"><input type="checkbox" id="rig-monitor"><span>Listen through the amp (mic → pedals → amp → speakers)</span></label>
           <label class="field"><span>Monitor volume</span>
             <input type="range" id="rig-monitor-vol" min="0" max="1" step="0.01" value="0.25">
@@ -1138,6 +1376,25 @@
           <p class="hint">The card, the summary and the link all contain only the numbers you see — no audio, no account, no server. A shared link carries a snapshot inside the URL itself.</p>
         </div>
 
+        <div class="card apk-card">
+          <div class="card-h">Get the Android app <span class="badge">APK</span></div>
+          <p class="hint">Trill Tuner as a native Android app — every feature, fully offline, mic permission handled. The APK is hosted by this app itself: scan the code with another phone, or open the link on it.</p>
+          <div class="apk-share">
+            <canvas id="apk-qr" class="qr-canvas" width="180" height="180"></canvas>
+            <div class="remote-qr-side">
+              <div class="card-h small">Scan to download — or open this link</div>
+              <input type="text" id="apk-link" class="link-out" readonly>
+              <div class="row-btns">
+                <button class="btn btn-primary" id="btn-apk-open">⤓ Download TrillTuner.apk</button>
+                <button class="btn btn-ghost" id="btn-apk-copy">📋 Copy link</button>
+                <button class="btn btn-ghost" id="btn-apk-share">📤 Share</button>
+              </div>
+              <div class="dim smallish" id="apk-meta">—</div>
+            </div>
+          </div>
+          <p class="hint">On Android: allow “install from unknown sources” when asked. The app needs the microphone (for the tuner) and network access (for lyric lookups and updates) — everything else runs on the device.</p>
+        </div>
+
         <div class="card">
           <div class="card-h">Backup &amp; restore <span class="dim">never lose your progress</span></div>
           <div class="row-btns">
@@ -1152,6 +1409,80 @@
           <div class="snapshot-list" id="snapshot-list"></div>
           <p class="hint">Your progress is saved in this browser automatically after every change. A backup file is the belt-and-braces option: keep one in cloud storage or email it to yourself, and import it on any other device.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- ==================== HOOKUP ==================== -->
+    <section class="view" id="view-hookup">
+      <div class="card">
+        <div class="card-h">Plug a real guitar into these amps</div>
+        <p class="hint">The test riffs on the Rig tab are a <b>synthesized preview</b> — a processed wave that is not your guitar. To hear <em>your</em> electric through the amp and pedals, run a real instrument cable into an audio interface, then into this app. Only the amped signal is sent to the speakers. The dry guitar and the preview riffs stay off.</p>
+        <div class="row-btns">
+          <button class="btn btn-primary" id="hk-start">▶ Start live guitar (amped only)</button>
+          <button class="btn" id="hk-stop">■ Stop live guitar</button>
+        </div>
+        <p class="hint" id="hk-status">Not live yet. Headphones on before you start — a guitar into speakers in the same room will howl.</p>
+      </div>
+      <div class="card">
+        <div class="card-h">The cable path</div>
+        <ol class="guide-ul">
+          <li><b>Guitar → ¼″ instrument cable → audio interface instrument (Hi-Z) input.</b> A ¼″ to 3.5 mm headphone adaptor is not an instrument input. It will be silent, noisy, or it can damage the jack.</li>
+          <li><b>Interface → this device</b> over USB-C, USB, or Lightning (iRig HD, Focusrite Scarlett, Zoom, iRig 2, etc.). On a phone you usually need a USB-C OTG adaptor or the iRig’s own Lightning/USB-C plug.</li>
+          <li><b>Headphones in the interface</b> (or in the phone). That is how you hear the amp without a feedback loop.</li>
+          <li>In <b>Settings</b>, pick that interface as the input if more than one device is listed.</li>
+          <li>Press <b>Start live guitar</b> above. The Rig’s monitor turns on, preview riffs mute, and only the processed chain (pedals → amp → cab) goes to the speakers.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <div class="card-h">Why you were hearing a “preprocessed wave”</div>
+        <p class="hint">The Rig’s <b>Test chord / Test chug / Test lead</b> buttons pluck a Karplus–Strong string model — a synthesized guitar — through the amp so you can audition a sound without plugging in. That is not your guitar. While live guitar is on, those buttons refuse to play, so the speaker only carries the mic/interface signal after the pedals and amp. The dry (unprocessed) input is never mixed into the speakers.</p>
+        <p class="hint">If you still hear a dry guitar, it is coming from the room (the guitar itself) or from the interface’s hardware direct-monitor switch. Turn hardware direct-monitor <b>off</b> so you only hear the app’s amped sound.</p>
+      </div>
+      <div class="card">
+        <div class="card-h">Phones, tablets, laptops</div>
+        <ul class="guide-ul">
+          <li><b>Laptop:</b> any USB audio interface with an instrument pad / Hi-Z button. Plug in, select it in Settings, start live guitar.</li>
+          <li><b>Android:</b> a USB-C audio interface that speaks USB Audio Class, plus OTG if the phone needs it. Grant microphone permission — Android treats the interface as a mic.</li>
+          <li><b>iPhone / iPad:</b> iRig, iRig HD, or a Camera-adapter + class-compliant interface. Same permission prompt.</li>
+          <li><b>Gain:</b> set the interface so a hard strum is strong but not clipping the input meter. The amp’s gain knob is for tone; the interface gain is for a clean recording of the pickup.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ==================== SETTINGS ==================== -->
+    <section class="view" id="view-settings">
+      <div class="card">
+        <div class="card-h">Appearance — see the tuner in the sun</div>
+        <p class="hint">Sun mode is a white screen with dark type so the tuner stays readable outdoors. Night mode is the dark studio. Acoustic / Electric in the top bar still changes the accent colour.</p>
+        <div class="row-btns">
+          <button class="btn btn-primary" data-appearance="sun" type="button">☀ Sun (white)</button>
+          <button class="btn" data-appearance="night" type="button">☾ Night (dark)</button>
+        </div>
+        <div class="card-h small">Type size</div>
+        <div class="row-btns">
+          <button class="btn" data-type="md" type="button">Comfortable</button>
+          <button class="btn" data-type="lg" type="button">Large (outdoor)</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h">Guitar input</div>
+        <label class="field"><span>Audio input (your interface)</span>
+          <select id="set-input"></select>
+        </label>
+        <label class="check"><input type="checkbox" id="set-mute-preview" checked><span>Mute synthesized preview riffs while live guitar is on — speakers play only the amped guitar</span></label>
+        <label class="check"><input type="checkbox" id="set-smart-filter"><span>Smart filter on the tuner (band-limit analysis to the guitar, leave the recorder dry)</span></label>
+        <p class="hint">After you plug the interface in, come back here if the list is empty — starting the mic once lets the browser name the devices.</p>
+      </div>
+      <div class="card">
+        <div class="card-h">Tuner</div>
+        <label class="field inline"><span>A4 reference (Hz)</span>
+          <input type="number" id="set-a4" min="415" max="466" step="1" value="440">
+        </label>
+        <p class="hint">415 Hz is baroque, 432 Hz is the internet’s favourite argument, 440 Hz is concert pitch, 442–444 is many orchestras. The whole tuner and every drone follow this.</p>
+      </div>
+      <div class="card">
+        <div class="card-h">More</div>
+        <p class="hint">Gig mode (G) is a giant high-contrast tuner for a dark stage. Backups and the Android APK live on the Progress tab. The Rig holds every amp, pedal and famous setup. Hookup is the cable tutorial.</p>
       </div>
     </section>
   </main>
@@ -1187,6 +1518,22 @@
   <div class="gig-hint">target string · green = in tune · <b>G</b> or <b>Esc</b> exits</div>
 </div>
 
+<!-- Guided demo overlay -->
+<div class="demo-overlay" id="demo-overlay" hidden>
+  <div class="demo-spot" id="demo-spot" hidden></div>
+  <div class="demo-card" id="demo-card">
+    <div class="demo-step" id="demo-step"></div>
+    <div class="demo-title" id="demo-title"></div>
+    <p class="demo-text" id="demo-text"></p>
+    <div class="demo-actions">
+      <button class="btn btn-ghost" id="demo-skip">Skip tour</button>
+      <span class="demo-dots" id="demo-dots"></span>
+      <button class="btn" id="demo-back">← Back</button>
+      <button class="btn btn-primary" id="demo-next">Next →</button>
+    </div>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script src="js/lib/yin.js"></script>
@@ -1196,6 +1543,8 @@
 <script src="js/lib/dsp.js"></script>
 <script src="js/lib/chords.js"></script>
 <script src="js/lib/catalog.js"></script>
+<script src="js/lib/catalog-more.js"></script>
+<script src="js/lib/lyricsdb.js"></script>
 <script src="js/lib/backing.js"></script>
 <script src="js/lib/poly.js"></script>
 <script src="js/lib/sweeteners.js"></script>
@@ -1204,8 +1553,10 @@
 <script src="js/lib/pedals.js"></script>
 <script src="js/lib/pedals2.js"></script>
   <script src="js/lib/pedals3.js"></script>
+<script src="js/lib/pedals4.js"></script>
 <script src="js/lib/amps.js"></script>
 <script src="js/lib/amps2.js"></script>
+<script src="js/lib/amps3.js"></script>
 <script src="js/lib/wiring.js"></script>
 <script src="js/guitar.js"></script>
 <script src="js/tuner.js"></script>
@@ -1223,9 +1574,18 @@
 <script src="js/learn.js"></script>
 <script src="js/care.js"></script>
 <script src="js/tools.js"></script>
+<script src="js/playtools.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/rig.js"></script>
+<script src="js/hookup.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/share.js"></script>
+<script src="js/lib/qrcode.js"></script>
+<script src="js/qr.js"></script>
+<script src="js/pwa.js"></script>
+<script src="js/remote.js"></script>
+<script src="js/apkshare.js"></script>
+<script src="js/demo.js"></script>
 <script src="js/app.js"></script>
 <script src="js/splash.js"></script>
 </body>

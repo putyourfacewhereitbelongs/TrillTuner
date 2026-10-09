@@ -61,11 +61,14 @@ async function waitFor(page, fn, timeout, label) {
 }
 
 /* The splash screen shows on a first load. In a real browser it covers the app
- * for a couple of seconds, so every test page load skips it first. */
+ * for a couple of seconds, so every test page load skips it first. The guided
+ * demo tour also auto-opens on a first visit — hide it too so it cannot block
+ * clicks (the demo's own behaviour is covered by test/pwa-e2e.js). */
 async function dismissSplash(page) {
   try {
     await page.evaluate(() => { if (window.TT && window.TT.splash && window.TT.splash.dismiss) window.TT.splash.dismiss(); });
     await page.evaluate(() => { const s = document.getElementById('splash'); if (s) { s.classList.add('splash-out'); s.hidden = true; } document.body.classList.remove('splash-on'); });
+    await page.evaluate(() => { if (window.TT && window.TT.demo && window.TT.demo.hide) window.TT.demo.hide(); });
   } catch (e) { /* page may not have the splash */ }
 }
 
@@ -194,15 +197,30 @@ async function dismissSplash(page) {
     const takeInfo = await page.$eval('#takes-list', el => el.querySelector('.take-meta') ? el.querySelector('.take-meta').textContent : 'none');
     ok(takes >= 1, 'a take was saved', takeInfo);
 
-    // lyrics
+    // lyrics — one box is all it needs: title + artist in a single field
     await page.click('[data-view="lyrics"]');
-    await page.type('#lyr-artist', 'Fleetwood Mac');
-    await page.type('#lyr-title', 'Dreams');
+    await page.type('#lyr-q', 'Dreams Fleetwood Mac');
     await page.click('#lyr-form button[type="submit"]');
-    const gotLyrics = await waitFor(page, () => !document.getElementById('lyr-result').hidden, 15000, 'lyrics result');
-    const lyrTitle = await page.$eval('#lyr-r-title', el => el.textContent);
-    const lyrLen = await page.$eval('#lyr-body', el => el.textContent.length);
-    ok(gotLyrics && lyrTitle === 'Dreams' && lyrLen > 100, 'lyrics search works', lyrTitle + ' / ' + lyrLen + ' chars');
+    /* library-first: Dreams is in the play-along book, so the result panel
+     * fills in even when lyric APIs are unreachable. */
+    await waitFor(page, () => {
+      if (!document.getElementById('lyr-result').hidden) return true;
+      const st = document.getElementById('lyr-status').textContent;
+      return !!st && !/searching/i.test(st);
+    }, 20000, 'lyrics search settled');
+    const lyr = await page.evaluate(() => ({
+      shown: !document.getElementById('lyr-result').hidden,
+      title: document.getElementById('lyr-r-title').textContent,
+      len: document.getElementById('lyr-body').textContent.length,
+      status: document.getElementById('lyr-status').textContent,
+      offline: document.getElementById('lyr-offline').textContent
+    }));
+    if (lyr.shown) {
+      ok(/Dreams/i.test(lyr.title) && lyr.len > 100, 'lyrics search works', lyr.title + ' / ' + lyr.len + ' chars');
+    } else {
+      ok(/Fleetwood/i.test(lyr.offline) && !/you are offline/i.test(lyr.status),
+        'lyrics search still shows the library (never “you are offline”)', (lyr.status || '').slice(0, 60));
+    }
 
     // learn
     await page.click('[data-view="learn"]');
@@ -302,7 +320,7 @@ async function dismissSplash(page) {
       songs: document.querySelectorAll('#guide-songs li').length,
       desc: document.getElementById('guide-desc').textContent.length
     }));
-    ok(guide.visible && guide.title === 'Standard' && guide.songs >= 1 && guide.desc > 10, 'tuning guide opens with songs + description', guide.title + ' / ' + guide.songs + ' songs');
+    ok(guide.visible && guide.title.startsWith('Standard') && guide.songs >= 1 && guide.desc > 10, 'tuning guide opens with songs + description', guide.title + ' / ' + guide.songs + ' songs');
     await page.click('#guide-close');
     const guideClosed = await page.$eval('#guide-overlay', el => el.hidden);
     ok(guideClosed, 'guide closes');
@@ -434,6 +452,14 @@ async function dismissSplash(page) {
     await new Promise(r => setTimeout(r, 200));
     const tension = await page.$eval('#tension-out', el => el.textContent);
     ok(/lb/.test(tension), 'string tension calculator outputs real numbers', tension.replace(/\s+/g, ' ').slice(0, 60));
+    await page.click('#tools-tabs .tab[data-tab="caged"]');
+    await new Promise(r => setTimeout(r, 200));
+    const caged = await page.$$eval('#pt-caged-out .caged-card', els => els.length);
+    ok(caged === 5, 'CAGED draws the five major shapes', caged + ' cards');
+    await page.click('#tools-tabs .tab[data-tab="looper"]');
+    await new Promise(r => setTimeout(r, 150));
+    const rec = await page.$eval('#pt-loop-rec', el => el.textContent);
+    ok(/Rec/.test(rec), 'looper rec button is on the page', rec);
 
     // --- practice studio ---
     await page.click('[data-view="learn"]');
@@ -443,7 +469,7 @@ async function dismissSplash(page) {
     ok(drills >= 8, 'practice drills render', drills + ' drills');
     await page.click('#drill-list [data-start]');
     await new Promise(r => setTimeout(r, 300));
-    const drillLive = await page.$eval('#drill-timer', el => el.textContent);
+    const drillLive = await page.$eval('#practice-timer', el => el.textContent);
     ok(/\d/.test(drillLive), 'starting a drill runs its timer', drillLive);
     await page.click('#learn-tabs .tab[data-tab="tab"]');
     await new Promise(r => setTimeout(r, 200));
@@ -478,6 +504,12 @@ async function dismissSplash(page) {
     const splashFacts = await page.$eval('#splash-pedals', el => el.textContent);
     ok(+splashFacts > 100, 'splash reports live library counts', splashFacts + ' pedals');
     await page.click('#splash-forever');
+    /* the Enter button stays disabled until the boot steps have reported in —
+     * clicking it earlier is a no-op, so wait for it to unlock first */
+    await waitFor(page, () => {
+      const b = document.getElementById('splash-enter');
+      return !!b && !b.disabled;
+    }, 10000, 'splash enter button unlocked');
     await page.click('#splash-enter');
     await new Promise(r => setTimeout(r, 900));
     const splashGone = await page.evaluate(() => document.getElementById('splash').hidden || document.getElementById('splash').classList.contains('splash-out'));

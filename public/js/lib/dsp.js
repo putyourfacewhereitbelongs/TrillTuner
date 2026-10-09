@@ -14,9 +14,13 @@
 (function (root) {
   'use strict';
 
+  /* Works in the page, in node and inside a Web Worker: `window` does not exist
+   * in a worker, so the global object is resolved explicitly. */
+  const GLOBAL = typeof window !== 'undefined' ? window
+    : typeof globalThis !== 'undefined' ? globalThis : self;
   const FFT = (typeof require === 'function' && typeof window === 'undefined')
     ? require('./fft.js')
-    : window.TT.fft;
+    : GLOBAL.TT.fft;
 
   const EPS = 1e-12;
 
@@ -59,7 +63,7 @@
     const re = new Float64Array(n), im = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       const s = offset + i;
-      re[i] = (s < data.length ? data[s] : 0) * win[i];
+      re[i] = (s >= 0 && s < data.length ? data[s] : 0) * win[i];
     }
     FFT.fft(re, im);
     return { re: re, im: im };
@@ -162,10 +166,22 @@
     const HALO = 4;                                  /* ±4 frames of context */
     const ENV = 2;                                   /* envelope measured over ±2 bins */
     const WIN = HALO * 2 + 1;
+    /* Pad the analysis with one window of silence at each end. Without it the
+     * first and last few milliseconds of a file have an *incomplete* window
+     * schedule: the overlap-add divisor there is a fraction of its interior
+     * value while the mask-modified frame content is not — dividing one by the
+     * other turns the edge into a full-scale bang (and clips the WAV export).
+     * One window of pad gives every real sample exactly the overlap the middle
+     * of the song has, so the reconstruction is smooth and correct at both
+     * ends, and the mask sees the same ±4 frames of context it always got. */
+    const PAD = fftSize;
+    const padFrames = Math.ceil(PAD / hop);
+    const outLen = n + 2 * PAD;
     const outCh = [];
-    for (let c = 0; c < nCh; c++) outCh.push(new Float32Array(n));
-    const wsum = new Float32Array(n);
+    for (let c = 0; c < nCh; c++) outCh.push(new Float32Array(outLen));
+    const wsum = new Float32Array(outLen);
     const nFrames = Math.max(1, Math.ceil(n / hop) + 1);   /* +1 so the tail is fully covered */
+    const totalFrames = nFrames + 2 * padFrames;
     const ring = [];                                 /* analysis frames, newest last */
 
     /* one windowed frame, full complex spectrum + half-spectrum magnitude */
@@ -245,6 +261,7 @@
       sample.sort((x, y) => x - y);
       const floorMag = sample[Math.floor(sample.length * 0.25)] || 1e-9;
       const g = new Float32Array(bins);
+      const targetingVoice = mode === 'vocals' || mode === 'classic-karaoke' || mode === 'classic-keep-bass';
       for (let b = 0; b < bins; b++) {
         const lo = Math.max(0, b - HALO), hi = Math.min(bins - 1, b + HALO);
         let fn = 0;
@@ -253,8 +270,18 @@
         fn = 0;
         for (let j = lo; j <= hi; j++) fbuf[fn++] = raw[j];
         const PR = median(fbuf.subarray(0, fn));                    /* broadband in this one frame */
-        const h2 = Hs[b] * Hs[b], ph2 = PH * PH, pr2 = PR * PR;
+        const h2 = Hs[b] * Hs[b], ph2 = PH * PH, pr2 = PR * PR, r2 = raw[b] * raw[b];
         const tonalScore = smoothstep(h2 / (h2 + ph2 + EPS), 0.55, 0.85);   /* a steady note lives here */
+        /* The time median answers “is there a *sustained* note here”, which is the
+         * right question for telling a held vocal from a drum hit — but it is a
+         * median, so it can only rise once the note has been sounding for a few
+         * frames, and the first ~100 ms of every word would come through untouched
+         * (removing) or ramp up from nothing (isolating). The current frame is
+         * asked the same question about its own neighbourhood, so a word opens the
+         * mask on its first frame; a drum hit cannot fake it, because a hit is
+         * broadband and its neighbourhood median rises with it. */
+        const tonalNow = smoothstep(r2 / (r2 + pr2 + EPS), 0.55, 0.85);
+        const tonalAny = tonalNow > tonalScore ? tonalNow : tonalScore;
         /* a transient is much louder than its own time median */
         const transient = smoothstep(raw[b] / (Hs[b] + EPS), 1.35, 3.2);
         const percScore = smoothstep(pr2 / (pr2 + h2 + EPS), 0.5, 0.8) * transient;
@@ -266,7 +293,20 @@
           ? smoothstep(mod[b], 0.12, 0.42) * (1 - percScore)
           : 0;
         let score = band[b];
-        if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * tonalScore;
+        /* Removing needs the *instant* answer — the notch has to be shut on the
+         * first frame of a word or the word leaks through. Isolating keeps the
+         * median answer: there, an instant “is this tonal right now” reading
+         * would also open the island for every held note underneath, which is
+         * how a plucked acoustic loses to a sustained electric. The running gain
+         * below is what keeps an isolated voice from being faded. */
+        /* Removing needs the *instant* answer — the notch has to be shut on the
+         * first frame of a word or the word leaks through. Isolating wants it
+         * too, so the island is open before the word arrives rather than a few
+         * frames after it. The pluck profile is the exception: there the instant
+         * reading would also open the island for every held note underneath,
+         * which is how a plucked acoustic loses to a sustained electric. */
+        const useFast = remove || !prof.pluck;
+        if (prof.tonal) score *= (1 - prof.tonal) + prof.tonal * (useFast ? tonalAny : tonalScore);
         if (prof.perc) score *= (1 - prof.perc) + prof.perc * percScore;
         if (prof.pluck) {
           /* removing: the pluck signature is what qualifies a bin for the chop.
@@ -300,7 +340,34 @@
          * bin is "50 % tonal" and the whole file just gets quieter. The current
          * frame counts, otherwise nothing percussive could ever be targeted. */
         score *= smoothstep(Math.max(raw[b], Hs[b]) / (floorMag * 2.5 + 1e-12), 0.5, 1.5);
-        g[b] = remove ? clamp01(1 - amount * score) : clamp01(score + (1 - amount) * 0.12);
+        if (remove) {
+          g[b] = clamp01(1 - amount * score);
+          /* Removing a *non-vocal* instrument must not fade the singer. Shared
+           * mid-band bins (guitar vs voice, piano vs voice) would otherwise
+           * duck the vocal every time the other part plays. A centred, tonal
+           * bin is kept open; the thing being removed still goes, because it
+           * is wide or percussive and fails this test. */
+          if (!targetingVoice && an.R) {
+            const lr = an.L.re[b] * an.R.re[b] + an.L.im[b] * an.R.im[b];
+            const ll = an.L.re[b] * an.L.re[b] + an.L.im[b] * an.L.im[b];
+            const rr = an.R.re[b] * an.R.re[b] + an.R.im[b] * an.R.im[b];
+            const c = (2 * lr / (ll + rr + EPS) + 1) / 2;
+            const voice = tonalAny * smoothstep(c, 0.52, 0.90);
+            if (voice > 0.35) g[b] = Math.max(g[b], voice);
+          }
+        } else if (prof.pluck) {
+          g[b] = clamp01(score + (1 - amount) * 0.12);
+        } else {
+          /* Isolating: a soft score *is* a fade — it multiplies the voice by
+           * its own confidence. Once we are more sure than not that this bin
+           * is the target, pass the original through at full level so the
+           * voice keeps its own envelope (a sung note with vibrato went from
+           * −3.2 dB ±2.5 to −0.1 dB ±1.4). Below that we still blend, so the
+           * edges do not click. The pluck profile keeps the soft score: its
+           * discriminator is the envelope shape. */
+          const open = clamp01(score + (1 - amount) * 0.12);
+          g[b] = open >= 0.45 ? 1 : open / 0.45;
+        }
       }
       /* Widen the region instead of smoothing it. A real tone splatters into its
        * neighbours (the window's main lobe is three bins wide), so a one-bin notch
@@ -311,7 +378,9 @@
        * window's main lobe (three bins at 2048/4), so widening is what makes a
        * notch actually notch — but widening also eats the neighbours, so a
        * profile that has to remove one plucked part out of a dense mix asks for
-       * a narrower spread (`widen`). */
+       * a narrower spread (`widen`). Isolating does not get a wider island than
+       * this: extra spread lets accompaniment through, which reads as the voice
+       * being over-loud (and “fading” as the leak comes and goes). */
       const D = prof.widen == null ? 2 : prof.widen;
       const out = new Float32Array(bins);
       for (let b = 0; b < bins; b++) {
@@ -343,31 +412,72 @@
         FFT.fft(re, scratch);
         const dst = outCh[ch];
         for (let i = 0; i < fftSize; i++) {
-          const idx = an.off + i;
-          if (idx >= n) break;
+          const idx = an.off + PAD + i;              /* PAD keeps indices positive */
+          if (idx >= outLen) break;
+          if (idx < 0) continue;
           dst[idx] += re[i] / fftSize * win[i];
           if (ch === 0) wsum[idx] += win[i] * win[i];
         }
       }
     }
 
+    /* The mask is applied as a running level, not frame by frame.
+     *
+     * Every per-frame score above is a *soft* decision, so applying it raw
+     * multiplies the voice by its own slowly varying confidence: words ramp in
+     * (isolating) and the first ~100 ms of every word leaks through the notch
+     * (removing) — the mask, not the music, ends up shaping the vocal envelope.
+     *
+     * So the applied gain moves asymmetrically: it snaps in the direction that
+     * *protects* the target (the notch deepens, the island opens) on the very
+     * frame the note appears, and relaxes back over ~40 ms (isolate) / ~110 ms
+     * (remove) once the note stops. The voice keeps its own attack, and the
+     * accompaniment is still left alone between phrases. */
+    const prevGain = new Float32Array(bins);
+    let havePrev = false;
+    let releaseCoef = 0;
+    /* The acoustic profile is the exception, and deliberately so: its whole
+     * discriminator is the *shape* of the envelope (a pluck rises and dies), so
+     * holding gains open across frames would smooth away the feature it is
+     * measuring. Sustained-content profiles get the running gain. */
+    const runGain = !prof.pluck;
     function decide(an, ringAt) {
-      synthesize(an, gainFor(an, ringAt));
+      const g = gainFor(an, ringAt);
+      if (!havePrev) {
+        prevGain.set(g);
+        havePrev = true;
+        releaseCoef = Math.exp(-(hop / sr) / (remove ? 0.11 : 0.04));
+      } else if (!runGain) {
+        prevGain.set(g);
+      } else {
+        for (let b = 0; b < bins; b++) {
+          /* Ease *towards the target*, not towards 0 (isolate) or 1 (remove).
+           * Decaying towards zero made a held note's gain random-walk down —
+           * a fade all by itself, measured at −4 dB mean with ±3 dB of ripple
+           * on a dead-steady vowel. Protect the target instantly (the notch
+           * deepens, the island opens), then approach the new value over the
+           * release window. */
+          const target = g[b], p = prevGain[b];
+          const fast = remove ? (target < p) : (target > p);
+          prevGain[b] = fast ? target : p + (target - p) * (1 - releaseCoef);
+        }
+      }
+      synthesize(an, prevGain);
     }
 
     let decided = 0;
-    /* prime the ring with the first frame so frame 0 gets the same ±HALO
-     * context as everything else (and every frame is synthesized exactly once:
-     * overlapping frames are what makes the overlap-add add up) */
-    const first = analyse(0);
+    /* prime the ring with the first frame so the first real frame gets the same
+     * ±HALO context as everything else (and every frame is synthesized exactly
+     * once: overlapping frames are what makes the overlap-add add up) */
+    const first = analyse(-padFrames);
     for (let p = 0; p < HALO; p++) ring.push(first);
-    for (let k = 0; k < nFrames; k++) {
+    for (let k = -padFrames; k < nFrames + padFrames; k++) {
       ring.push(analyse(k));
       if (ring.length === WIN) {
         decide(ring[HALO], ring);          /* the middle frame, fully surrounded */
         ring.shift();
         decided++;
-        if (onProgress && (decided & 15) === 0) onProgress(decided / nFrames);
+        if (onProgress && (decided & 15) === 0) onProgress(decided / totalFrames);
       }
     }
     /* the last few frames only have earlier context — still perfectly usable */
@@ -378,14 +488,25 @@
     }
     if (onProgress) onProgress(1);
 
-    /* normalise the overlap-add — dividing by the summed window squares makes
+    /* Normalise the overlap-add — dividing by the summed window squares makes
      * the reconstruction exact, so no level matching is needed (and a peak
-     * restore would undo the very removal we just performed) */
+     * restore would undo the very removal we just performed).
+     *
+     * It is also divided by the *true* window sum, not by a floor: an absolute
+     * floor is not a safety net, it is a multiplier (the window squares at the
+     * very start of a frame are ~1e-10, so a floor of 1e-4 made those samples up
+     * to 10 000× louder). With the padding above, the sum is the full interior
+     * value for every sample of the original signal, so this is a plain
+     * division; the guard only covers the discarded pad itself. */
     const out = [];
     for (let c = 0; c < nCh; c++) {
       const a = outCh[c];
-      for (let i = 0; i < n; i++) a[i] /= Math.max(wsum[i], 1e-4);
-      out.push(a);
+      const dst = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const w = wsum[i + PAD];
+        if (w > 1e-9) dst[i] = a[i + PAD] / w;
+      }
+      out.push(dst);
     }
     return { channels: out, sr: sr, mode: mode, profile: prof, remove: remove, amount: amount };
   }
@@ -644,38 +765,131 @@
    * in slices with a margin at each end (the per-bin masks look at a few frames
    * either side, so the margin gives them their context) and the margin is
    * thrown away. `onProgress(fraction)` is called between slices. */
+  /* Peak guard.
+   *
+   * A couple of perfectly honest results are *louder than the song they came
+   * from*: an isolated wide-band drum layer drops the parts of the signal that
+   * used to cancel its peaks, and the classic centre-cancel is literally a
+   * difference signal (which is why 90s karaoke boxes sound so hot). Those can
+   * peak above 1.0, and 1.0 is what the WAV writer and the sound card accept —
+   * past it the export clips flat and the transients crackle.
+   *
+   * So the whole take is measured once and, only if it really does go past the
+   * ceiling, scaled by one constant. Scaling the finished take — never a slice
+   * on its own — means no level step can ever appear at a slice seam, and a
+   * result that already fits is returned untouched (gain 1, no copy). */
+  function limitPeak(channels, ceiling) {
+    const cap = ceiling == null ? 0.99 : ceiling;   /* a little under full scale, so 16-bit rounding can never clip */
+    let peak = 0;
+    for (let c = 0; c < channels.length; c++) {
+      const a = channels[c];
+      for (let i = 0; i < a.length; i++) {
+        const v = a[i] < 0 ? -a[i] : a[i];
+        if (v > peak) peak = v;
+      }
+    }
+    if (!(peak > cap)) return { channels: channels, gain: 1, peak: peak };
+    const g = cap / peak;
+    const out = channels.map(ch => {
+      const d = new Float32Array(ch.length);
+      for (let i = 0; i < ch.length; i++) d[i] = ch[i] * g;
+      return d;
+    });
+    return { channels: out, gain: g, peak: peak };
+  }
+
+  /* a raised-cosine half: 0 at 0, 1 at `width`, and its mirror sums to 1 */
+  function ramp(i, width) {
+    if (width <= 0) return 1;
+    const x = i / width;
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const s = Math.sin(0.5 * Math.PI * x);
+    return s * s;
+  }
+
   async function separateChunked(channels, sr, mode, opts) {
     opts = opts || {};
+    let cross = new Float32Array(0);
     const onProgress = opts.onProgress;
+    const shouldAbort = typeof opts.shouldAbort === 'function' ? opts.shouldAbort : null;
+    const abortError = () => { const e = new Error('separation stopped'); e.aborted = true; return e; };
     const margin = Math.max(0.2, opts.marginSeconds || 0.4);
-    const sliceSeconds = Math.max(4, opts.sliceSeconds || 24);
+    const sliceSeconds = Math.max(4, opts.sliceSeconds || 12);
     const n = channels[0].length;
-    const per = Math.round(sliceSeconds * sr);
+    /* Every slice is framed from its own first sample, so unless the slice
+     * starts land on the same grid the frame grid uses, the two estimates of
+     * the shared second are built from differently placed windows — which is
+     * how a transient ends up smeared on one side of a join and sharp on the
+     * other. Landing the slices and their context on the largest hop any
+     * profile uses (4096) puts every frame where the whole-song pass would
+     * have put it; the overlap then agrees closely and the cross-fade has
+     * almost nothing left to blend. */
+    const ALIGN = 4096;
+    const up = v => Math.ceil(v / ALIGN) * ALIGN;
+    const per = Math.max(ALIGN, up(Math.round(sliceSeconds * sr)));
     const slices = Math.max(1, Math.ceil(n / per));
     if (slices === 1) {
+      if (shouldAbort && shouldAbort()) throw abortError();
       const only = separate(channels, sr, mode, opts);
+      const safe = limitPeak(only.channels);
       if (onProgress) onProgress(1);
-      return only;
+      return Object.assign({}, only, { channels: safe.channels, slices: 1, peak: safe.peak, gain: safe.gain });
     }
+    const pad = Math.max(ALIGN, up(Math.round(margin * sr)));
+    /* Each slice is separated with `margin` seconds of context on both sides,
+     * and the slices overlap by twice that. The context is only there to give
+     * the analysis something to look at, and the two estimates of the same
+     * second of music differ slightly — so the overlap is cross-faded with
+     * complementary raised-cosine ramps and normalised by the weight that
+     * actually landed. A straight splice here is a level step, and a level step
+     * is a click every slice. */
+    const acc = [], wsum = new Float32Array(n);
     let out = null, meta = null;
     for (let s = 0; s < slices; s++) {
+      /* a long song can be stopped between slices, so the tab never gets stuck */
+      if (shouldAbort && shouldAbort()) throw abortError();
       const from = s * per;
       const to = Math.min(n, from + per);
-      const pad = Math.round(margin * sr);
       const a = Math.max(0, from - pad), b = Math.min(n, to + pad);
       const sub = channels.map(c => c.subarray(a, b));
       const r = separate(sub, sr, mode, Object.assign({}, opts, { onProgress: null }));
+      const nCh = r.channels.length;
       if (!out) {
         out = r.channels.map(() => new Float32Array(n));
+        for (let c = 0; c < nCh; c++) acc.push(new Float32Array(n));
         meta = { sr: r.sr, mode: r.mode, profile: r.profile, remove: r.remove, amount: r.amount };
       }
-      const srcOff = from - a;
-      for (let c = 0; c < out.length; c++) out[c].set(r.channels[c].subarray(srcOff, srcOff + (to - from)), from);
+      /* local index i maps straight onto the original timeline at a + i, which
+       * is what `separate` was given, so every padded sample has a home. */
+      const len = b - a;
+      if (cross.length !== len) cross = new Float32Array(len);
+      for (let i = 0; i < len; i++) {
+        /* the first and the last slice keep full weight at the file edge, so
+         * nothing ever fades out at the start of the song or at its end */
+        let w = 1;
+        if (s > 0 && i < pad) w = ramp(i, pad);
+        if (s < slices - 1 && i >= len - pad) w = Math.min(w, ramp(len - i, pad));
+        cross[i] = w;
+        wsum[a + i] += w;
+      }
+      for (let c = 0; c < nCh; c++) {
+        const src = r.channels[c], dst = acc[c];
+        for (let i = 0; i < len; i++) dst[a + i] += src[i] * cross[i];
+      }
       if (onProgress) onProgress((s + 1) / slices);
       /* hand the frame back to the browser so the UI keeps painting */
       await new Promise(res => setTimeout(res, 0));
     }
-    return Object.assign(meta, { channels: out, sr: sr, slices: slices });
+    for (let c = 0; c < out.length; c++) {
+      const dst = out[c], src = acc[c];
+      for (let i = 0; i < n; i++) {
+        const w = wsum[i];
+        if (w > 1e-9) dst[i] = src[i] / w;
+      }
+    }
+    const safe = limitPeak(out);
+    return Object.assign(meta, { channels: safe.channels, sr: sr, slices: slices, peak: safe.peak, gain: safe.gain });
   }
 
   /* =================================================================== */
@@ -705,11 +919,12 @@
 
   const api = {
     hann, median, mixdown, frameFFT, bandMask, smoothstep,
-    separate, separateChunked, PROFILES,
+    separate, separateChunked, limitPeak, PROFILES,
     chromaFrames, analyseChords, bestKey, matchChord, estimateTempo, toBars,
     encodeWav, PITCH_NAMES, CHORD_TEMPLATES
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TT = root.TT || {};
   root.TT.dsp = api;
-})(typeof window !== 'undefined' ? window : globalThis);
+})(typeof window !== 'undefined' ? window
+  : typeof globalThis !== 'undefined' ? globalThis : self);

@@ -675,6 +675,11 @@
     if (name === 'setup') renderSetup();
     if (name === 'capo') renderCapo();
     if (name === 'game' && !state.gamePrompt) newGameRound();
+    if (window.TT.playtools) {
+      TT.playtools.init();
+      if (name === 'caged' && TT.playtools.renderCaged) TT.playtools.renderCaged();
+      if (name === 'harmonics' && TT.playtools.renderHarmonics) TT.playtools.renderHarmonics();
+    }
   };
 
   T.playScale = function () {

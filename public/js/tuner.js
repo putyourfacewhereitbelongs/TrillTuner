@@ -360,6 +360,10 @@
     const on = force != null ? !!force : !document.body.classList.contains('gig-on');
     document.body.classList.toggle('gig-on', on);
     els.gigOverlay.hidden = !on;
+    /* keep the screen awake during a gig — inside the APK via the bridge */
+    if (window.Android && typeof window.Android.keepScreenOn === 'function') {
+      try { window.Android.keepScreenOn(on); } catch (e) {}
+    }
     if (on) assist('Gig mode on — giant high-contrast display. Esc or ✕ to exit.');
   };
 

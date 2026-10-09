@@ -65,6 +65,14 @@ const rms = ch => {
     'rms ' + rms(quiet.channels[0]).toFixed(3) + ' vs ' + rms(full.channels[0]).toFixed(3));
   ok(rms(none.channels[0]) < rms(quiet.channels[0]) * 0.9, 'turning everything off leaves almost nothing behind',
     'rms ' + rms(none.channels[0]).toFixed(4));
+  const silent = B.render({ key: 'C', mode: 'major', style: 'strum', bpm: 90, bars: 2, sr: 22050, sparkle: false, parts: { drums: false, bass: false, chords: false } });
+  const keys = B.render({ key: 'C', mode: 'major', style: 'strum', bpm: 90, bars: 2, sr: 22050, sparkle: false, parts: { drums: false, bass: false, chords: false, piano: true } });
+  ok(rms(keys.channels[0]) > rms(silent.channels[0]) * 8, 'piano-only is an audible bed',
+    'rms ' + rms(keys.channels[0]).toFixed(3) + ' vs empty ' + rms(silent.channels[0]).toFixed(4));
+  ok(keys.parts.piano === true && keys.parts.drums === false, 'the piano flag is on the render');
+  const extra = B.render({ key: 'C', mode: 'major', style: 'ballad', bpm: 72, bars: 2, sr: 22050, sparkle: false, parts: { drums: false, bass: false, chords: false, strings: true, organ: true } });
+  ok(rms(extra.channels[0]) > rms(silent.channels[0]) * 8, 'strings + organ also render',
+    'rms ' + rms(extra.channels[0]).toFixed(3));
 })();
 
 /* 4. odd meters, swing and determinism */

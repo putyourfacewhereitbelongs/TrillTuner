@@ -739,12 +739,20 @@
       info.overdubbed = true;
     }
 
+    /* Describe the buffer we are actually storing, not the pass that produced
+     * it. An overdub mixes into whatever was already in the slot, so a 1-bar
+     * pass laid over a 2-bar loop leaves a 2-bar loop — and saying "1 bar"
+     * about it would put the wrong bar lines on the waveform. */
+    const barSec = info.bpm > 0 ? (60 / info.bpm) * bpb : 0;
+    const storedBars = barSec > 0 && info.quantized
+      ? Math.round(take.length / sr / barSec)
+      : 0;
     const t = {
       samples: take,
       sr: sr,
       bpm: info.bpm,
       bpb: bpb,
-      bars: info.quantized ? Math.round(info.bars) : 0,
+      bars: storedBars,
       xfade: info.xfade,
       grid: !!(st && st.capturing),
       prev: slot ? slot.prev : null,

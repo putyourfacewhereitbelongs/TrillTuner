@@ -316,6 +316,37 @@ function run(s, opts) {
     return lifted + ' samples louder, undo armed';
   });
 
+  await check('overdubbing a shorter pass keeps the loop length and tells the truth about it', async () => {
+    /* bank 2 bars, then overdub 1 bar onto it. The loop must stay 2 bars —
+     * the second bar is still the original pass — and it must not start
+     * describing itself as a 1-bar loop. */
+    const s = session({ bpm: 120, bpb: 4, bars: 2 });
+    const P = s.P, sr = s.sr;
+    const beat = 0.5;
+    const startAt = 10.1 + 4 * beat;
+    await P.loopRecStart();
+    run(s, { from: 10.0, to: startAt + 2 * beat * 4 + 0.4, firstBeat: 10.1, sig: t => t < startAt ? 0 : 0.3 });
+    P.loopRecStop();
+    const base = P.state.loop.takes[0];
+    const baseLen = base.samples.length;
+    assert.strictEqual(base.bars, 2, 'base take should be 2 bars, says ' + base.bars);
+
+    s.el('pt-loop-overdub').checked = true;
+    s.el('pt-loop-bars').value = '1';
+    await P.loopRecStart();
+    run(s, { from: 10.0, to: startAt + 2 * beat * 4 + 0.4, firstBeat: 10.1, sig: t => t < startAt ? 0 : 0.3 });
+    P.loopRecStop();
+
+    const after = P.state.loop.takes[0];
+    assert.strictEqual(after.samples.length, baseLen,
+      'loop length changed from ' + baseLen + ' to ' + after.samples.length);
+    assert.strictEqual(after.bars, 2,
+      'a 2-bar loop is being described as ' + after.bars + ' bar(s) after a 1-bar overdub');
+    assert.strictEqual(Math.round(after.samples.length / sr / ((60 / 120) * 4)), after.bars,
+      'bars field disagrees with the buffer length');
+    return after.bars + ' bars kept · ' + (after.samples.length / sr).toFixed(2) + 's';
+  });
+
   await check('a tempo change during the take does not re-measure it against a grid it was never played on', async () => {
     const s = session({ bpm: 120, bpb: 4, bars: 2 });
     const P = s.P, sr = s.sr;

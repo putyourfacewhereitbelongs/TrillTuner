@@ -51,9 +51,13 @@
    * bookkeeping (bars, tab lines, notes about what was found). */
   T.analyseBuffer = function (audioBuffer, opts) {
     opts = opts || {};
-    const sr = audioBuffer.sampleRate;
+    /* accepts a decoded AudioBuffer (file path) or raw mono samples from the
+     * live mic capture (a Float32Array, which needs opts.sampleRate) */
+    const isRaw = ArrayBuffer.isView(audioBuffer) && typeof audioBuffer.getChannelData !== "function";
+    const sr = isRaw ? (opts.sampleRate || (TT.audio && TT.audio.ctx && TT.audio.ctx.sampleRate) || 44100) : audioBuffer.sampleRate;
     const maxSeconds = opts.maxSeconds || 240;
-    const channels = toChannels(audioBuffer);
+    const channels = isRaw ? [audioBuffer] : toChannels(audioBuffer);
+    if (!channels.length || !channels[0] || !channels[0].length) throw new Error('no audio was captured');
     let chans = channels;
     let truncated = false;
     const cap = Math.round(maxSeconds * sr);
@@ -501,12 +505,13 @@
     setBusy('Listening on the microphone…');
     try {
       const buf = await TT.audio.captureBuffer(12);
+      const sampleRate = TT.audio.ctx ? TT.audio.ctx.sampleRate : 44100;
       state.title = 'Microphone take'; state.artist = '';
       if (els.title) els.title.value = 'Microphone take';
       state.key = ''; state.bpm = 0;
       setBusy('Reading chords, key and tempo…');
       await new Promise(r => setTimeout(r, 30));
-      const res = T.analyseBuffer(buf);
+      const res = T.analyseBuffer(buf, { sampleRate: sampleRate });
       renderResult(res);
     } catch (e) {
       if (els.status) els.status.textContent = 'Microphone capture failed: ' + (e && e.message ? e.message : 'no audio') + '. Check the mic permission (and use “Open in a new tab” if this is inside a preview frame).';

@@ -522,6 +522,118 @@ async function dismissSplash(page) {
     await browser.close();
   }
 
+  /* ============ scenario 7: phrase looper — count in, lock to the grid,
+   *              stop itself, bank the take, switch between five ============ */
+  {
+    const { browser, page } = await launch('e2_in_tune.wav');
+    await page.goto(BASE, { waitUntil: 'networkidle0' });
+    await dismissSplash(page);
+
+    await page.click('[data-view="tools"]');
+    await page.click('#tools-tabs .tab[data-tab="looper"]');
+    await page.select('#pt-loop-bars', '1');           /* one bar keeps this quick */
+    await page.evaluate(() => { TT.metronome.setBpm(120); });
+
+    /* Collect the status line as it changes rather than racing a poll against
+     * text that only lives for a few hundred milliseconds. */
+    await page.evaluate(() => {
+      window.__loopLog = [];
+      const el = document.getElementById('pt-loop-status');
+      window.__loopObs = new MutationObserver(() => window.__loopLog.push(el.textContent));
+      window.__loopObs.observe(el, { childList: true, characterData: true, subtree: true });
+    });
+
+    /* Press Rec and do nothing else. The looper has to start the metronome,
+     * count a bar in, capture one bar, and stop itself. */
+    await page.click('#pt-loop-rec');
+    await waitFor(page, () => !!(window.TT.playtools.state.loop.takes[0]),
+      20000, 'a take landed without pressing Stop');
+    const log = await page.evaluate(() => { window.__loopObs.disconnect(); return window.__loopLog; });
+    const saw = re => log.filter(s => re.test(s)).length;
+    ok(saw(/Armed/) >= 1, 'the looper arms itself on the metronome before counting in',
+      (log.find(s => /Armed/.test(s)) || 'never said so').slice(0, 90));
+    ok(saw(/Count-in/) >= 3, 'it counts a bar in before it records', saw(/Count-in/) + ' count-in beats announced');
+    ok(saw(/Recording take A/) >= 1, 'it names the take it is filling',
+      (log.find(s => /Recording take A/.test(s)) || 'never said so').slice(0, 80));
+    ok(saw(/beat grid/) >= 1, 'it reports that the take landed on the beat grid',
+      (log[log.length - 1] || '').slice(0, 110));
+
+    const take = await page.evaluate(() => {
+      const t = window.TT.playtools.state.loop.takes[0];
+      return {
+        len: t.samples.length, sr: t.sr, bars: t.bars, bpm: t.bpm,
+        grid: t.grid, xfade: t.xfade, playing: window.TT.playtools.state.loop.playing,
+        /* the first and last 5 ms must not be dead air: a loop that opens on
+         * silence has a gap in it every time round */
+        head: t.samples.slice(0, Math.round(t.sr * 0.005)).reduce((a, v) => Math.max(a, Math.abs(v)), 0),
+        tail: t.samples.slice(-Math.round(t.sr * 0.005)).reduce((a, v) => Math.max(a, Math.abs(v)), 0),
+        /* and the seam must not click: the wrap should step no further than
+         * the average step inside the loop */
+        seam: Math.abs(t.samples[t.samples.length - 1] - t.samples[0]),
+        step: (() => {
+          const stride = 7;
+          let s = 0, n = 0;
+          for (let i = stride; i < t.samples.length; i += stride) {
+            s += Math.abs(t.samples[i] - t.samples[i - stride]);
+            n++;
+          }
+          return n ? s / n : 0;
+        })()
+      };
+    });
+    ok(take.len === Math.round(take.sr * 2), 'the take is exactly one bar at 120 BPM',
+      (take.len / take.sr).toFixed(4) + 's of ' + (Math.round(take.sr * 2) / take.sr).toFixed(4) + 's at ' + take.sr + ' Hz');
+    ok(take.bars === 1 && take.bpm === 120, 'the take knows it is 1 bar at 120 BPM',
+      take.bars + ' bar · ' + take.bpm + ' BPM');
+    ok(take.grid === true, 'the take is flagged as recorded on the beat grid');
+    ok(take.xfade > 0, 'the seam was crossfaded', (take.xfade * 1000).toFixed(1) + ' ms');
+    ok(take.head > 0.001, 'the loop does not open on silence', take.head.toFixed(4));
+    ok(take.seam < take.step * 4, 'the loop point does not click',
+      'seam ' + take.seam.toFixed(5) + ' vs mean step ' + take.step.toFixed(5));
+    ok(take.playing, 'the loop started playing itself');
+
+    const painted = await page.evaluate(() => {
+      const c = document.getElementById('pt-loop-wave');
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 8) n++;
+      return n;
+    });
+    ok(painted > 500, 'the take is drawn on the waveform', painted + ' pixels');
+
+    /* five takes, and switching between them is real */
+    const slots = await page.$eval('#pt-loop-takes', el => el.querySelectorAll('.take-btn').length);
+    ok(slots === 5, 'five take slots are on screen', slots + ' buttons');
+    await page.click('#pt-loop-take-1');
+    const onB = await page.evaluate(() => ({
+      slot: window.TT.playtools.state.loop.slot,
+      playing: window.TT.playtools.state.loop.playing,
+      label: document.getElementById('pt-loop-take-label').textContent
+    }));
+    ok(onB.slot === 1, 'clicking take B moves to it', 'slot ' + onB.slot);
+    ok(!onB.playing, 'an empty take stops the loop instead of playing nothing');
+    ok(/Take B/.test(onB.label), 'the take label follows the selection', onB.label);
+    await page.click('#pt-loop-take-0');
+    const backOnA = await page.evaluate(() => ({
+      slot: window.TT.playtools.state.loop.slot,
+      playing: window.TT.playtools.state.loop.playing
+    }));
+    ok(backOnA.slot === 0 && backOnA.playing, 'switching back to take A restarts it',
+      'slot ' + backOnA.slot + ', playing ' + backOnA.playing);
+
+    /* the keyboard does the same thing, hands still on the neck */
+    await page.keyboard.press('KeyC');
+    const viaKey = await page.evaluate(() => window.TT.playtools.state.loop.slot);
+    ok(viaKey === 2, 'pressing C selects take C', 'slot ' + viaKey);
+    await page.click('#pt-loop-take-0');
+    await page.click('#pt-loop-clear');
+    const cleared = await page.evaluate(() => window.TT.playtools.state.loop.takes[0]);
+    ok(cleared === null, 'Clear empties the active take');
+
+    ok(page._errors.length === 0, 'looper: zero JS errors', JSON.stringify(page._errors.slice(0, 3)));
+    await browser.close();
+  }
+
   console.log(failures === 0 ? '\n✅ ALL E2E TESTS PASSED' : `\n❌ ${failures} E2E TEST(S) FAILED`);
   process.exit(failures === 0 ? 0 : 1);
 })().catch(e => { console.error('E2E crashed:', e); process.exit(1); });

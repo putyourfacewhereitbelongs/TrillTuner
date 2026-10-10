@@ -181,6 +181,38 @@ check('detectTempo gives up on silence rather than inventing a tempo', () => {
   assert.strictEqual(P.detectTempo(new Float32Array(SR), SR), 0);
 });
 
+check('detectTempo survives a strummed chord rather than a clean click', () => {
+  /* the fallback path only matters on real playing: several partials, a
+   * staggered strum, uneven dynamics and a decaying tail. If this is wrong
+   * the loop lands on a grid nobody played. */
+  const CH = [110, 164.81, 220, 277.18, 329.63];
+  const strum = (buf, at, amp, seed) => {
+    let r = seed;
+    const rnd = () => (r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    CH.forEach((f, k) => {
+      const off = Math.round((at + k * 0.006 + (rnd() - 0.5) * 0.004) * SR);
+      const a = amp * (0.7 + rnd() * 0.5);
+      for (let i = 0; i < 0.35 * SR && off + i < buf.length; i++) {
+        const t = i / SR;
+        buf[off + i] += a * Math.sin(2 * Math.PI * f * t) * Math.exp(-6 * t) *
+          (1 + 0.3 * Math.sin(2 * Math.PI * 5 * t));
+      }
+    });
+  };
+  let worst = 0, worstBpm = 0;
+  [72, 84, 96, 108, 120, 132, 144, 160].forEach(bpm => {
+    const beat = 60 / bpm;
+    const x = new Float32Array(Math.round(4 * SR));
+    let seed = 7;
+    for (let b = 0; b * beat < 4; b++) { strum(x, b * beat, 0.45, seed); seed += 13; }
+    const got = P.detectTempo(x, SR);
+    const c = Math.abs(1200 * Math.log2(got / bpm));
+    if (c > worst) { worst = c; worstBpm = bpm; }
+  });
+  assert.ok(worst < 60, 'worst case ' + worst.toFixed(0) + ' cents off at ' + worstBpm + ' BPM');
+  return '8 tempi, worst ' + worst.toFixed(0) + ' cents off (at ' + worstBpm + ' BPM)';
+});
+
 check('alignTake lands a 4.1 s take on exactly two bars at 120 BPM', () => {
   const x = new Float32Array(Math.round(4.1 * SR));
   for (let b = 0; b < 8; b++) burstInto(x, b * 0.5, 0.3, 220, 0.5);

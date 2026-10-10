@@ -196,20 +196,31 @@ body.gig-on .gig-btn { color: #2bff88; border-color: rgba(43,255,136,.5); }
 
 .guitar-box { display: flex; justify-content: center; }
 .guitar-svg { width: 100%; max-width: 280px; height: auto; }
-.g-neck { stroke: rgba(0, 0, 0, .35); }
-.g-fret { stroke: #98a2b8; stroke-width: 2; opacity: .75; }
-.g-dot { fill: #d7dbe6; opacity: .45; }
-.g-nut { fill: #e8ebf2; }
-.theme-acoustic .g-head { fill: #33261a; }
-.theme-electric .g-head { fill: #191c28; }
-.g-head { stroke: rgba(0, 0, 0, .4); }
-.g-link { stroke: #7c8598; stroke-width: 1.4; opacity: .55; }
-.peg-btn { fill: #232a3a; stroke: #4a5468; stroke-width: 2; }
-.peg-cap { fill: #aab4c8; }
+.g-fret { stroke: #cdd3de; stroke-linecap: round; }
+.g-fret-sh { stroke: #1b120b; stroke-linecap: round; opacity: .45; }
+.g-grain { fill: none; stroke: rgba(70, 45, 20, .16); stroke-width: 1; stroke-linecap: round; }
+.g-dot { fill: #f3eee2; opacity: .92; }
+.g-side { fill: #f3eee2; opacity: .8; }
+.g-nut { fill: #efe9d8; stroke: #8f8570; stroke-width: .8; }
+.g-machine { fill: #5d6577; stroke: #1a1e28; stroke-width: 1; }
+.g-bushing { fill: #c3cad8; stroke: #4a5160; stroke-width: .8; }
+.g-post-slot { stroke: #3b4252; stroke-width: 1.2; stroke-linecap: round; }
+.g-plate { fill: #c9ced9; stroke: #3b4150; stroke-width: .8; opacity: .9; }
+.g-plate-txt { fill: #2a2f3a; font-size: 7.5px; font-weight: 800; letter-spacing: .5px; }
+.g-truss { fill: #d4d9e3; stroke: #4a5160; stroke-width: .9; }
+.g-truss-slot { stroke: #3b4150; stroke-width: 1.2; stroke-linecap: round; }
+.g-link { stroke: #c4cbd8; opacity: .7; }
+.peg-btn { fill: #cdd3de; stroke: #4f5870; stroke-width: 1.4; }
+.peg-cap { fill: #3b4252; }
 .g-peg.active .peg-btn { fill: #2a3348; stroke: var(--accent); filter: drop-shadow(0 0 6px var(--glow)); animation: pulse 1.2s infinite; }
 .g-peg.active .peg-cap { fill: var(--accent); }
 .g-ball { fill: #0b0d12; stroke: #6c7487; stroke-width: 1; }
-.g-str { stroke: #b9c1d1; opacity: .85; }
+.g-str { stroke: #c9d0dc; opacity: .95; }
+.g-str[data-w="1"] { stroke: #b98d55; }
+.g-str-sh { stroke: #000; opacity: .32; fill: none; }
+.g-str-hi { stroke: #fff; opacity: .5; fill: none; pointer-events: none; }
+.g-wind { stroke: #5e401f; opacity: .85; fill: none; pointer-events: none; }
+.g-str.active + .g-wind, .g-str.tuned + .g-wind, .g-str.ringing + .g-wind, .g-str[class*="p-"] + .g-wind { opacity: 0; }
 .g-str.active { stroke: var(--accent); opacity: 1; filter: drop-shadow(0 0 6px var(--glow)); animation: vibrate .12s infinite alternate; }
 .g-str.tuned { stroke: var(--green); opacity: .95; }
 @keyframes vibrate { from { transform: translateX(-.5px); } to { transform: translateX(.5px); } }

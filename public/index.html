@@ -1106,8 +1106,16 @@ try {
 
       <div id="tools-looper" class="tabpane">
         <div class="card">
-          <div class="card-h">Phrase looper — record a bar, play over it</div>
-          <p class="hint">The classic floor-pedal trick, without the pedal. Record a riff (or a chord vamp), then solo over it. Tick <b>overdub</b> to stack another pass (headphones, so the previous layer doesn’t bleed into the mic); tick <b>snap to bars</b> to trim to the metronome.</p>
+          <div class="card-h">Phrase looper — five takes, locked to the tempo</div>
+          <p class="hint">The classic floor-pedal trick, without the pedal, and without the usual fumble at the record button. Press <b>Rec</b> and the metronome does the counting: it starts the metronome for you, counts you in, starts recording on the downbeat, records exactly the number of bars you picked, and <b>stops itself on the beat</b>. Then it trims the dead air off both ends and crossfades the loop seam, so there is no gap, no click and nothing left to trim by hand. Un-tick <b>auto-align</b> to record free and let it read the tempo off your playing instead.</p>
+          <div class="loop-takes" id="pt-loop-takes" role="group" aria-label="Loop takes">
+            <button type="button" class="take-btn on" id="pt-loop-take-0" data-take="0" aria-pressed="true">A</button>
+            <button type="button" class="take-btn" id="pt-loop-take-1" data-take="1" aria-pressed="false">B</button>
+            <button type="button" class="take-btn" id="pt-loop-take-2" data-take="2" aria-pressed="false">C</button>
+            <button type="button" class="take-btn" id="pt-loop-take-3" data-take="3" aria-pressed="false">D</button>
+            <button type="button" class="take-btn" id="pt-loop-take-4" data-take="4" aria-pressed="false">E</button>
+          </div>
+          <p class="hint smallish">Five takes, <b>A–E</b> — <span id="pt-loop-take-label">Take A</span> is live. Bank a few passes, then switch the moment one stops sitting right: click a letter, press <b>A–E</b>, or use <b>←/→</b> on the take row. Recording overwrites the take you have selected; tick <b>Overdub</b> to stack a layer onto it instead.</p>
           <canvas id="pt-loop-wave" class="pt-wave" width="640" height="64" aria-hidden="true"></canvas>
           <div class="tools-controls">
             <button class="btn btn-primary" id="pt-loop-rec">● Rec</button>
@@ -1115,11 +1123,21 @@ try {
             <button class="btn tiny" id="pt-loop-half">½ speed</button>
             <button class="btn tiny" id="pt-loop-undo">Undo</button>
             <button class="btn tiny" id="pt-loop-clear">Clear</button>
+            <label class="field inline"><span>Loop length</span>
+              <select id="pt-loop-bars">
+                <option value="1">1 bar</option>
+                <option value="2" selected>2 bars</option>
+                <option value="4">4 bars</option>
+                <option value="8">8 bars</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="pt-loop-snap" checked><span>Auto-align to tempo</span></label>
+            <label class="check"><input type="checkbox" id="pt-loop-countin" checked><span>Count-in</span></label>
             <label class="check"><input type="checkbox" id="pt-loop-overdub"><span>Overdub</span></label>
-            <label class="check"><input type="checkbox" id="pt-loop-snap" checked><span>Snap to metronome bars</span></label>
             <label class="field inline"><span>Loop volume</span><input type="range" id="pt-loop-vol" min="0" max="1" step="0.01" value="0.9"></label>
           </div>
-          <p class="hint" id="pt-loop-status">Empty — record a phrase, then play over it. The loop keeps going while you switch to CAGED or the bend lab.</p>
+          <p class="hint" id="pt-loop-status">Empty — press Rec and play. The loop keeps going while you switch to CAGED or the bend lab.</p>
+          <p class="hint smallish">On the waveform: the faint vertical lines are bar boundaries at the grid tempo, and the shaded strip at the left is the seam crossfade. If the loop is on the grid, every bar line lands on the same place in your phrase every time round.</p>
         </div>
       </div>
 

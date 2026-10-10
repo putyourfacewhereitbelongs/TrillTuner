@@ -334,9 +334,22 @@ check('play tools: looper, CAGED maps, harmonics, bend lab', () => {
   const minors = window.document.querySelectorAll('#pt-caged-out .caged-card').length;
   if (minors !== 3) throw new Error('expected 3 minor shapes, got ' + minors);
   window.document.querySelector('#tools-tabs .tab[data-tab="looper"]').click();
-  ['pt-loop-rec', 'pt-loop-play', 'pt-loop-half', 'pt-loop-undo', 'pt-loop-clear', 'pt-loop-overdub', 'pt-loop-snap'].forEach(id => {
+  ['pt-loop-rec', 'pt-loop-play', 'pt-loop-half', 'pt-loop-undo', 'pt-loop-clear', 'pt-loop-overdub',
+    'pt-loop-snap', 'pt-loop-countin', 'pt-loop-bars', 'pt-loop-vol', 'pt-loop-wave',
+    'pt-loop-status', 'pt-loop-takes', 'pt-loop-take-label'].forEach(id => {
     if (!window.document.getElementById(id)) throw new Error('missing ' + id);
   });
+  /* five switchable takes, and clicking one actually moves the active slot */
+  const takes = window.document.querySelectorAll('#pt-loop-takes .take-btn');
+  if (takes.length !== 5) throw new Error('expected 5 loop takes, got ' + takes.length);
+  takes[2].click();
+  if (window.TT.playtools.state.loop.slot !== 2) throw new Error('clicking take C did not select it');
+  if (!takes[2].classList.contains('on')) throw new Error('selected take is not marked active');
+  takes[0].click();
+  if (window.TT.playtools.state.loop.slot !== 0) throw new Error('clicking take A did not select it');
+  if (window.document.getElementById('pt-loop-bars').value !== '2') throw new Error('loop length should default to 2 bars');
+  if (!window.document.getElementById('pt-loop-snap').checked) throw new Error('auto-align should default to on');
+  if (!window.document.getElementById('pt-loop-countin').checked) throw new Error('count-in should default to on');
   window.document.querySelector('#tools-tabs .tab[data-tab="harmonics"]').click();
   const harms = window.document.querySelectorAll('#pt-harm-out .harm-card').length;
   if (harms < 6) throw new Error('harmonic nodes ' + harms);

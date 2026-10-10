@@ -12,9 +12,9 @@ WebView shell around the web app, so it always ships exactly the code the test s
 Built as **Trill Tuner** (the app was renamed from its earlier working title; any settings, lessons,
 practice time or presets saved under the old name are migrated automatically, so nothing is lost).
 
-**At a glance** — 52 amps · 122 amp tones · 125 pedals · 22 genre recipes · 26 famous rigs · 94 tunings ·
-26 scales · 31 chord types · 165 songs · 30 lessons · 51 artists · 28 techniques · 8 backing feels ·
-13 views · 33 badges — all local, no accounts, no uploads.
+**At a glance** — 70 amps · 141 amp tones · 145 pedals · 22 genre recipes · 41 famous rigs · 94 tunings ·
+26 scales · 31 chord types · 621 songs · 30 lessons · 51 artists · 28 techniques · 8 backing feels ·
+18 views · 33 badges — no accounts; audio never leaves your device.
 
 ## Run it
 
@@ -23,7 +23,8 @@ node server.js        # → http://localhost:3000  (no runtime dependencies)
 ```
 
 ```bash
-npm test              # yin + poly + audio lab + backing studio + songbook + APK structure + the requirements audit
+npm test              # yin + poly + audio lab + backing studio + songbook + play tools + HTTP range rules
+                      # + APK structure + the PWA cache build + the requirements audit
 npm run test:dom      # the whole app booted in jsdom: every view, control and hand-off
 npm run test:e2e      # full browser end-to-end: the app + layout + PWA/offline/demo/QR/remote-sync
 npm run test:apk      # APK structure + a real `apksigner verify` + androguard deep validation
@@ -103,16 +104,16 @@ is that run written out.
 Everything a real rig does, modelled in software — **no cables or hardware needed**; it runs on the
 Web Audio engine that is already in the page.
 
-- **52 classic and modern amps** across 29 brands — Fender Twin/Deluxe/Pro Junior, Vox AC30/AC10,
+- **70 classic and modern amps** across 38 brands — Fender Twin/Deluxe/Pro Junior, Vox AC30/AC10,
   Marshall Plexi/JCM800/Silver Jubilee/Bluesbreaker, Mesa Mark V & Dual Rectifier, Peavey 6505,
   EVH, Diezel VH4, Roland JC-120, Boss Katana, Fender Tone Master, Yamaha THR10II, Positive Grid
   Spark, Kemper, PRS Archon, Blackstar HT, Morgan AC20, Two-Rock Burnside, Dumble-style, Supro
   Thunderbolt, Ampeg B-15, Fender Rumble 500, Laney Lionheart, Cornford Harlequin and more — each
   with its **real control layout** (knob names, taper ranges, switch positions), speaker/cab,
-  wattage, era, genre notes and **122 voiced tones** taken from how players actually set them.
+  wattage, era, genre notes and **141 voiced tones** taken from how players actually set them.
 - **Turn the knobs** — the amp face is interactive; every knob is drag-to-adjust, and the values are
   the published/typical settings for that circuit, not random numbers.
-- **125 pedals in 19 categories** — overdrive, distortion, fuzz, boost, EQ, compressor, wah, filter,
+- **145 pedals in 19 categories** — overdrive, distortion, fuzz, boost, EQ, compressor, wah, filter,
   chorus, flanger, phaser, vibe, tremolo, delay, reverb, pitch, amp-in-a-box, looper and utility.
   Every pedal carries its real control set, a description, **iconic song settings** and usage tips
   (TS808 — drive 9 / tone 6 / level 7 for that mid-hump solo boost; Big Muff — sustain 3 o'clock for
@@ -129,7 +130,7 @@ Web Audio engine that is already in the page.
   garage/psych, funk rock and the classic rock/blues/metal/country/jazz/surf/stoner/shoegaze/indie
   recipes, each with the amp, the cab, the pedal order and the settings it is actually built from.
   One click loads the whole rig.
-- **26 famous rigs, one click** — Hendrix (Plexi + Fuzz Face + V847 + Uni-Vibe), SRV, Gilmour
+- **41 famous rigs, one click** — Hendrix (Plexi + Fuzz Face + V847 + Uni-Vibe), SRV, Gilmour
   (Hiwatt DR103 + Big Muff + Electric Mistress + Phase 95), The Edge, Slash, Hetfield, EVH, Cobain,
   Brian May, Jack White, Frusciante (WH10 + DS-2 + CE-1 + Memory Man), Knopfler, Petty, Santana,
   McCready, Hammett, Trower, Electric Wizard, Entombed, Dimebag Darrell, The Smashing Pumpkins,
@@ -157,6 +158,45 @@ Web Audio engine that is already in the page.
 - **Pickups & mods** — 10 wiring/mod cards (coil split, treble bleed, 50s wiring, series/parallel…)
   with what it does and why.
 
+### Phrase looper — five takes, locked to the tempo
+
+The floor-pedal trick without the pedal, and without the usual fumble at the record button.
+
+**It does the timing for you.** Press **Rec** and the looper starts the metronome if it is not already
+running, counts one bar in, then starts recording **on the downbeat**, runs for exactly the number of
+bars you picked (1/2/4/8) and **stops itself on the beat**. Recording is armed against
+`ctx.currentTime` — the same clock the metronome schedules its clicks from — and the captured audio is
+cut by sample timestamp, so "starts on the beat" is literally true rather than roughly true. You never
+have to hit a button at the right moment, which is the reason most home-recorded loops drift.
+
+**Then it cleans the take up.** In order: DC offset removed (a non-zero mean makes the loop point pop),
+leading and trailing silence trimmed against a threshold derived from the take's own noise floor (so a
+treated room and a loud amp both work, with 15 ms of pre-roll kept so the attack is not clipped), the
+length landed on a whole number of bars, and a 30 ms equal-power **crossfade folded into the loop
+seam** — the tail of the phrase is blended over its own head, so the wrap sits between two samples that
+were neighbours in the source. No gap, no click, no doubled first note. Level is normalised to a 0.95
+ceiling on the way out.
+
+**No metronome? It reads the tempo off your playing.** With auto-align on but no clock locked, an
+onset-envelope autocorrelation (`detectTempo`, 60–180 BPM) works the tempo out of the take and the loop
+is quantised to that instead. With auto-align off it records free, still trims the air and still folds
+the seam.
+
+**Five takes, A–E.** Recording writes to the selected slot, so you can bank a few passes and switch the
+instant one stops sitting right — click a letter, press **A–E**, or use **←/→** on the take row. Takes
+are independent: switch and the loop restarts on that one immediately. **Overdub** stacks a layer onto
+the active take instead of replacing it, and **Undo** takes the last pass back either way. **Clear**
+empties the active take; press it again on an empty take to empty all five.
+
+On the waveform, the faint vertical lines are bar boundaries at the grid tempo and the shaded strip at
+the left is the seam crossfade — so you can *see* the alignment instead of trusting it. If the loop is
+on the grid, every bar line lands on the same place in your phrase every time round.
+
+All of the alignment maths is pure functions over a `Float32Array` (`alignTake`, `trimSilence`,
+`detectTempo`, `foldSeam`, `crossfadeSeam`), unit-tested in `test/playtools-test.js`, and the whole
+record → count-in → quantise → store pipeline is driven end to end against a fake AudioContext and
+metronome in `test/looper-test.js`.
+
 ## Practice studio
 
 - **9 drills** (alternate picking, spider walk, legato, string skipping, sweep, bend accuracy,
@@ -170,7 +210,7 @@ Web Audio engine that is already in the page.
 ## Progress, sharing & persistence
 
 - **Progress dashboard** — 12 stats (practice minutes, streak, tunings used, amps loaded, pedals
-  added, lessons done…), 24 unlockable badges and a snapshot history.
+  added, lessons done…), 33 unlockable badges and a snapshot history.
 - **Share your progress** — generates a share card image, a compact share link/code you can copy
   (no server, no account — it is encoded in the link itself) and an import box for a code someone
   sent you, safe-merged into your own data.
@@ -184,8 +224,9 @@ Web Audio engine that is already in the page.
 
 ## Splash screen
 
-Every launch shows a branded splash — logo, version, live library counters ("94 tunings · 125
-pedals · 52 amps"), a boot log that reports what actually loaded and what was skipped (mic, storage,
+Every launch shows a branded splash — logo, version, live library counters ("94 tunings · 145
+pedals · 70 amps", read from the libraries that actually loaded), a boot log that reports what
+actually loaded and what was skipped (mic, storage,
 polyphony), a progress bar, and then it lets you in. Press **Enter** (or *Enter without waiting*)
 at any time to skip straight to the app.
 
@@ -220,9 +261,9 @@ lyric searches. Audio never leaves your machine.
 
 ## Songs, styles and players
 
-- **Songbook (165 songs)** — every entry carries the key, tempo, capo, the chords **as the shapes you
+- **Songbook (621 songs)** — every entry carries the key, tempo, capo, the chords **as the shapes you
   actually play**, the progression written out, difficulty and playing notes. The offline catalogue
-  also holds 30 technique lessons, 51 artist pages and 25 techniques of style guides — no connection
+  also holds 30 technique lessons, 51 artist pages and a 28-entry technique glossary — no connection
   needed, ever.
 - **Search that works from any field** — a half-remembered title, an artist on its own, a genre
   ("shoegaze"), a difficulty, or a chord list ("G C D") all find songs; results carry play-along
@@ -394,7 +435,7 @@ The web version is a full **progressive web app**:
   detects an in-tune low E from the microphone with zero JavaScript errors.
 - Installable: the browser's install prompt is captured and offered as an
   **📱 Install app** button in Tuning setup; installed, it runs standalone.
-- **Mobile-optimized and measured**: the E2E sweeps all 16 views *and every tab* at a
+- **Mobile-optimized and measured**: the E2E sweeps all 18 views *and every tab* at a
   390×844 phone viewport (no horizontal overflow anywhere), checks the sidebar stays
   tappable while the page scrolls, the demo card fits the screen, and the tuner works at
   phone size. Boot time and mic→in-tune latency are measured too (~0.8 s boot,
@@ -402,7 +443,7 @@ The web version is a full **progressive web app**:
 
 ## Guided demo — skippable, every section, progress saved
 
-A **26-step guided tour** covers all 16 sections one by one — it opens automatically on
+A **29-step guided tour** covers all 18 sections one by one — it opens automatically on
 the very first visit (after the splash), and can be restarted any time from
 Tuning setup → **🧭 Take the tour**:
 

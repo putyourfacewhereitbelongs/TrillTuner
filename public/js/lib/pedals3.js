@@ -4,9 +4,9 @@
  * Scandinavian chainsaw, the funk wah, the Dimension, the King of Tone, the
  * Talk Box, the rotary sim, the modern digital powerhouses.
  *
- * Loads after lib/pedals2.js and merges into TT.pedals, so rig.js sees one
- * library: 112 pedals across 22 categories, each with its real controls and
- * real-world settings.
+ * Loads after lib/pedals2.js and merges its deep cuts into TT.pedals; pedals4.js
+ * adds the final group, so rig.js sees the complete combined library with
+ * real controls and real-world settings.
  */
 (function () {
   'use strict';

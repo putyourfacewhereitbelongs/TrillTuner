@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Trill Tuner — Android app manifest.
      The app is a thin WebView shell around the web app (bundled as assets),
-     so the APK always ships exactly the tested web code. Built by tools/build-apk.py. -->
+     so the APK always ships exactly the tested web code. Built by tools/build-apk.py,
+     which overrides android:versionCode / android:versionName from package.json
+     (versionCode = major*10000 + minor*100 + patch, e.g. 2.1.0 -> 20100). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.trilltuner.app"
-    android:versionCode="2"
+    android:versionCode="20100"
     android:versionName="2.1.0">
 
   <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34"/>

@@ -57,6 +57,54 @@ function clean(s) {
   return String(s || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+/* Parse a Range header against a known size (RFC 9110 §14.1.2). Returns one of:
+ *   { kind: 'ignore' }                        — serve the whole representation
+ *   { kind: 'range', start, end }             — serve 206 with these inclusive bounds
+ *   { kind: 'unsatisfiable' }                 — answer 416 Range Not Satisfiable
+ *
+ * The rules that used to be missing here, all of which download managers hit:
+ *   • a suffix range ("bytes=-500", the last 500 bytes) was read as bytes 0-500
+ *   • an end past the end of the file was rejected with 416 instead of clipped
+ *   • a malformed set was answered with 416, but the spec says an invalid
+ *     byte-range-set must be ignored (whole body), while an unsatisfiable one
+ *     gets 416
+ * Only a single range is honoured; a multi-range set is ignored (serving the
+ * whole file is always allowed, and no resumable download asks for two). */
+function parseByteRange(header, size) {
+  const IGNORE = { kind: 'ignore' };
+  const UNSATISFIABLE = { kind: 'unsatisfiable' };
+  const value = String(header || '').trim();
+  if (!value) return IGNORE;
+
+  const eq = value.indexOf('=');
+  if (eq < 0) return IGNORE;
+  const unit = value.slice(0, eq).trim().toLowerCase();
+  if (unit !== 'bytes') return IGNORE;                     /* unknown unit → ignore */
+
+  const spec = value.slice(eq + 1).trim();
+  if (!spec || spec.indexOf(',') >= 0) return IGNORE;      /* multi-range → ignore */
+
+  const m = /^(\d*)-(\d*)$/.exec(spec);
+  if (!m || (!m[1] && !m[2])) return IGNORE;               /* syntactically invalid → ignore */
+  if (size <= 0) return UNSATISFIABLE;
+
+  const total = BigInt(size);
+  if (!m[1]) {
+    /* suffix-byte-range-spec: the last N bytes */
+    const suffix = BigInt(m[2]);
+    if (suffix === 0n) return UNSATISFIABLE;               /* a zero-length suffix is unsatisfiable */
+    const start = suffix >= total ? 0n : total - suffix;
+    return { kind: 'range', start: Number(start), end: Number(total - 1n) };
+  }
+
+  const start = BigInt(m[1]);
+  if (start >= total) return UNSATISFIABLE;                /* nothing left to send */
+  let end = m[2] ? BigInt(m[2]) : total - 1n;
+  if (end < start) return IGNORE;                          /* last < first → invalid → ignore */
+  if (end >= total) end = total - 1n;                      /* clipped, never 416 */
+  return { kind: 'range', start: Number(start), end: Number(end) };
+}
+
 /* One search box, one query. "artist", "title", "title artist" and "artist -
  * title" are all handled: we work out which half is which, then try to find
  * lyrics for every plausible reading. Returns {result} or throws. */
@@ -278,10 +326,15 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------- the Android APK, hosted by the app itself ---------- */
   if (u.pathname === '/download/trill-tuner.apk' || u.pathname === '/download/TrillTuner.apk') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Allow': 'GET, HEAD' });
+      res.end();
+      return;
+    }
     const fp = path.join(PUBLIC, 'downloads', 'TrillTuner.apk');
     fs.stat(fp, (err, st) => {
       if (err || !st.isFile()) {
-        send(res, 404, { ok: false, error: 'The APK has not been built yet — run `node tools/build-apk.py` on the host.' });
+        send(res, 404, { ok: false, error: 'The APK has not been built yet — run `npm run build:apk` (or `python3 tools/build-apk.py`) on the host.' });
         return;
       }
       let apkVersion = '';
@@ -293,22 +346,27 @@ const server = http.createServer(async (req, res) => {
         'Cache-Control': 'no-cache',
         'X-APK-Version': apkVersion
       };
-      const range = req.headers.range;
-      if (range) {
-        const m = /bytes=(\d*)-(\d*)/.exec(range);
-        let start = m && m[1] ? parseInt(m[1], 10) : 0;
-        let end = m && m[2] ? parseInt(m[2], 10) : st.size - 1;
-        if (start > end || end >= st.size) { res.writeHead(416, { 'Content-Range': 'bytes */' + st.size }); res.end(); return; }
-        if (start >= st.size) start = 0;
-        res.writeHead(206, Object.assign(headers, {
-          'Content-Range': 'bytes ' + start + '-' + end + '/' + st.size,
-          'Content-Length': end - start + 1
+      const range = parseByteRange(req.headers.range, st.size);
+      if (range.kind === 'unsatisfiable') {
+        res.writeHead(416, Object.assign({}, headers, {
+          'Content-Range': 'bytes */' + st.size,
+          'Content-Length': 0
         }));
-        if (req.method === 'HEAD') { res.end(); return; }
-        fs.createReadStream(fp, { start: start, end: end }).pipe(res);
+        res.end();
         return;
       }
-      res.writeHead(200, Object.assign(headers, { 'Content-Length': st.size }));
+      if (range.kind === 'range') {
+        res.writeHead(206, Object.assign({}, headers, {
+          'Content-Range': 'bytes ' + range.start + '-' + range.end + '/' + st.size,
+          'Content-Length': range.end - range.start + 1
+        }));
+        if (req.method === 'HEAD') { res.end(); return; }
+        fs.createReadStream(fp, { start: range.start, end: range.end }).pipe(res);
+        return;
+      }
+      /* 'ignore': no range, an unknown range unit, or a syntactically invalid
+       * byte-range-set — all of which RFC 9110 says to serve whole. */
+      res.writeHead(200, Object.assign({}, headers, { 'Content-Length': st.size }));
       if (req.method === 'HEAD') { res.end(); return; }
       fs.createReadStream(fp).pipe(res);
     });
@@ -375,7 +433,12 @@ const server = http.createServer(async (req, res) => {
   // static files
   let p = u.pathname === '/' ? '/index.html' : u.pathname;
   let fp = path.normalize(path.join(PUBLIC, p));
-  if (!fp.startsWith(PUBLIC)) { send(res, 403, { ok: false, error: 'forbidden' }); return; }
+  /* prefix must be the directory itself, not just its name — otherwise a
+   * sibling such as /public-secrets would satisfy startsWith(PUBLIC) */
+  if (fp !== PUBLIC && !fp.startsWith(PUBLIC + path.sep)) {
+    send(res, 403, { ok: false, error: 'forbidden' });
+    return;
+  }
   fs.readFile(fp, (err, data) => {
     if (err) { send(res, 404, { ok: false, error: 'not found: ' + p }); return; }
     res.writeHead(200, {
@@ -386,7 +449,13 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, HOST, () => {
-  const shown = HOST === '0.0.0.0' ? 'localhost' : HOST;
-  console.log(`🎸 Trill Tuner is running → http://${shown}:${PORT}`);
-});
+/* Exported so the pure helpers (the range parser above all) can be unit tested
+ * without binding a port; `node server.js` still starts the server. */
+module.exports = { server: server, parseByteRange: parseByteRange };
+
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    const shown = HOST === '0.0.0.0' ? 'localhost' : HOST;
+    console.log(`🎸 Trill Tuner is running → http://${shown}:${PORT}`);
+  });
+}

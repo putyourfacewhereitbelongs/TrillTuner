@@ -113,6 +113,22 @@ def app_version():
         return json.load(f)['version']
 
 
+def version_code(version=None):
+    """2.1.0 -> 20100, derived from package.json.
+
+    It used to be the constant 2, so every rebuild shipped new assets under the
+    same versionCode and Android saw no upgrade at all. test/apk-verify.py
+    imports this function rather than repeating the rule."""
+    parts = str(version or app_version()).split('.')[:3]
+    nums = []
+    for p in parts:
+        digits = ''.join(ch for ch in p if ch.isdigit())
+        nums.append(int(digits) if digits else 0)
+    while len(nums) < 3:
+        nums.append(0)
+    return nums[0] * 10000 + nums[1] * 100 + nums[2]
+
+
 def stage_assets():
     """Copy public/ into build/assets, excluding the APK download itself."""
     dst = os.path.join(BUILD, 'assets')
@@ -137,7 +153,7 @@ def build_base_apk(aapt2, android_jar, version):
          '-I', android_jar,
          '--manifest', os.path.join(APK_SRC, 'AndroidManifest.xml'),
          '--min-sdk-version', '24', '--target-sdk-version', '34',
-         '--version-code', '2', '--version-name', version,
+         '--version-code', str(version_code(version)), '--version-name', version,
          '-A', os.path.join(BUILD, 'assets'),
          res_zip])
     return base

@@ -57,7 +57,7 @@
     { view: 'tools', target: '#tools-tabs', tab: 'builder', title: 'Chord builder & fretboard trainer',
       text: 'Build any chord and see it on a real fretboard, then take the fretboard trainer — it quizzes you on shapes until they are in your hands. The learn view has the full chord library with fingerings too.' },
     { view: 'tools', target: '#tools-tabs', tab: 'looper', title: 'Phrase looper, drone, CAGED & bends',
-      text: 'Record a riff and play over it, hold a drone in any key, map the five CAGED shapes across the neck, chime natural harmonics, set a saddle, and land bends on pitch — the tools you actually reach for while the guitar is in your lap.' },
+      text: 'Press Rec and the looper counts you in, starts on the downbeat, stops itself on the beat, trims the dead air and crossfades the seam — then banks it in one of five takes you can switch between. Hold a drone in any key, map the five CAGED shapes across the neck, chime natural harmonics, set a saddle, and land bends on pitch — the tools you actually reach for while the guitar is in your lap.' },
     { view: 'rig', target: '#rig-amp-select', title: 'The rig — amps & pedals',
       text: 'A library of real amplifiers with their actual panels and dialed-in settings, 140+ pedals with real controls, 40 famous rigs to load in one click, and a signal chain you can audition through Web Audio — or plug a real guitar in from Hookup.' },
     { view: 'hookup', target: '#view-hookup .card', title: 'Plug in a real guitar',

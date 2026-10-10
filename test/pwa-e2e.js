@@ -347,6 +347,45 @@ const TOUR_N = TOUR.length;
     ok(range.status === 206 && range.len === 100 && /bytes 0-99\//.test(range.cr || ''),
       'Range request → 206 partial content', JSON.stringify(range));
 
+    /* The two answers a download manager actually depends on, fetched in the
+     * page. The deliberately-bad requests (416 / 405) are fired from node
+     * instead: the browser logs every failed fetch to the console, which would
+     * poison the "zero JS errors" check that guards the real page activity. */
+    const rangeEdges = await page.evaluate(async () => {
+      async function get(range) {
+        const r = await fetch('/download/trill-tuner.apk', { headers: { Range: range } });
+        const b = await r.arrayBuffer();
+        return { status: r.status, len: b.byteLength, cr: r.headers.get('content-range') };
+      }
+      return { suffix: await get('bytes=-100'), clipped: await get('bytes=0-999999999') };
+    });
+    const size = served.len;
+    ok(rangeEdges.suffix.status === 206 && rangeEdges.suffix.len === 100
+        && rangeEdges.suffix.cr === `bytes ${size - 100}-${size - 1}/${size}`,
+      'suffix Range returns the final bytes', JSON.stringify(rangeEdges.suffix));
+    ok(rangeEdges.clipped.status === 206 && rangeEdges.clipped.len === size
+        && rangeEdges.clipped.cr === `bytes 0-${size - 1}/${size}`,
+      'range end beyond the APK is clipped to its final byte', JSON.stringify(rangeEdges.clipped));
+    const nodeFetch = async (init) => {
+      const r = await fetch(BASE + '/download/trill-tuner.apk', init);
+      return { status: r.status, len: (await r.arrayBuffer()).byteLength,
+        cr: r.headers.get('content-range'), allow: r.headers.get('allow') };
+    };
+    const unsat = [await nodeFetch({ headers: { Range: 'bytes=-0' } }),
+      await nodeFetch({ headers: { Range: 'bytes=999999999-' } })];
+    ok(unsat.every(r => r.status === 416 && r.cr === `bytes */${size}` && r.len === 0),
+      'unsatisfiable ranges return 416 with the resource size',
+      unsat.map(r => `${r.status} ${r.cr}`).join(' · '));
+    const malformed = [await nodeFetch({ headers: { Range: 'bytes=abc' } }),
+      await nodeFetch({ headers: { Range: 'bytes=5-2' } }),
+      await nodeFetch({ headers: { Range: 'items=0-1' } })];
+    ok(malformed.every(r => r.status === 200 && r.len === size),
+      'a malformed or unknown range is ignored and the whole APK is served',
+      malformed.map(r => String(r.status)).join(' · '));
+    const post = await nodeFetch({ method: 'POST' });
+    ok(post.status === 405 && post.allow === 'GET, HEAD',
+      'APK download rejects unsupported methods', `${post.status} Allow ${post.allow}`);
+
     /* the SW must runtime-cache the download so it works offline too */
     await page.evaluate(async () => { await fetch('/download/trill-tuner.apk'); });
     await new Promise(r => setTimeout(r, 800));
@@ -516,8 +555,15 @@ const TOUR_N = TOUR.length;
     await page.goto(BASE, { waitUntil: 'networkidle0' });
     await dismissSplashAndDemo(page);
     const overflow = [];
-    const allViews = ['tune', 'metronome', 'record', 'lyrics', 'songs', 'styles', 'maker',
-      'stems', 'backing', 'listening', 'learn', 'tools', 'rig', 'mine', 'progress', 'care'];
+    /* every view the nav actually offers — reading the list from the page keeps
+     * this sweep honest when a view is added later (it used to be a hard-coded
+     * 16, so Hookup and Settings were never measured at phone size) */
+    const allViews = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.nav-btn[data-view]'))
+        .map(b => b.getAttribute('data-view'))
+        .filter((v, i, arr) => arr.indexOf(v) === i));
+    ok(allViews.length === 18, 'mobile: the sweep covers every view in the navigation',
+      allViews.length + ' views: ' + allViews.join(', '));
     const checkOverflow = async tag => {
       const w = await page.evaluate(() => ({
         sw: document.documentElement.scrollWidth, iw: window.innerWidth
@@ -560,7 +606,7 @@ const TOUR_N = TOUR.length;
         await checkOverflow(v + '/' + t);
       }
     }
-    ok(overflow.length === 0, 'mobile: no horizontal overflow on all 16 views + every tab', overflow.join(', ') || 'all fit');
+    ok(overflow.length === 0, 'mobile: no horizontal overflow on all ' + allViews.length + ' views + every tab', overflow.join(', ') || 'all fit');
     /* back to the progress view for the card/QR layout checks */
     await page.evaluate(() => TT.app.showView('progress'));
     await new Promise(r => setTimeout(r, 700));

@@ -625,7 +625,37 @@ async function dismissSplash(page) {
     await page.keyboard.press('KeyC');
     const viaKey = await page.evaluate(() => window.TT.playtools.state.loop.slot);
     ok(viaKey === 2, 'pressing C selects take C', 'slot ' + viaKey);
+    /* The pane's own hint promises this: "The loop keeps going while you
+     * switch to CAGED or the bend lab." A promise printed in the UI is a
+     * promise the test has to keep, not something inferred from the call
+     * graph — so actually switch and look. */
     await page.click('#pt-loop-take-0');
+    const beforeSwitch = await page.evaluate(() => ({
+      playing: window.TT.playtools.state.loop.playing,
+      hasNode: !!window.TT.playtools.state.loop.node
+    }));
+    ok(beforeSwitch.playing && beforeSwitch.hasNode, 'take A is looping before the tab switch',
+      'playing ' + beforeSwitch.playing + ', node ' + beforeSwitch.hasNode);
+
+    await page.click('#tools-tabs .tab[data-tab="caged"]');
+    const onCaged = await page.evaluate(() => ({
+      playing: window.TT.playtools.state.loop.playing,
+      hasNode: !!window.TT.playtools.state.loop.node,
+      pane: document.querySelector('#view-tools .tabpane.active').id
+    }));
+    ok(onCaged.playing && onCaged.hasNode, 'switching to CAGED leaves the loop running',
+      onCaged.pane + ': playing ' + onCaged.playing + ', node ' + onCaged.hasNode);
+
+    await page.click('#tools-tabs .tab[data-tab="bends"]');
+    const onBends = await page.evaluate(() => ({
+      playing: window.TT.playtools.state.loop.playing,
+      hasNode: !!window.TT.playtools.state.loop.node,
+      pane: document.querySelector('#view-tools .tabpane.active').id
+    }));
+    ok(onBends.playing && onBends.hasNode, 'and so does switching to the bend lab',
+      onBends.pane + ': playing ' + onBends.playing + ', node ' + onBends.hasNode);
+
+    await page.click('#tools-tabs .tab[data-tab="looper"]');
     await page.click('#pt-loop-clear');
     const cleared = await page.evaluate(() => window.TT.playtools.state.loop.takes[0]);
     ok(cleared === null, 'Clear empties the active take');

@@ -625,6 +625,15 @@ async function dismissSplash(page) {
     await page.keyboard.press('KeyC');
     const viaKey = await page.evaluate(() => window.TT.playtools.state.loop.slot);
     ok(viaKey === 2, 'pressing C selects take C', 'slot ' + viaKey);
+
+    /* The handler lives on document, so a broken guard would steal A–E from
+     * the whole app. Leave the looper pane and prove it does not. */
+    await page.click('#tools-tabs .tab[data-tab="caged"]');
+    await page.keyboard.press('KeyA');
+    const offPane = await page.evaluate(() => window.TT.playtools.state.loop.slot);
+    ok(offPane === 2, 'A–E do nothing once the looper pane is off screen',
+      'slot stayed at ' + offPane);
+    await page.click('#tools-tabs .tab[data-tab="looper"]');
     /* The pane's own hint promises this: "The loop keeps going while you
      * switch to CAGED or the bend lab." A promise printed in the UI is a
      * promise the test has to keep, not something inferred from the call

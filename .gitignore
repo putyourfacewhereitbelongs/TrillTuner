@@ -10,3 +10,6 @@ tools/.cache/
 
 # python bytecode (test/apk-verify.py + tools/*.py)
 __pycache__/
+
+# vendored ONNX Runtime Web (copied from node_modules by tools/vendor-ort.js)
+public/vendor/

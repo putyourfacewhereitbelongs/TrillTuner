@@ -20,6 +20,8 @@ function walk(dir, base) {
     const p = path.join(dir, name);
     const rel = base + '/' + name;
     const st = fs.statSync(p);
+    /* public/vendor/ (the ONNX Runtime WASM, ~12 MB) is cached on first use rather than precached */
+    if (st.isDirectory() && rel === '/vendor') continue;
     if (st.isDirectory()) out.push(...walk(p, rel));
     else out.push(rel);
   }

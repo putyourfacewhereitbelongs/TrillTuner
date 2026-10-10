@@ -362,7 +362,73 @@
     });
   }
 
+  function engineChoice() { return els.engine ? els.engine.value : 'auto'; }
+
+  /* Try the neural model first when it is loaded and can do this instrument.
+   * Returns a result, or null to let the classic engine run. */
+  async function separateWithModel(mode, remove, amount) {
+    const H = TT.htdemucs;
+    const choice = engineChoice();
+    if (!H || choice === 'dsp') return null;
+    if (!H.isReady()) {
+      if (choice === 'model') setStatus('The model is not loaded yet, so the classic engine is running. Download it in the Engine card above.');
+      return null;
+    }
+    if (!H.supports(mode)) {
+      setStatus((PROFILE_LABEL[mode] || mode) + ' is not something the 4-stem model can split out, so the classic engine is running. ' + H.note(), '');
+      await new Promise(r => setTimeout(r, 30));
+      return null;
+    }
+    try {
+      return await H.separateStem(state.channels, state.sr, mode, remove, amount, {
+        onProgress: f => setProgress(f),
+        shouldAbort: () => state.cancel
+      });
+    } catch (e) {
+      if (state.cancel || (e && e.aborted)) { const err = new Error('stopped'); err.aborted = true; throw err; }
+      setStatus('The model failed (' + (e && e.message ? e.message : 'unknown error') + '), so the classic engine is running.', 'err');
+      await new Promise(r => setTimeout(r, 30));
+      return null;
+    }
+  }
+
+  function renderModel(st) {
+    if (!els.modelStatus) return;
+    els.modelStatus.textContent = st.message || 'Not downloaded. The classic engine is in use.';
+    els.modelStatus.className = 'st-status' + (st.status === 'error' ? ' err' : st.status === 'ready' ? ' ok' : '');
+    const busy = st.status === 'downloading' || st.status === 'loading';
+    if (els.modelGet) {
+      els.modelGet.disabled = busy || st.ready;
+      els.modelGet.textContent = st.ready ? '✓ Model loaded' : (S._modelCached ? '▶ Load the model' : '⬇ Download the model (≈172 MB, once)');
+    }
+    if (els.modelFileBtn) els.modelFileBtn.disabled = busy;
+    if (els.modelClear) els.modelClear.hidden = !(st.ready || S._modelCached);
+  }
+
+  function wireModel() {
+    const H = TT.htdemucs;
+    if (!H) return;
+    H.onChange(renderModel);
+    H.hasCached().then(c => { S._modelCached = c; renderModel(H.status()); });
+    renderModel(H.status());
+    if (els.modelGet) els.modelGet.addEventListener('click', async () => {
+      const cached = await H.hasCached();
+      H.load(cached ? 'cache' : 'download').then(() => { S._modelCached = true; }).catch(() => {});
+    });
+    if (els.modelFileBtn) els.modelFileBtn.addEventListener('click', () => { if (els.modelFile) els.modelFile.click(); });
+    if (els.modelFile) els.modelFile.addEventListener('change', () => {
+      const f = els.modelFile.files && els.modelFile.files[0];
+      if (f) H.load({ file: f }).then(() => { S._modelCached = true; }).catch(() => {});
+      els.modelFile.value = '';
+    });
+    if (els.modelClear) els.modelClear.addEventListener('click', async () => {
+      await H.forget(); S._modelCached = false; renderModel(H.status());
+    });
+  }
+
   async function separateNow(mode, remove, amount) {
+    const viaModel = await separateWithModel(mode, remove, amount);
+    if (viaModel) return viaModel;
     /* the worker first: the fallback below is the same engine, in-page */
     if (workerAvailable()) {
       try {
@@ -401,7 +467,9 @@
         : '';
       setStatus(`Done — ${mmss(res.channels[0].length / res.sr)} of audio, ${res.slices > 1 ? res.slices + ' slices, ' : ''}${Math.round(mins * 60)}s source. Press play, or save it as a WAV.${levelled}`, 'ok');
       if (els.effect) {
-        els.effect.innerHTML = isClassic
+        els.effect.innerHTML = res && res.engine === 'model'
+          ? `<b>HT-Demucs model: ${remove ? 'removed' : 'isolated'}.</b> A neural network trained on stems split the song into drums, bass, other and vocals, and ${remove ? 'the chosen stem was taken away from the mix' : 'the chosen stem was kept'}. The model does not remove hiss or room noise; the spectral denoiser in Clean loop handles that.`
+          : isClassic
           ? `<b>Classic karaoke.</b> Everything that is identical in both channels is cancelled — which is exactly where a lead vocal lives. ${mode === 'classic-keep-bass' ? 'The low end is left alone so the song keeps its bottom.' : 'The result is mono, like a 1990s karaoke machine.'}`
           : `<b>${PROFILE_LABEL[mode] || mode}: ${remove ? 'removed' : 'isolated'}.</b> The engine built a sustained-content spectrogram (a per-bin median over time), a transient map (how far each frame sits above that median) and a centre/side split, then weighed them per frequency band for this instrument. ${mode === 'acoustic-guitar' ? 'The acoustic profile leans hard on the sustained, wide, mid-band content, so the electric guitar and the drums stay where they are.' : ''}`;
       }
@@ -810,6 +878,12 @@
       amount: document.getElementById('st-amount'),
       amountShow: document.getElementById('st-amount-show'),
       btnRun: document.getElementById('st-btn-run'),
+      engine: document.getElementById('st-engine'),
+      modelGet: document.getElementById('st-model-get'),
+      modelFileBtn: document.getElementById('st-model-file-btn'),
+      modelFile: document.getElementById('st-model-file'),
+      modelClear: document.getElementById('st-model-clear'),
+      modelStatus: document.getElementById('st-model-status'),
       btnCancel: document.getElementById('st-btn-cancel'),
       runNote: document.getElementById('st-run-note'),
       bar: document.getElementById('st-bar'),
@@ -976,6 +1050,7 @@
       });
     }
     if (els.btnRun) els.btnRun.addEventListener('click', S.run);
+    wireModel();
     if (els.btnCancel) els.btnCancel.addEventListener('click', cancel);
     if (els.runNote) els.runNote.textContent = workerAvailable()
       ? 'Runs in a background thread — the tab stays responsive while a whole song is separated.'

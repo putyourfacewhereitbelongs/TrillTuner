@@ -2,8 +2,8 @@
  * background, and loop only the instrument.
  *
  * Record → the take is denoised (lib/denoise.js: spectral subtraction against
- * the take's own quiet floor) → optionally the vocal is taken out with the same
- * engine the stem lab uses → the result is aligned to whole bars with the
+ * the take's own quiet floor) → optionally the vocal is taken out: by the
+ * HT-Demucs model when it is loaded, else by the classic engine the stem lab uses → the result is aligned to whole bars with the
  * looper's alignTake → looped. The original take is kept alongside so you can
  * flip between Original and Clean and hear exactly what the noise removal did.
  */
@@ -113,14 +113,33 @@
       let x = nr.samples;
       const info = nr.info;
 
+      let vocalEngine = '';
       if (wantVocals) {
-        status('Taking the vocal out… this can take a few seconds.');
-        await yieldFrame();
-        const r = await T.dsp.separateChunked([x], sr, 'vocals', {
-          remove: true, amount: 0.92, sliceSeconds: 15,
-          onProgress: f => status('Taking the vocal out… ' + Math.round(f * 100) + '%')
-        });
-        x = r.channels[0];
+        const H = window.TT && TT.htdemucs;
+        if (H && H.isReady()) {
+          status('Taking the vocal out with the model… this can take a while.');
+          await yieldFrame();
+          try {
+            const r = await H.separateStem([x], sr, 'vocals', true, 0.92, {
+              onProgress: f => status('Taking the vocal out with the model… ' + Math.round(f * 100) + '%')
+            });
+            x = r.channels[0];
+            vocalEngine = 'model';
+          } catch (e) {
+            status('The model failed (' + (e && e.message ? e.message : 'unknown') + ') — taking the vocal out with the classic engine.');
+            await yieldFrame();
+          }
+        }
+        if (!vocalEngine) {
+          status('Taking the vocal out… this can take a few seconds.');
+          await yieldFrame();
+          const r = await T.dsp.separateChunked([x], sr, 'vocals', {
+            remove: true, amount: 0.92, sliceSeconds: 15,
+            onProgress: f => status('Taking the vocal out… ' + Math.round(f * 100) + '%')
+          });
+          x = r.channels[0];
+          vocalEngine = 'classic';
+        }
       }
 
       /* the tempo the metronome is holding, if it is running; otherwise the
@@ -150,7 +169,10 @@
         bits.push('noise down about ' + info.reductionDb.toFixed(1) + ' dB in the gaps' +
           (info.gentle ? ' (no clean gaps in this take, so it went gently)' : ''));
       }
-      if (wantVocals) bits.push('vocal taken out');
+      if (wantVocals) {
+        bits.push('vocal taken out (' + (vocalEngine === 'model' ? 'HT-Demucs model' : 'classic engine' +
+          (window.TT && TT.htdemucs && !TT.htdemucs.isReady() ? ', model not loaded' : '')) + ')');
+      }
       S.summary = bits.join(' · ');
       status('Clean loop ready · ' + S.summary + '.');
       setListen(S.listen);

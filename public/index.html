@@ -667,6 +667,23 @@ try {
           <div class="chipwrap" id="st-history"></div>
         </div>
 
+        <div class="card" id="st-model-card">
+          <div class="card-h small">Engine: the HT-Demucs model</div>
+          <p class="dim smallish">The neural model (HT-Demucs, MIT licence) separates vocals, drums and bass far more cleanly than the classic engine. It is about 172 MB: downloaded once, kept on this device, never bundled in the app. Everything it cannot split still uses the classic engine.</p>
+          <div class="st-model-row">
+            <button class="btn tiny" id="st-model-get">⬇ Download the model (≈172 MB, once)</button>
+            <button class="btn btn-ghost tiny" id="st-model-file-btn">📂 Use a copy from disk</button>
+            <input type="file" id="st-model-file" accept=".onnx" hidden>
+            <button class="btn btn-ghost tiny" id="st-model-clear" hidden>✕ Remove it from this device</button>
+          </div>
+          <div class="st-status" id="st-model-status">Not downloaded. The classic engine is in use.</div>
+          <label class="field inline"><span>Engine</span><select id="st-engine">
+            <option value="auto">Automatic — the model when it can, else classic</option>
+            <option value="model">Model only (classic for what it can't split)</option>
+            <option value="dsp">Classic only</option>
+          </select></label>
+        </div>
+
         <div class="card" id="st-recipes-card">
           <div class="card-h small">Recipes</div>
           <div class="st-presets" id="st-presets"></div>
@@ -1607,6 +1624,8 @@ try {
 <script src="js/recorder.js"></script>
 <script src="js/lyrics.js"></script>
 <script src="js/tabmaker.js"></script>
+<script src="js/lib/htdemucs-core.js"></script>
+<script src="js/htdemucs.js"></script>
 <script src="js/stemlab.js"></script>
 <script src="js/songsearch.js"></script>
 <script src="js/styles.js"></script>

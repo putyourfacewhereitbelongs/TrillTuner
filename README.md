@@ -317,6 +317,45 @@ so the acoustic loses roughly 4.5 dB more than anything else, and both other lay
 couple of dB of where they started. Fewer than −190 dB of the vocal survives the classic karaoke
 recipe. Results can be handed straight to the tab maker.
 
+### The neural engine — HT-Demucs (optional, ~172 MB)
+
+The Stem lab can use a neural model instead of the classic engine. It is **`htdemucs_embedded.onnx`**
+from the [demucs-web](https://github.com/timcsy/demucs-web) project (MIT, © timcsy), hosted at
+`timcsy/demucs-web-onnx` on Hugging Face, run with ONNX Runtime Web (MIT, vendored in
+`public/vendor/ort/`, copied from `node_modules` by `tools/vendor-ort.js` on `npm install`).
+
+- **Size and download.** The model is about **172 MB**. It is never bundled in the app or the APK. In
+  the Stem lab's *Engine* card you download it once (it is kept in Cache Storage under `tt-htdemucs-v1`),
+  or pick a copy from disk. *Remove it from this device* clears it.
+- **What it separates.** Vocals, drums (the whole kit) and bass. Kick, snare and hi-hats cannot be split
+  out of the drums, and guitars, keys, strings and synths cannot be split out of "other", so those recipes
+  — and the classic karaoke modes — always use the classic engine. The status line says so when it happens.
+- **Choosing the engine.** *Automatic* (default) uses the model whenever it is loaded and can do the
+  instrument, otherwise the classic engine. *Model only* uses the classic engine for what the model cannot
+  do, and says why. *Classic only* never loads the model.
+- **Clean loop.** When "Also remove vocals" is on and the model is loaded, Clean loop takes the vocal out
+  with the model (after the spectral noise removal, which still handles hiss and room noise — the model
+  does not). Otherwise it falls back to the classic engine and says so.
+- **Mono input.** A mono source is duplicated to stereo for the model and folded back to mono afterwards.
+- **Sample rate.** Input is resampled to the model's 44.1 kHz and the stems are resampled back.
+- **Limits.** Inference runs in the page on one thread, so a long song takes a while and the page
+  yields between segments to stay responsive. The app does not claim the model's quality on your
+  recordings: check it on a song you know.
+- **APK caveat.** The APK loads the app from `file:///android_asset/`. ONNX Runtime loads its WASM glue
+  with a dynamic ES-module `import()`, which Android WebView blocks from `file://`. So in the APK the
+  model will most likely not load, and the Stem lab and Clean loop use the classic engine with a status
+  message saying so. The vendored runtime adds about 12 MB to the APK (about 3.7 MB compressed in the
+  current build). The web app and PWA are unaffected.
+
+To check the real model on your machine (the model is not in the repo):
+
+```
+HTDEMUCS_MODEL=/path/to/htdemucs_embedded.onnx npm run test:model
+```
+
+Without `HTDEMUCS_MODEL` the test is skipped. The signal path around the model (STFT, mask, overlap-add,
+resampling, the stem mapping) is tested in `npm test` without a model file.
+
 ### The player: waveform, clock, skip, and an A–B loop
 
 The moment a song is loaded — before any separation — it comes up with a **waveform and a clock**,

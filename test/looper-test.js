@@ -167,6 +167,7 @@ function run(s, opts) {
       s.sp.onaudioprocess({ inputBuffer: { getChannelData: () => data, length: n }, playbackTime: ev.at });
     }
     if (opts.until && opts.until(s)) { /* allow early bail */ }
+    if (opts.afterChunk) opts.afterChunk(s, ev.at);
   });
   if (opts.beforeTimers) opts.beforeTimers(s);
   s.fireTimers();
@@ -391,6 +392,38 @@ function run(s, opts) {
     assert.strictEqual(take.bars, 8);
     assert.ok(!/cut short/.test(s.status()), 'should not report a shortfall: ' + s.status());
     return '8 bars · ' + (take.samples.length / sr).toFixed(3) + 's · cap ' + s.P.state.loop.recCap + 's';
+  });
+
+  await check('the capture cap does not run the align pass inside the audio callback', async () => {
+    /* onaudioprocess is the render path. alignTake over a long take is a few
+     * hundred milliseconds of arithmetic, so if the cap stops the recorder
+     * synchronously it stalls the audio thread — the beat-driven stop defers
+     * through setTimeout for exactly this reason, and so must the cap. */
+    const s = session({ align: false });
+    const P = s.P;
+    const threshold = 30 * s.sr;          /* MAX_REC_SEC, with no grid to size it */
+    let cap = null;
+    await P.loopRecStart();
+    run(s, {
+      from: 10.0, to: 10.0 + 31, firstBeat: 1e9, sig: () => 0.3,
+      afterChunk: (sess, at) => {
+        /* key off the cap threshold itself, not off any flag the fix adds:
+         * the first buffer that crosses it is the moment the recorder has to
+         * stop, and by the time this hook runs the align pass must not have
+         * happened yet */
+        const L = P.state.loop;
+        if (cap === null && L.recGot > threshold) {
+          cap = { at: at, takeReady: !!L.takes[0], recStillOn: L.rec };
+        }
+      }
+    });
+    assert.ok(cap, 'the cap threshold was never crossed — test is not exercising anything');
+    assert.strictEqual(cap.takeReady, false,
+      'the take was built inside the audio callback at ' + cap.at.toFixed(2) + 's');
+    assert.strictEqual(cap.recStillOn, true, 'recording was torn down on the audio thread');
+    s.fireTimers();
+    assert.ok(P.state.loop.takes[0], 'the deferred stop never produced a take');
+    return 'cap crossed at ' + cap.at.toFixed(1) + 's, align deferred off the audio thread';
   });
 
   await check('recording is refused nothing and reports honestly when the mic gives up', async () => {

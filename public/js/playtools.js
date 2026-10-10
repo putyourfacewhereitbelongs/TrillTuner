@@ -15,7 +15,7 @@
     loop: {
       rec: false, playing: false, takes: [null, null, null, null, null], slot: 0,
       sr: 44100, node: null, gain: null, rate: 1, recChunks: [], recGot: 0,
-      recSp: null, arm: null
+      recSp: null, arm: null, recCap: 0, capping: false
     },
     drone: { on: false, osc: [], gain: null, root: 7, fifth: true, oct: true },
     caged: { root: 4, quality: 'maj' },
@@ -783,6 +783,7 @@
     const sr = ctx.sampleRate;
 
     L.rec = true; L.recChunks = []; L.recGot = 0; L.arm = null; L.sr = sr;
+    L.capping = false;
 
     /* Work out whether we have a clock to lock to. If the metronome is not
      * running, start it — "auto align with the tempo" is not much use
@@ -825,7 +826,14 @@
       } else {
         loopStatus('Recording… ' + (L.recGot / sr).toFixed(1) + 's');
       }
-      if (L.recGot > sr * (L.recCap || MAX_REC_SEC)) loopRecStop();
+      /* Defer, exactly as the beat-driven stop does. onaudioprocess is the
+       * render path and alignTake over a long take is a few hundred
+       * milliseconds of arithmetic — running it here would stall the audio
+       * thread on the one take that is already the longest. */
+      if (!L.capping && L.recGot > sr * (L.recCap || MAX_REC_SEC)) {
+        L.capping = true;
+        setTimeout(function () { if (S.loop.rec) loopRecStop(); }, 0);
+      }
     };
     L.recSp = sp;
     const rb = el('pt-loop-rec'); if (rb) { rb.textContent = '■ Stop rec'; rb.classList.add('rec-on'); }

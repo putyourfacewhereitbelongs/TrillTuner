@@ -468,6 +468,28 @@ function run(s, opts) {
     return s.status();
   });
 
+  await check('cancelling during the count-in says you cancelled, not that the mic broke', async () => {
+    /* Press Rec, then press it again halfway through the count-in. That is a
+     * deliberate cancel, so blaming the microphone sends the player off to
+     * check a cable that was never the problem. */
+    const s = session({ bpm: 120, bpb: 4, bars: 2 });
+    const P = s.P;
+    const beat = 0.5;
+    await P.loopRecStart();
+    /* two of the four count-in beats, no audio, then the Rec button again */
+    run(s, { from: 10.0, to: 10.0 + 2 * beat, firstBeat: 10.0, sig: () => 0 });
+    assert.strictEqual(P.state.loop.rec, true, 'should still be armed during the count-in');
+    P.loopRecStop();
+    /* never assert.strictEqual on a take object — Node's assert tries to
+     * render the whole Float32Array into the diff message */
+    assert.ok(P.state.loop.takes[0] === null,
+      'a cancel stored a take of ' + ((P.state.loop.takes[0] || {}).samples || []).length + ' samples');
+    assert.ok(!/mic/i.test(s.status()),
+      'a deliberate cancel was reported as a microphone fault: ' + s.status());
+    assert.ok(/cancel/i.test(s.status()), 'status was: ' + s.status());
+    return s.status();
+  });
+
   await check('a take too short to loop is not stored as a loop', async () => {
     const s = session({ bpm: 120, bpb: 4, align: false });
     const P = s.P;

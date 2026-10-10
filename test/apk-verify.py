@@ -8,11 +8,22 @@ signing certificate. Run:  python3 test/apk-verify.py  (uses tools/.cache/venv,
 which tools/build-apk.py creates).
 """
 import glob
+import importlib.util
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APK_PATH = os.path.join(ROOT, 'public', 'downloads', 'TrillTuner.apk')
+
+# The version rule lives in the build script; importing it here keeps the check
+# honest when the version in package.json is bumped.
+_spec = importlib.util.spec_from_file_location(
+    'tt_build_apk', os.path.join(ROOT, 'tools', 'build-apk.py'))
+_build = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_build)
+APP_VERSION = _build.app_version()
+WANT_CODE = str(_build.version_code(APP_VERSION))
 
 VENV_PY = glob.glob(os.path.join(ROOT, 'tools', '.cache', 'venv', 'bin', 'python'))
 PY = VENV_PY[0] if VENV_PY else sys.executable
@@ -37,15 +48,23 @@ print('[*] androguard deep validation of public/downloads/TrillTuner.apk')
 a = APK(APK_PATH)
 
 check('package is com.trilltuner.app', a.get_package() == 'com.trilltuner.app', a.get_package())
-check('versionName is 2.1.0', a.get_androidversion_name() == '2.1.0', str(a.get_androidversion_name()))
-check('versionCode is 2', str(a.get_androidversion_code()) == '2', str(a.get_androidversion_code()))
+check('versionName matches package.json (%s)' % APP_VERSION,
+      a.get_androidversion_name() == APP_VERSION, str(a.get_androidversion_name()))
+check('versionCode is derived from package.json (%s)' % WANT_CODE,
+      str(a.get_androidversion_code()) == WANT_CODE, str(a.get_androidversion_code()))
+
+_src_manifest = open(os.path.join(ROOT, 'apk-src', 'AndroidManifest.xml'), encoding='utf-8').read()
+_src_code = (re.search(r'android:versionCode="(\d+)"', _src_manifest) or [None, ''])[1]
+check('apk-src manifest declares the same versionCode as the build rule',
+      _src_code == WANT_CODE, 'apk-src says %s, package.json implies %s' % (_src_code, WANT_CODE))
 check('app label is "Trill Tuner"', a.get_app_name() == 'Trill Tuner', str(a.get_app_name()))
 
 perms = set(a.get_permissions())
 want_perms = {'android.permission.INTERNET', 'android.permission.RECORD_AUDIO',
               'android.permission.MODIFY_AUDIO_SETTINGS',
               'android.permission.ACCESS_NETWORK_STATE', 'android.permission.VIBRATE'}
-check('all 5 permissions declared', want_perms <= perms, ', '.join(sorted(perms)))
+check('all %d required permissions declared' % len(want_perms), want_perms <= perms,
+      '%d declared: %s' % (len(perms), ', '.join(sorted(perms))))
 
 main = a.get_main_activity()
 check('launcher activity is com.trilltuner.app.MainActivity',

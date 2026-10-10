@@ -1,7 +1,7 @@
 {
   "name": "Trill Tuner",
   "short_name": "Trill Tuner",
-  "description": "A complete guitar companion: from-scratch YIN tuner with strobe and polyphonic strum check, 94 tunings, metronome with jam tracks, recorder, lyric search, a 165-song play-along library, tab maker, stem lab, backing studio, a learning academy, a virtual amp and pedalboard, progress sharing and backups. Works fully offline after the first load.",
+  "description": "A complete guitar companion: from-scratch YIN tuner with strobe and polyphonic strum check, 94 tunings, metronome with jam tracks, recorder, lyric search, a 600+ song play-along library, tab maker, stem lab, backing studio, a learning academy, a virtual amp and pedalboard, progress sharing and backups. Works fully offline after the first load.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

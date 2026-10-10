@@ -55,6 +55,9 @@
   }
 
   function setLED(idx, accent) {
+    /* the looper can start the metronome from another view; drawQueue still
+     * ticks over, so do not assume the LED strip has been wired up */
+    if (!els.leds) return;
     els.leds.querySelectorAll('.led').forEach((l, i) => {
       l.classList.toggle('on', i === idx);
       l.classList.toggle('accent', i === idx && !!accent);
@@ -124,6 +127,8 @@
   };
 
   M.init = function () {
+    if (M._ready) return;   /* other modules start the metronome directly */
+    M._ready = true;
     els = {
       bpmNum: document.getElementById('bpm-num'),
       bpmRange: document.getElementById('bpm-range'),

@@ -318,33 +318,46 @@ function kept(out, src) {
   const views = ['styles', 'backing', 'mine'];
   const nav = read('public/index.html');
   const wired = views.every(v => nav.indexOf('data-view="' + v + '"') > 0 && nav.indexOf('id="view-' + v + '"') > 0);
-  const tests = ['test/yin-test.js', 'test/poly-test.js', 'test/dsp-test.js', 'test/backing-test.js', 'test/songs-test.js',
-    'test/apk-test.js', 'test/pwa-e2e.js', 'test/requirements-audit.js', 'test/playtools-test.js']
-    .filter(f => fs.existsSync(path.join(root, f)));
+  /* the suite list is read from package.json instead of restated here, so a
+   * script can never point at a test file that does not exist */
+  const scripts = JSON.parse(read('package.json')).scripts;
+  const referenced = Array.from(new Set(
+    (scripts.test + ' ' + scripts['test:e2e'] + ' ' + scripts['test:dom']).match(/test\/[a-z0-9-]+\.js/g) || []));
+  const missing = referenced.filter(f => !fs.existsSync(path.join(root, f)));
+  const tests = referenced.filter(f => fs.existsSync(path.join(root, f)));
   const badges = (read('public/js/share.js').match(/\{ id: '/g) || []).length;
   const presets = (read('public/js/backing.js').match(/\{ name: '[^']+'/g) || []).length;
+  const stemRecipes = (read('public/js/stemlab.js').match(/\{ id: '/g) || []).length;
   item(10, 'And more advanced things',
-    'Styles & players, Backing studio, My stuff (favourites + session builder), 30 separation recipes, 33 badges, eight node test suites',
-    wired && tests.length === 9 && badges >= 30,
-    views.join(' · ') + ' all reachable · ' + tests.length + '/9 node suites · ' + badges + ' badges · ' +
-    presets + ' backing presets · ' + (read('public/js/stemlab.js').match(/\{ id: '/g) || []).length + ' stem recipes');
+    'Styles & players, Backing studio, My stuff (favourites + session builder), ' + stemRecipes + ' stem recipes, ' + badges + ' badges, every test file named in the npm scripts present on disk',
+    wired && missing.length === 0 && tests.length >= 10 && badges >= 30,
+    views.join(' · ') + ' all reachable · ' + tests.length + ' test files wired into the npm scripts, ' +
+    missing.length + ' missing · ' + badges + ' badges · ' + presets + ' backing presets · ' + stemRecipes + ' stem recipes');
 })();
 
 (function () {
   const html = read('public/index.html');
   const js = read('public/js/playtools.js');
   const tabs = ['looper', 'drone', 'caged', 'harmonics', 'into', 'bends'];
-  const ids = ['pt-loop-rec', 'pt-loop-overdub', 'pt-loop-snap', 'pt-drone-btn', 'pt-caged-out', 'pt-harm-out', 'pt-into-open-btn', 'pt-bend-btn'];
+  const ids = ['pt-loop-rec', 'pt-loop-overdub', 'pt-loop-snap', 'pt-loop-countin', 'pt-loop-bars',
+    'pt-loop-takes', 'pt-loop-take-0', 'pt-loop-take-4', 'pt-drone-btn', 'pt-caged-out',
+    'pt-harm-out', 'pt-into-open-btn', 'pt-bend-btn'];
   const hasTabs = tabs.every(t => html.indexOf('data-tab="' + t + '"') > 0 && html.indexOf('id="tools-' + t + '"') > 0);
   const hasIds = ids.every(id => html.indexOf('id="' + id + '"') > 0);
-  const hasLogic = ['shapeFrets', 'snapLoop', 'droneFreqs', 'CAGED_MAJ', 'HARMONICS'].every(k => js.indexOf(k) > 0);
+  const hasLogic = ['shapeFrets', 'snapLoop', 'alignTake', 'trimSilence', 'detectTempo', 'foldSeam',
+    'TAKE_NAMES', 'droneFreqs', 'CAGED_MAJ', 'HARMONICS'].every(k => js.indexOf(k) > 0);
   const wired = html.indexOf('js/playtools.js') > 0 && read('public/js/tools.js').indexOf('TT.playtools.init') > 0
     && read('public/js/app.js').indexOf('TT.playtools.stop') > 0;
+  const takeCount = (read('public/js/playtools.js').match(/const TAKE_NAMES = \[([^\]]*)\]/) || [, ''])[1]
+    .split(',').map(s => s.trim()).filter(Boolean).length;
   item(19, 'Advanced play tools that make sitting down with a guitar more useful — looper, drone, CAGED, harmonics, intonation, bend lab',
-    'Tools tabs and panes exist, playtools.js maps the five CAGED shapes (open E/A/G/C/D plus minors), snaps loops to metronome bars, holds a root-fifth-octave drone, lists natural-harmonic nodes, and the drone/loop stop when you leave Tools',
-    hasTabs && hasIds && hasLogic && wired && fs.existsSync(path.join(root, 'test', 'playtools-test.js')),
+    'Tools tabs and panes exist; playtools.js maps the five CAGED shapes (open E/A/G/C/D plus minors); the looper arms itself on the metronome, counts a bar in, records a whole number of bars and stops on the beat, trims the dead air, folds the loop seam, and banks ' +
+    takeCount + ' switchable takes (falling back to reading the tempo off the take when the metronome is off); a root-fifth-octave drone holds; natural-harmonic nodes are listed; the drone and loop stop when you leave Tools',
+    hasTabs && hasIds && hasLogic && wired && takeCount === 5 &&
+    fs.existsSync(path.join(root, 'test', 'playtools-test.js')) &&
+    fs.existsSync(path.join(root, 'test', 'looper-test.js')),
     tabs.length + ' play tabs · ' + ids.filter(id => html.indexOf('id="' + id + '"') > 0).length + '/' + ids.length +
-    ' controls · CAGED + snapLoop + droneFreqs + harmonics wired · stops on leave');
+    ' controls · ' + takeCount + ' loop takes · CAGED + alignTake + trimSilence + detectTempo + foldSeam + droneFreqs + harmonics wired · stops on leave');
 })();
 
 /* ---------------------------------------------------------------- */
@@ -380,6 +393,9 @@ function kept(out, src) {
   const man = JSON.parse(read('public/manifest.webmanifest'));
   const sw = read('public/sw.js');
   const head = read('public/index.html');
+  const metaTheme = (head.match(/name="theme-color"[^>]*content="([^"]+)"/) || [])[1] || '';
+  /* the reported colour is read, not remembered: it used to print a hard-coded
+   * amber long after the manifest had moved to white for sun readability */
   const icons = ['public/icons/icon-192.png', 'public/icons/icon-512.png',
     'public/icons/icon-maskable-512.png', 'public/icons/apple-touch-icon.png']
     .every(f => fs.existsSync(path.join(root, f)));
@@ -388,9 +404,10 @@ function kept(out, src) {
     man.name === 'Trill Tuner' && man.display === 'standalone' && man.icons.length >= 3
       && sw.indexOf('cache.addAll') > 0 && sw.indexOf('caches.match') > 0 && sw.indexOf('skipWaiting') > 0
       && head.indexOf('rel="manifest"') > 0 && head.indexOf('name="theme-color"') > 0
+      && metaTheme.toLowerCase() === String(man.theme_color).toLowerCase()
       && head.indexOf('apple-mobile-web-app-capable') > 0 && head.indexOf('viewport-fit=cover') > 0
       && icons && fs.existsSync(path.join(root, 'test', 'pwa-e2e.js')),
-    'manifest “' + man.name + '” standalone · ' + man.icons.length + ' icons · sw precaches the app, falls back to the cached shell offline · theme #f59e0b · mobile viewport · offline E2E green');
+    'manifest “' + man.name + '” standalone · ' + man.icons.length + ' icons · sw precaches the app, falls back to the cached shell offline · theme ' + man.theme_color + ' (meta agrees) · mobile viewport · offline E2E green');
 })();
 
 /* ---------------------------------------------------------------- */

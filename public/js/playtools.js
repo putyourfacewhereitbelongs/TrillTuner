@@ -668,20 +668,26 @@
 
     const align = alignWanted();
     const m = metroState();
-    const bpb = (m && m.bpb) || 4;
-    const bpm = (m && m.bpm) || 0;
+    let bpb = (m && m.bpb) || 4;
+    let bpm = (m && m.bpm) || 0;
     let raw = null, offset = 0, bars = 0;
 
     if (align && st && st.capturing && st.startAt > 0 && st.stopAt > st.startAt) {
       /* Grid-locked. The metronome said exactly when the downbeat was, so
        * take that much audio and no more, plus a sliver either side for the
        * seam fold. Nothing about this needs the player to hit a button at
-       * the right moment, which is the usual way loops go wrong. */
+       * the right moment, which is the usual way loops go wrong.
+       *
+       * The tempo and signature come from the arm, not from the metronome as
+       * it stands now: nudging the BPM during a take is a normal thing to do,
+       * and the take has to be measured against the grid it was played on. */
       const ns = Math.max(16, Math.round(XFADE_SEC * sr));
       const lenSamples = Math.round(st.bar * st.bars * sr);
       raw = loopSlice(chunks, sr, st.startAt - ns / sr, st.startAt + (lenSamples + ns) / sr);
       offset = ns;
       bars = st.bars;
+      bpm = st.bpm || bpm;
+      bpb = st.bpb || bpb;
     } else {
       raw = loopConcat(chunks);
     }
@@ -805,7 +811,10 @@
     if (bar > 0) {
       const bars = el('pt-loop-bars') ? Math.max(1, +el('pt-loop-bars').value || 2) : 2;
       L.arm = {
-        sr: sr, bar: bar, bpb: bpb, bars: bars, beatsLeft: countIn,
+        /* bpm/bpb are captured here, not read back later: the tempo can be
+         * changed while a take is running, and a take recorded on one grid
+         * must not be measured against another */
+        sr: sr, bar: bar, bpm: M.state.bpm, bpb: bpb, bars: bars, beatsLeft: countIn,
         startAt: 0, stopAt: 0, capturing: false, finishing: false, off: null
       };
       L.arm.off = M.onBeat(function (time) {

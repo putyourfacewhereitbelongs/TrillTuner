@@ -165,6 +165,7 @@ function run(s, opts) {
     }
     if (opts.until && opts.until(s)) { /* allow early bail */ }
   });
+  if (opts.beforeTimers) opts.beforeTimers(s);
   s.fireTimers();
   return seen;
 }
@@ -309,6 +310,31 @@ function run(s, opts) {
     assert.ok(lifted > 100, 'the second pass did not add anything (' + lifted + ' samples louder)');
     assert.ok(P.state.loop.takes[0].prev, 'undo should have something to go back to');
     return lifted + ' samples louder, undo armed';
+  });
+
+  await check('a tempo change during the take does not re-measure it against a grid it was never played on', async () => {
+    const s = session({ bpm: 120, bpb: 4, bars: 2 });
+    const P = s.P, sr = s.sr;
+    const beat = 0.5;
+    const startAt = 10.1 + 4 * beat;
+    const sig = t => t < startAt ? 0 : 0.6 * Math.sin(2 * Math.PI * (t - startAt) / beat);
+    await P.loopRecStart();
+    /* the player nudges the metronome up just as the take is wrapping up */
+    run(s, {
+      from: 10.0, to: 10.1 + 12 * beat + 0.4, firstBeat: 10.1, sig: sig,
+      beforeTimers: () => { s.metro.state.bpm = 160; }
+    });
+    P.loopRecStop();
+    const take = P.state.loop.takes[0];
+    assert.ok(take, 'nothing stored');
+    /* two bars at the 120 BPM it was armed at — not 2 bars of 160 BPM, which
+     * would be a third shorter than what was actually played */
+    assert.strictEqual(take.samples.length, Math.round(4 * sr),
+      'loop is ' + (take.samples.length / sr).toFixed(3) + 's, should be 4.000s');
+    assert.strictEqual(take.bpm, 120, 'labelled ' + take.bpm + ' BPM, was recorded at 120');
+    assert.strictEqual(take.bars, 2);
+    return '2 bars · ' + (take.samples.length / sr).toFixed(3) + 's at ' + take.bpm +
+      ' BPM, metronome had moved to ' + s.metro.state.bpm;
   });
 
   await check('recording is refused nothing and reports honestly when the mic gives up', async () => {

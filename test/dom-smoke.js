@@ -310,7 +310,7 @@ check('learn tabs all render', () => {
 });
 check('tools: scales, circle, builder, trainer, tension, setup, capo, mods', () => {
   const tabs = [...window.document.querySelectorAll('#tools-tabs .tab')].map(t => t.dataset.tab);
-  const want = ['scales', 'circle', 'builder', 'game', 'tension', 'setup', 'capo', 'mods', 'looper', 'drone', 'caged', 'harmonics', 'into', 'bends'];
+  const want = ['scales', 'circle', 'builder', 'game', 'tension', 'setup', 'capo', 'mods', 'looper', 'clean', 'drone', 'caged', 'harmonics', 'into', 'bends'];
   want.forEach(t => { if (tabs.indexOf(t) < 0) throw new Error('missing tools tab ' + t); });
   tabs.forEach(t => {
     window.document.querySelector(`#tools-tabs .tab[data-tab="${t}"]`).click();
@@ -323,6 +323,22 @@ check('tools: scales, circle, builder, trainer, tension, setup, capo, mods', () 
   const cells = window.document.querySelectorAll('#game-board .game-cell').length;
   if (!dots || !svg || !diagrams || !cells) throw new Error(`dots ${dots} cof ${svg} chords ${diagrams} cells ${cells}`);
   return `${dots} scale notes · ${svg} circle keys · ${diagrams} chord diagrams · ${cells} trainer cells · ${tabs.length} tabs`;
+});
+check('tools: Clean loop tab opens, and its controls answer without a mic', () => {
+  const doc = window.document;
+  const tab = doc.querySelector('#tools-tabs .tab[data-tab="clean"]');
+  if (!tab) throw new Error('no Clean loop tab');
+  tab.click();
+  if (!doc.getElementById('tools-clean').classList.contains('active')) throw new Error('Clean loop pane did not open');
+  ['cl-rec', 'cl-play', 'cl-ab', 'cl-clear', 'cl-align', 'cl-vocals', 'cl-strength', 'cl-vol', 'cl-status'].forEach(id => {
+    if (!doc.getElementById(id)) throw new Error('missing ' + id);
+  });
+  if (!doc.getElementById('cl-play').disabled) throw new Error('Play should wait for a take');
+  /* with no Web Audio in jsdom, Record must say so rather than throw */
+  doc.getElementById('cl-rec').click();
+  const st = doc.getElementById('cl-status').textContent;
+  if (!st) throw new Error('Record gave no feedback');
+  return 'pane opens · controls present · status: ' + st.slice(0, 60);
 });
 check('menu: Looper is in the Play group and opens the looper tab', () => {
   const doc = window.document;

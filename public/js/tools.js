@@ -675,6 +675,7 @@
     if (name === 'setup') renderSetup();
     if (name === 'capo') renderCapo();
     if (name === 'game' && !state.gamePrompt) newGameRound();
+    if (name === 'clean' && window.TT.cleanloop) TT.cleanloop.init();
     if (window.TT.playtools) {
       TT.playtools.init();
       if (name === 'caged' && TT.playtools.renderCaged) TT.playtools.renderCaged();

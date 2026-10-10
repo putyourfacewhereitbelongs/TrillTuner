@@ -981,6 +981,7 @@ try {
         <button class="tab" data-tab="capo">Capo &amp; transpose</button>
         <button class="tab" data-tab="mods">Pickups &amp; mods</button>
         <button class="tab" data-tab="looper">Looper</button>
+        <button class="tab" data-tab="clean">Clean loop</button>
         <button class="tab" data-tab="drone">Drone</button>
         <button class="tab" data-tab="caged">CAGED</button>
         <button class="tab" data-tab="harmonics">Harmonics</button>
@@ -1142,6 +1143,25 @@ try {
           </div>
           <p class="hint" id="pt-loop-status">Empty — press Rec and play. The loop keeps going while you switch to CAGED or the bend lab.</p>
           <p class="hint smallish">On the waveform: the faint vertical lines are bar boundaries at the grid tempo, and the shaded strip at the left is the seam crossfade. If the loop is on the grid, every bar line lands on the same place in your phrase every time round.</p>
+        </div>
+      </div>
+
+      <div id="tools-clean" class="tabpane">
+        <div class="card">
+          <div class="card-h">Clean loop — the instrument on loop, with the room taken out</div>
+          <p class="hint">Play along with the mic. When you press Stop, the hiss, hum and room noise are taken out of the take, and the vocal too if you ask, then it is trimmed and looped. With the metronome running, the loop is locked to its whole bars. Use <b>Hearing</b> to flip between the cleaned take and the original, so you can hear exactly what was removed. Nothing leaves your device.</p>
+          <p class="hint smallish"><b>Vocal removal</b> works from the stereo image. On one mic it cannot always tell a voice from a centred guitar, so it also thins the guitar. Leave it off unless the voice is the thing that has to go.</p>
+          <div class="tools-controls">
+            <button class="btn btn-primary" id="cl-rec">● Record</button>
+            <button class="btn" id="cl-play" disabled>▶ Play loop</button>
+            <button class="btn tiny" id="cl-ab" disabled>Hearing: clean</button>
+            <button class="btn tiny" id="cl-clear">Clear</button>
+            <label class="check"><input type="checkbox" id="cl-align" checked><span>Lock to the metronome’s bars</span></label>
+            <label class="check"><input type="checkbox" id="cl-vocals"><span>Also remove vocals</span></label>
+            <label class="field inline"><span>Noise removal <b id="cl-strength-val">3.0</b></span><input type="range" id="cl-strength" min="0.5" max="4" step="0.1" value="3"></label>
+            <label class="field inline"><span>Loop volume</span><input type="range" id="cl-vol" min="0" max="1" step="0.01" value="0.9"></label>
+          </div>
+          <p class="hint" id="cl-status">Press Record and play. The room is taken out of whatever the mic hears.</p>
         </div>
       </div>
 
@@ -1597,6 +1617,8 @@ try {
 <script src="js/care.js"></script>
 <script src="js/tools.js"></script>
 <script src="js/playtools.js"></script>
+<script src="js/lib/denoise.js"></script>
+<script src="js/cleanloop.js"></script>
 <script src="js/practice.js"></script>
 <script src="js/rig.js"></script>
 <script src="js/hookup.js"></script>

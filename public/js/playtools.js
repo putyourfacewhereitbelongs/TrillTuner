@@ -667,7 +667,22 @@
     L.arm = null;
     L.recChunks = []; L.recGot = 0;
     const sr = loopSR();
+
+    /* No audio at all is always a microphone problem, whatever the count-in
+     * was doing — in a browser the beat scheduler keeps ticking whether or not
+     * anything is coming down the input, so an empty capture means the input
+     * is dead, not that the player bailed out. */
     if (!chunks.length) { loopStatus('Nothing came through the mic — check the input and try again.'); return; }
+
+    /* The Rec button and the beat scheduler both land here, and they mean
+     * opposite things. Audio arrived but the count-in never finished, so the
+     * player pressed Rec to bail out — there is no take in these chunks, only
+     * the room noise from before the downbeat. Banking that fills a slot with
+     * silence and reports a microphone fault for a deliberate cancel. */
+    if (st && !st.capturing && st.startAt <= 0) {
+      loopStatus('Cancelled — nothing was recorded.');
+      return;
+    }
 
     const align = alignWanted();
     const m = metroState();

@@ -171,7 +171,10 @@
                                 * short enough that the phrase still starts on
                                 * the beat (30 ms is 6 % of a beat at 120 BPM) */
   const MIN_TAKE_SEC = 0.15;   /* below this there is nothing worth looping */
-  const MAX_REC_SEC = 30;
+  const MAX_REC_SEC = 30;      /* floor for a free take with no grid to aim at */
+  const HARD_REC_SEC = 120;    /* ceiling, so 8 bars of 9/8 at 30 BPM cannot
+                                * exhaust memory; the take is clamped honestly
+                                * rather than padded if it runs past this */
 
   function curTake() { return S.loop.takes[S.loop.slot] || null; }
   function loopSR() { return (TT.audio && TT.audio.ctx && TT.audio.ctx.sampleRate) || S.loop.sr || 44100; }
@@ -682,12 +685,28 @@
        * it stands now: nudging the BPM during a take is a normal thing to do,
        * and the take has to be measured against the grid it was played on. */
       const ns = Math.max(16, Math.round(XFADE_SEC * sr));
-      const lenSamples = Math.round(st.bar * st.bars * sr);
-      raw = loopSlice(chunks, sr, st.startAt - ns / sr, st.startAt + (lenSamples + ns) / sr);
-      offset = ns;
-      bars = st.bars;
-      bpm = st.bpm || bpm;
-      bpb = st.bpb || bpb;
+      /* Trust the audio, not the plan. If the metronome was stopped halfway
+       * through, or the take ran past the capture ceiling, the beat that was
+       * going to stop it never arrived — so measure what actually landed and
+       * keep the whole bars inside it. Anything less would hand alignTake a
+       * buffer padded with zeros and a bar count that buffer cannot fill. */
+      let lastT = 0;
+      for (let i = 0; i < chunks.length; i++) if (chunks[i].t1 > lastT) lastT = chunks[i].t1;
+      const gotSec = Math.max(0, lastT - st.startAt);
+      const captured = Math.max(0, Math.floor((gotSec - XFADE_SEC) / st.bar));
+      bars = Math.min(st.bars, captured);
+      if (bars >= 1) {
+        const lenSamples = Math.round(st.bar * bars * sr);
+        raw = loopSlice(chunks, sr, st.startAt - ns / sr, st.startAt + (lenSamples + ns) / sr);
+        offset = ns;
+        bpm = st.bpm || bpm;
+        bpb = st.bpb || bpb;
+        if (bars < st.bars) st.shortBy = st.bars - bars;
+      } else {
+        /* not even one whole bar made it: fall back to trimming by ear */
+        raw = loopConcat(chunks);
+        bars = 0;
+      }
     } else {
       raw = loopConcat(chunks);
     }
@@ -738,7 +757,10 @@
     loopPlay();
 
     const bits = ['Take ' + TAKE_NAMES[S.loop.slot], describeTake(t)];
-    if (t.grid) bits.push('recorded on the beat grid');
+    if (st && st.shortBy) {
+      bits.push('cut short — only ' + t.bars + ' of ' + (t.bars + st.shortBy) +
+        ' bars arrived, so that is all it loops');
+    } else if (t.grid) bits.push('recorded on the beat grid');
     else if (info.quantized) bits.push('snapped to ' + Math.round(info.bpm) + ' BPM read off the take');
     else bits.push('left at the length you played');
     if (info.trimmed) bits.push('air trimmed from both ends');
@@ -803,13 +825,18 @@
       } else {
         loopStatus('Recording… ' + (L.recGot / sr).toFixed(1) + 's');
       }
-      if (L.recGot > sr * MAX_REC_SEC) loopRecStop();
+      if (L.recGot > sr * (L.recCap || MAX_REC_SEC)) loopRecStop();
     };
     L.recSp = sp;
     const rb = el('pt-loop-rec'); if (rb) { rb.textContent = '■ Stop rec'; rb.classList.add('rec-on'); }
 
     if (bar > 0) {
       const bars = el('pt-loop-bars') ? Math.max(1, +el('pt-loop-bars').value || 2) : 2;
+      /* The cap has to cover what was actually asked for: 8 bars of 4/4 at
+       * 60 BPM is 32 s, and a flat 30 s ceiling would cut the last two beats
+       * off a take the player had every reason to expect in full. */
+      const countInSec = countIn * (60 / M.state.bpm);
+      L.recCap = Math.min(HARD_REC_SEC, Math.max(MAX_REC_SEC, countInSec + bar * bars + 2));
       L.arm = {
         /* bpm/bpb are captured here, not read back later: the tempo can be
          * changed while a take is running, and a take recorded on one grid

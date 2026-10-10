@@ -158,6 +158,9 @@ function run(s, opts) {
       s.metro.fire(ev.at, 0, false);
       seen.push('beat@' + ev.at.toFixed(3));
     } else {
+      /* the capture cap can detach the processor mid-run; a real render
+       * thread simply stops calling it, so neither do we */
+      if (!s.sp || typeof s.sp.onaudioprocess !== 'function') return;
       const n = 4096;
       const data = new Float32Array(n);
       for (let i = 0; i < n; i++) data[i] = opts.sig(ev.at - chunkSec + (i + 1) / sr);
@@ -335,6 +338,59 @@ function run(s, opts) {
     assert.strictEqual(take.bars, 2);
     return '2 bars · ' + (take.samples.length / sr).toFixed(3) + 's at ' + take.bpm +
       ' BPM, metronome had moved to ' + s.metro.state.bpm;
+  });
+
+  await check('a take that runs out of audio mid-way comes back honest, not padded with silence', async () => {
+    /* 8 bars of 4/4 at 60 BPM is 32 s, but only 31 s of tape is fed in, so
+     * the beat that would have stopped the take never arrives. Whatever
+     * lands has to be real audio and a whole number of bars — not the zeros
+     * the slice buffer started out with. */
+    const s = session({ bpm: 60, bpb: 4, bars: 8 });
+    const P = s.P, sr = s.sr;
+    const beat = 1.0;
+    const startAt = 10.1 + 4 * beat;
+    const sig = t => t < startAt ? 0 : 0.5 * Math.sin(2 * Math.PI * (t - startAt) / beat);
+    await P.loopRecStart();
+    run(s, { from: 10.0, to: 10.0 + 31, firstBeat: 10.1, sig: sig });
+    P.loopRecStop();
+    const take = P.state.loop.takes[0];
+    assert.ok(take, 'nothing stored');
+    /* the last half second of the loop must still be playing, not dead air */
+    const tailN = Math.round(sr * 0.5);
+    let tailPeak = 0;
+    for (let i = take.samples.length - tailN; i < take.samples.length; i++) {
+      const v = Math.abs(take.samples[i]);
+      if (v > tailPeak) tailPeak = v;
+    }
+    assert.ok(tailPeak > 0.05, 'the loop ends in ' + tailPeak.toFixed(4) + ' of dead air');
+    const sec = take.samples.length / sr;
+    const barSec = (60 / 60) * 4;
+    assert.ok(Math.abs(sec / barSec - Math.round(sec / barSec)) < 0.001,
+      sec.toFixed(3) + 's is not a whole number of ' + barSec + 's bars');
+    assert.ok(take.bars < 8, 'claimed all 8 bars from ' + sec.toFixed(1) + 's of tape');
+    assert.ok(/cut short/.test(s.status()), 'should say it came up short: ' + s.status());
+    return sec.toFixed(2) + 's · ' + take.bars + ' of 8 bars · tail peak ' + tailPeak.toFixed(3);
+  });
+
+  await check('the capture ceiling covers what was asked for — 8 slow bars are not clipped', async () => {
+    /* the old flat 30 s cap cut this take off two beats early; 8 bars of 4/4
+     * at 60 BPM plus a bar of count-in is 36 s and has to survive whole */
+    const s = session({ bpm: 60, bpb: 4, bars: 8 });
+    const P = s.P, sr = s.sr;
+    const beat = 1.0;
+    const startAt = 10.1 + 4 * beat;
+    const sig = t => t < startAt ? 0 : 0.5 * Math.sin(2 * Math.PI * (t - startAt) / beat);
+    await P.loopRecStart();
+    assert.ok(s.P.state.loop.recCap > 32, 'capture cap is only ' + s.P.state.loop.recCap + 's for a 32 s take');
+    run(s, { from: 10.0, to: startAt + 34, firstBeat: 10.1, sig: sig });
+    P.loopRecStop();
+    const take = P.state.loop.takes[0];
+    assert.ok(take, 'nothing stored');
+    assert.strictEqual(take.samples.length, Math.round(32 * sr),
+      'loop is ' + (take.samples.length / sr).toFixed(3) + 's, wanted 32.000s');
+    assert.strictEqual(take.bars, 8);
+    assert.ok(!/cut short/.test(s.status()), 'should not report a shortfall: ' + s.status());
+    return '8 bars · ' + (take.samples.length / sr).toFixed(3) + 's · cap ' + s.P.state.loop.recCap + 's';
   });
 
   await check('recording is refused nothing and reports honestly when the mic gives up', async () => {

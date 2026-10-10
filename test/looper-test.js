@@ -148,14 +148,17 @@ function run(s, opts) {
   const beat = 60 / s.metro.state.bpm;
   const events = [];
   for (let t = opts.from; t < opts.to; t += chunkSec) events.push({ kind: 'chunk', at: t + chunkSec });
+  /* beat indexes count from the metronome's downbeat, like the real scheduler:
+   * opts.firstIdx says which beat of the bar the first fired beat was */
+  const bpb = s.metro.state.bpb, firstIdx = opts.firstIdx || 0;
   for (let k = 0; opts.firstBeat + k * beat < opts.to; k++) {
-    events.push({ kind: 'beat', at: opts.firstBeat + k * beat });
+    events.push({ kind: 'beat', at: opts.firstBeat + k * beat, idx: (k + firstIdx) % bpb });
   }
   events.sort((a, b) => a.at - b.at || (a.kind === 'beat' ? -1 : 1));
   const seen = [];
   events.forEach(ev => {
     if (ev.kind === 'beat') {
-      s.metro.fire(ev.at, 0, false);
+      s.metro.fire(ev.at, ev.idx, ev.idx === 0);
       seen.push('beat@' + ev.at.toFixed(3));
     } else {
       /* the capture cap can detach the processor mid-run; a real render
@@ -466,6 +469,42 @@ function run(s, opts) {
     assert.strictEqual(P.state.loop.takes[0], null, 'stored an empty take');
     assert.ok(/mic/i.test(s.status()), 'status was: ' + s.status());
     return s.status();
+  });
+
+  await check('a metronome already running mid-bar: the take still starts on the downbeat', async () => {
+    /* The metronome is running and the player presses Rec on beat 3 of the
+     * bar. The count-in is four beats; the take must begin on the NEXT
+     * downbeat (beat 1), not on whichever beat happens to follow the count. */
+    const s = session({ bpm: 120, bpb: 4, bars: 1 });
+    const P = s.P, sr = s.sr;
+    const beat = 0.5, bar = 2;
+    const firstBeat = 10.1;
+    const idxAt = k => (k + 2) % 4;                /* beat k of the run is idx (k+2)%4 */
+    /* count-in: k = 0..3 (idx 2,3,0,1); the first beat after it is k=4 (idx 2,
+     * not a downbeat), so the take must wait until k=6 (idx 0) */
+    const downK = 6;
+    const startAt = firstBeat + downK * beat;
+    /* one bar of a tone whose period is exactly one bar: any take that starts
+     * even one beat late comes back with its phase flipped */
+    const tone = t => 0.6 * Math.sin(2 * Math.PI * (t - startAt) / bar);
+    const sig = t => t < startAt ? 0.9 * Math.sin(2 * Math.PI * 5000 * t) : tone(t);
+    await P.loopRecStart();
+    run(s, { from: 10.0, to: startAt + bar + 0.6, firstBeat: firstBeat, firstIdx: 2, sig: sig });
+    P.loopRecStop();
+    const take = P.state.loop.takes[0];
+    assert.ok(take, 'nothing was stored in take A · status: ' + s.status());
+    assert.strictEqual(take.bars, 1, 'bars: ' + take.bars);
+    /* compare the body of the loop with the expected tone, shape-for-shape */
+    let peak = 0;
+    for (let i = 0; i < take.samples.length; i++) peak = Math.max(peak, Math.abs(take.samples[i]));
+    const g = peak / 0.6;
+    let worst = 0;
+    for (let i = 2000; i < take.samples.length - 2000; i += 37) {
+      const want = g * tone(startAt + i / sr);
+      worst = Math.max(worst, Math.abs(take.samples[i] - want));
+    }
+    assert.ok(worst < 0.02 * g, 'take is ' + (worst / g * 100).toFixed(0) + '% off the downbeat');
+    return '1 bar · starts on beat 1 of the bar · worst error ' + (worst / g * 100).toFixed(2) + '%';
   });
 
   await check('a take too short to loop is not stored as a loop', async () => {

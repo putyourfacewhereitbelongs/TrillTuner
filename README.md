@@ -160,6 +160,8 @@ Web Audio engine that is already in the page.
 
 ### Phrase looper — five takes, locked to the tempo
 
+**Where it lives:** the side menu, under **Play → Looper** (it opens the looper tab of Tools).
+
 The floor-pedal trick without the pedal, and without the usual fumble at the record button.
 
 **It does the timing for you.** Press **Rec** and the looper starts the metronome if it is not already

@@ -560,8 +560,7 @@
       b.classList.toggle('filled', !!t);
       b.setAttribute('aria-pressed', i === S.loop.slot ? 'true' : 'false');
       b.title = t
-        ? 'Take ' + TAKE_NAMES[i] + ' — ' + t.samples.length / t.sr
-          .toFixed(1) + 's' + (t.bars ? ', ' + t.bars + ' bar' + (t.bars === 1 ? '' : 's') : '') +
+        ? 'Take ' + TAKE_NAMES[i] + ' — ' + (t.samples.length / t.sr).toFixed(2) + 's' + (t.bars ? ', ' + t.bars + ' bar' + (t.bars === 1 ? '' : 's') : '') +
           (t.bpm ? ' at ' + Math.round(t.bpm) + ' BPM' : '') + '. Click to switch to it.'
         : 'Take ' + TAKE_NAMES[i] + ' — empty. Click, then press Rec to fill it.';
     });
@@ -616,7 +615,10 @@
   function loopPlay() {
     const L = S.loop;
     const t = curTake();
-    if (!t || !t.samples || !t.samples.length) return;
+    if (!t || !t.samples || !t.samples.length) {
+      loopStatus('Take ' + TAKE_NAMES[S.loop.slot] + ' is empty — press Rec and play a phrase first.');
+      return;
+    }
     const ctx = TT.audio.ensure();
     loopStopNode();
     const buf = ctx.createBuffer(1, t.samples.length, t.sr);
@@ -860,7 +862,7 @@
         sr: sr, bar: bar, bpm: M.state.bpm, bpb: bpb, bars: bars, beatsLeft: countIn,
         startAt: 0, stopAt: 0, capturing: false, finishing: false, off: null
       };
-      L.arm.off = M.onBeat(function (time) {
+      L.arm.off = M.onBeat(function (time, idx) {
         const a = S.loop.arm;
         if (!a || !S.loop.rec) return;
         if (!a.capturing) {
@@ -869,8 +871,13 @@
             a.beatsLeft--;
             return;
           }
-          /* the count fills one bar, so this beat is the downbeat of the
-           * next bar — the loop starts where the player was told it would */
+          /* The count is done, but a metronome that was already running may
+           * be part way through a bar. Only the downbeat (beat 0 of the bar)
+           * is allowed to start the take, or it would not start on the one. */
+          if (typeof idx === 'number' && idx !== 0) {
+            loopStatus('Count-in done — waiting for the downbeat…');
+            return;
+          }
           a.capturing = true;
           a.startAt = time;
           a.stopAt = time + a.bar * a.bars;
@@ -887,7 +894,7 @@
         }
       });
       loopStatus('Armed — take ' + TAKE_NAMES[L.slot] + ' starts on the ' +
-        (countIn ? 'downbeat after a ' + countIn + '-beat count-in' : 'next beat') +
+        (countIn ? 'downbeat after a ' + countIn + '-beat count-in' : 'next downbeat') +
         ', runs ' + bars + ' bar' + (bars === 1 ? '' : 's') + ', and stops itself.');
     } else {
       loopStatus(overdub

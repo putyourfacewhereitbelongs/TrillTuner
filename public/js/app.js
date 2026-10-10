@@ -60,8 +60,16 @@
   app.closeMenu = closeMenu;
   app.openMenu = openMenu;
 
-  app.showView = function (id) {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
+  app.showView = function (id, tab) {
+    /* a menu item can open a specific Tools tab (Looper), so set it first */
+    if (id === 'tools' && tab && TT.tools && TT.tools.setTab) TT.tools.setTab(tab);
+    const toolsTab = id === 'tools' ? ((document.querySelector('#tools-tabs .tab.active') || {}).dataset || {}).tab : null;
+    /* Tools and Looper share one view, so highlight by the tab that is showing */
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      let on = b.dataset.view === id;
+      if (on && id === 'tools') on = b.dataset.tab ? b.dataset.tab === toolsTab : toolsTab !== 'looper';
+      b.classList.toggle('active', on);
+    });
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + id));
     closeMenu();
     if (id === 'tune') TT.tuner.resume(); else TT.tuner.pause();
@@ -81,7 +89,7 @@
 
   function bindNav() {
     document.querySelectorAll('.nav-btn').forEach(b =>
-      b.addEventListener('click', () => app.showView(b.dataset.view)));
+      b.addEventListener('click', () => app.showView(b.dataset.view, b.dataset.tab)));
     const btn = document.getElementById('btn-menu');
     const backdrop = document.getElementById('nav-backdrop');
     if (btn) btn.addEventListener('click', () => {

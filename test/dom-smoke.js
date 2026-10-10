@@ -324,6 +324,26 @@ check('tools: scales, circle, builder, trainer, tension, setup, capo, mods', () 
   if (!dots || !svg || !diagrams || !cells) throw new Error(`dots ${dots} cof ${svg} chords ${diagrams} cells ${cells}`);
   return `${dots} scale notes · ${svg} circle keys · ${diagrams} chord diagrams · ${cells} trainer cells · ${tabs.length} tabs`;
 });
+check('menu: Looper is in the Play group and opens the looper tab', () => {
+  const doc = window.document;
+  const btn = doc.querySelector('.nav-btn[data-view="tools"][data-tab="looper"]');
+  if (!btn) throw new Error('no Looper item in the menu');
+  let heading = btn.previousElementSibling;
+  while (heading && !heading.classList.contains('nav-group')) heading = heading.previousElementSibling;
+  if (!heading || heading.textContent.trim() !== 'Play') throw new Error('Looper is not in the Play group');
+  window.TT.app.showView('tune');
+  btn.click();
+  if (!doc.getElementById('view-tools').classList.contains('active')) throw new Error('Tools view did not open');
+  if (!doc.getElementById('tools-looper').classList.contains('active')) throw new Error('looper pane is not showing');
+  if (!btn.classList.contains('active')) throw new Error('Looper menu item not highlighted');
+  const toolsBtn = doc.querySelector('.nav-btn[data-view="tools"]:not([data-tab])');
+  if (toolsBtn.classList.contains('active')) throw new Error('Tools menu item also highlighted');
+  /* opening Tools from its own item keeps the tab that was last used */
+  window.TT.app.showView('tools');
+  if (!doc.getElementById('tools-looper').classList.contains('active')) throw new Error('Tools lost its tab');
+  window.TT.app.showView('tune');
+  return 'Looper in Play · opens the looper pane · highlights only itself';
+});
 check('play tools: looper, CAGED maps, harmonics, bend lab', () => {
   window.document.querySelector('#tools-tabs .tab[data-tab="caged"]').click();
   const cards = window.document.querySelectorAll('#pt-caged-out .caged-card');

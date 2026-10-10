@@ -169,7 +169,7 @@ const TOUR_N = TOUR.length;
       swController: !!navigator.serviceWorker.controller
     }));
     ok(offline.hasApp, 'offline reload: app boots (TT.app present)');
-    ok(offline.nav === 18, 'offline reload: all 18 nav buttons rendered', String(offline.nav));
+    ok(offline.nav === 19, 'offline reload: all 19 nav buttons rendered', String(offline.nav));
     ok(offline.tuneView, 'offline reload: tune view present');
     ok(offline.bg === 'rgb(255, 255, 255)', 'offline reload: stylesheet applied from cache', offline.bg);
     ok(offline.stylesheetApplied, 'offline reload: card styles applied');
@@ -504,8 +504,8 @@ const TOUR_N = TOUR.length;
     page.on('console', m => { if (m.type() === 'error') page._errors.push('console: ' + m.text()); });
     await page.goto('file://' + path.join(DIR, '..', 'public', 'index.html'), { waitUntil: 'domcontentloaded' });
     const boot = await waitFor(page, () => window.TT && TT.app && TT.app.showView
-      && document.querySelectorAll('.nav-btn').length === 18, 10000, 'app boots on file://');
-    ok(boot, 'file:// (APK shell): the app boots, all 18 nav buttons render');
+      && document.querySelectorAll('.nav-btn').length === 19, 10000, 'app boots on file://');
+    ok(boot, 'file:// (APK shell): the app boots, all 19 nav buttons render');
     await dismissSplashAndDemo(page);
     ok(await page.evaluate(() => !('serviceWorker' in navigator) || !navigator.serviceWorker.controller),
       'file://: no service worker controls the page (registration correctly skipped)');
@@ -657,9 +657,9 @@ const TOUR_N = TOUR.length;
     const t0 = Date.now();
     await page.goto(BASE, { waitUntil: 'domcontentloaded' });
     const booted = await waitFor(page, () => window.TT && TT.app && TT.app.showView
-      && document.querySelectorAll('.nav-btn').length === 18, 15000, 'app boot');
+      && document.querySelectorAll('.nav-btn').length === 19, 15000, 'app boot');
     const bootMs = Date.now() - t0;
-    ok(booted && bootMs < 8000, 'app boots fast', bootMs + ' ms (18 views wired)');
+    ok(booted && bootMs < 8000, 'app boots fast', bootMs + ' ms (19 menu items wired)');
     await dismissSplashAndDemo(page);
     const t1 = Date.now();
     await page.click('#btn-mic-start');
